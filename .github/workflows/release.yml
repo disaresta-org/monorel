@@ -1,12 +1,34 @@
 name: release
+
+# Cuts the release after the always-open release PR is merged.
+#
+# Triggers:
+#   push (main, "chore(release):") — the release PR's merge commit
+#     subject by monorel convention. The non-chore-release pushes are
+#     filtered out via the if guard on the `release` job.
+#   workflow_dispatch — manual escape hatch (the v0.1.0 bootstrap path).
+#
+# Pipeline (release job):
+#   1. monorel release       — write CHANGELOGs, delete consumed
+#                              .changeset/*.md, create the release
+#                              commit, create per-package tags locally.
+#   2. git push --follow-tags — push commit + tags to the remote so
+#                              the forge can validate them.
+#   3. monorel publish       — create one GitHub Release per tag,
+#                              body sourced from each tag's CHANGELOG
+#                              entry.
+#
+# Then build-binaries and build-image fire as workflow_call jobs
+# gated on the release job having cut a root-module (`vX.Y.Z`) tag.
+# Both are called inline rather than via the natural tag-push event:
+# secrets.GITHUB_TOKEN-driven tag pushes are subject to GitHub's
+# anti-recursion rule and don't propagate to push-triggered workflows.
+# The workflow_call path is the supported sidestep.
+
 on:
-  # Manual dispatch + on push of a `chore(release):` commit (the
-  # release PR's merge commit). Manual dispatch is the bootstrap path
-  # before v0.1.0; once monorel-driven releases are in place, the push
-  # path takes over.
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,6 +37,13 @@ jobs:
   release:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
+    outputs:
+      # Latest bare vX.Y.Z tag created by `monorel release`. Empty when
+      # the release was sub-module-only (no root tag); the chained
+      # build jobs skip themselves in that case. monorel itself is
+      # single-package today, so this output is always set on a real
+      # release; the empty-output path is forward-looking.
+      root_tag: ${{ steps.root_tag.outputs.root_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,3 +71,38 @@ jobs:
           go run ./cmd/monorel release
           git push --follow-tags
           go run ./cmd/monorel publish
+
+      - name: Capture root tag
+        id: root_tag
+        # Pick the latest bare vX.Y.Z tag that points at the just-
+        # pushed release commit. Sub-module tags (path/vX.Y.Z) are
+        # excluded by the regex; if none of the released tags match,
+        # the output is empty and the chained build jobs skip.
+        run: |
+          set -euo pipefail
+          root_tag=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          echo "root_tag=${root_tag}" >> "$GITHUB_OUTPUT"
+          if [ -n "$root_tag" ]; then
+            echo "Root module released as $root_tag; chaining build-binaries + build-image."
+          else
+            echo "No root tag at HEAD; build-binaries + build-image will skip."
+          fi
+
+  build-binaries:
+    needs: release
+    if: ${{ needs.release.result == 'success' && needs.release.outputs.root_tag != '' }}
+    uses: ./.github/workflows/build-release-binaries.yml
+    with:
+      tag: ${{ needs.release.outputs.root_tag }}
+    permissions:
+      contents: write
+
+  build-image:
+    needs: release
+    if: ${{ needs.release.result == 'success' && needs.release.outputs.root_tag != '' }}
+    uses: ./.github/workflows/build-image.yml
+    with:
+      tag: ${{ needs.release.outputs.root_tag }}
+    permissions:
+      contents: read
+      packages: write
