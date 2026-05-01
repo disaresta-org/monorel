@@ -27,9 +27,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"monorel.disaresta.com/internal/changeset"
-	"monorel.disaresta.com/internal/config"
-	"monorel.disaresta.com/internal/semver"
+	"monorel.disaresta.com/changeset"
+	"monorel.disaresta.com/config"
+	"monorel.disaresta.com/semver"
 )
 
 // Severity classifies a finding. Errors fail the run; warnings only

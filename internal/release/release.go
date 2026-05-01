@@ -17,10 +17,10 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"monorel.disaresta.com/internal/changelog"
-	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/changelog"
+	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/internal/git"
-	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/plan"
 )
 
 // Options bundles the inputs to [Apply]. All fields except Today are

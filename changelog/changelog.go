@@ -3,10 +3,11 @@
 //
 // Insertion is non-destructive: the new entry is prepended above the
 // existing version history (the first "## " heading), so any prior
-// content — release-please output, hand-written notes, even broken
-// markdown — is preserved verbatim. This is the "hard cut" the user
-// chose during planning: monorel writes Keep-a-Changelog from now
-// forward and leaves whatever was there alone.
+// content (release-please output, hand-written notes, even broken
+// markdown) is preserved verbatim. This is the deliberate "hard cut"
+// monorel makes when migrating a CHANGELOG that was previously
+// maintained by another tool: new entries land in Keep-a-Changelog
+// shape; old entries stay in whatever shape they were written in.
 //
 // If the target file doesn't exist, it's created with a small standard
 // preamble. If the file exists but has no "## " heading yet (e.g. a

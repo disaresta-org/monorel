@@ -71,8 +71,12 @@ monorel/
 - **Provider-neutral forge seam**: `internal/forge.Client` abstracts
   GitHub today, GitLab/Gitea/Bitbucket/Forgejo by adding a subpackage
   + factory case + KnownProviders entry.
-- **Pure-function planner**: `internal/plan.Plan` takes static inputs
-  and returns a ReleasePlan. No I/O. Exhaustively table-tested.
+- **Pure-function planner**: `plan.Plan` takes static inputs and
+  returns a ReleasePlan. No I/O. Exhaustively table-tested. From
+  v0.2.0 it lives at `monorel.disaresta.com/plan` (public API)
+  alongside `config`, `changeset`, `semver`, `validate`, and
+  `changelog`. Side-effect-bearing packages (`release`,
+  `orchestrator`, `forge`, `git`, `cli`) stay in `internal/`.
 
 ## Verification
 

@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/internal/forge"
 	"monorel.disaresta.com/internal/orchestrator"
-	"monorel.disaresta.com/internal/plan"
-	"monorel.disaresta.com/internal/semver"
+	"monorel.disaresta.com/plan"
+	"monorel.disaresta.com/semver"
 )
 
 func nonEmptyPlan() *plan.ReleasePlan {

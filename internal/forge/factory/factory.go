@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/forge"
 	"monorel.disaresta.com/internal/forge/github"
 )

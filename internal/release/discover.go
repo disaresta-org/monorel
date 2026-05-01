@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"monorel.disaresta.com/internal/changelog"
-	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/changelog"
+	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/git"
 )
 
