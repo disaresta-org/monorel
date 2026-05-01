@@ -25,7 +25,7 @@ The off-the-shelf options each have a sharp edge for this layout.
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
 | Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
-| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub today; seam ready |
+| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo |
 | Polyglot / non-language-specific | ✅ | ⚠️ JS-shaped (`package.json` per package) | ✅ | ❌ Go-only by design |
 
 The first three rows are the common ground: every tool in this category will manage independent per-package versions, write a per-package CHANGELOG, and support pre-release windows. The friction shows up below those rows: how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.
@@ -58,7 +58,7 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 - **Tag format is per-package.** `tag_prefix = ""` for the main module yields bare `vX.Y.Z`; `tag_prefix = "transports/foo"` for a sub-module yields `transports/foo/vX.Y.Z`. Both work in the same repo.
 - **Always-open release PR.** The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Merging the PR runs `monorel release` on the merge commit, pushes tags, and publishes per-tag releases.
 - **Pre-release support.** `monorel pre enter rc` switches the repo to release-candidate mode; subsequent releases append `-rc.N` to the next stable version and increment a per-package counter. `pre exit` returns to stable.
-- **Provider-neutral.** GitHub today; GitLab / Gitea / Bitbucket / Forgejo by adding a subpackage. The orchestrator never sees provider-specific types.
+- **Provider-neutral.** GitHub and Gitea (which also covers Forgejo via API compatibility) today; GitLab and Bitbucket by adding a subpackage. The orchestrator never sees provider-specific types.
 
 ## When monorel is overkill
 

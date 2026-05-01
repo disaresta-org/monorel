@@ -30,7 +30,7 @@ Identifies the version-control host that owns the repo. monorel is host-agnostic
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `name` | string | `"github"` | Provider implementation: currently only `"github"`. Future: `"gitlab"`, `"gitea"`, `"bitbucket"`, `"forgejo"`. |
+| `name` | string | `"github"` | Provider implementation. Supported: `"github"`, `"gitea"` (also covers Forgejo via API compatibility). Future: `"gitlab"`, `"bitbucket"`. |
 | `owner` | string | required | The user or org that owns the repo. On GitLab maps to namespace; on Bitbucket to workspace. |
 | `repo` | string | required | The repository name. |
 | `host` | string | `""` | API host for self-hosted installations. Empty means the provider's default public host. |

@@ -27,6 +27,8 @@ func TokenEnvVars(provider string) []string {
 	switch config.ResolveProvider(provider) {
 	case config.ProviderGitHub:
 		return []string{"GITHUB_TOKEN", "GH_TOKEN"}
+	case config.ProviderGitea:
+		return []string{"GITEA_TOKEN"}
 	}
 	return nil
 }
