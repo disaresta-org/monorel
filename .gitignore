@@ -39,5 +39,5 @@ docs/.vitepress/dist/
 docs/.vitepress/cache/
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
