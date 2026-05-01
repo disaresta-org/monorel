@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/semver"
+	"monorel.disaresta.com/internal/semver"
 )
 
 func TestParse_Valid(t *testing.T) {

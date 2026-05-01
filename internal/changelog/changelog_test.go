@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/changelog"
+	"monorel.disaresta.com/internal/changelog"
 )
 
 func TestEntry_Render_AllSections(t *testing.T) {

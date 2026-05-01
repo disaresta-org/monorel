@@ -10,9 +10,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/forge"
-	"github.com/disaresta-org/monorel/internal/forge/github"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/forge/github"
 )
 
 // New constructs a [forge.Client] for the configured provider. Pass an

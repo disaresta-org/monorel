@@ -15,7 +15,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/disaresta-org/monorel/internal/forge"
+	"monorel.disaresta.com/internal/forge"
 )
 
 // Config is the parsed contents of monorel.toml.

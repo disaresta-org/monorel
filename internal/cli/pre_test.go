@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
+	"monorel.disaresta.com/internal/changeset"
 )
 
 func readPreState(t *testing.T, repoDir string) *changeset.PreState {

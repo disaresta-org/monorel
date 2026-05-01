@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/disaresta-org/monorel/internal/forge"
+	"monorel.disaresta.com/internal/forge"
 )
 
 // PublishReleases creates one forge release per entry in res.Releases,

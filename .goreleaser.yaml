@@ -27,7 +27,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/disaresta-org/monorel/internal/cli.Version={{.Version}}
+      - -X monorel.disaresta.com/internal/cli.Version={{.Version}}
 
 archives:
   - id: monorel

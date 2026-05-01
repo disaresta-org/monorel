@@ -1,4 +1,4 @@
-module github.com/disaresta-org/monorel
+module monorel.disaresta.com
 
 go 1.26.2
 

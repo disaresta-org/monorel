@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/changelog"
+	"monorel.disaresta.com/internal/changelog"
 )
 
 func TestParseTopEntry_StandardEntry(t *testing.T) {

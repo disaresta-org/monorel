@@ -15,7 +15,7 @@ import (
 	gogh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
 
-	"github.com/disaresta-org/monorel/internal/forge"
+	"monorel.disaresta.com/internal/forge"
 )
 
 // Options configures a new GitHub-backed [forge.Client].

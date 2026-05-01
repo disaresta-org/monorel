@@ -12,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/semver"
+	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/semver"
 )
 
 func newAddCmd() *cobra.Command {

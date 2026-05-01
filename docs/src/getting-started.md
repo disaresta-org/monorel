@@ -10,7 +10,7 @@ monorel is a single static binary. There's no daemon and no per-repo install bey
 ## Install
 
 ```sh
-go install github.com/disaresta-org/monorel/cmd/monorel@latest
+go install monorel.disaresta.com/cmd/monorel@latest
 ```
 
 Or in CI via the GitHub Action wrapper (see [GitHub Action](/github-action)):

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
+	"monorel.disaresta.com/internal/changeset"
 )
 
 const twoPackageTOML = `

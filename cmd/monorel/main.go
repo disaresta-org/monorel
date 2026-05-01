@@ -1,13 +1,13 @@
 // Command monorel is a changesets-style release tool for multi-module Go monorepos.
 //
-// See https://github.com/disaresta-org/monorel for documentation.
+// See https://monorel.disaresta.com for documentation.
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/disaresta-org/monorel/internal/cli"
+	"monorel.disaresta.com/internal/cli"
 )
 
 func main() {

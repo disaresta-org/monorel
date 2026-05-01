@@ -80,7 +80,7 @@ GoReleaser's auto-generated body is empty (`changelog.disable: true`). Paste the
 ### 6. Verify the install path
 
 ```sh
-go install github.com/disaresta-org/monorel/cmd/monorel@v0.1.0
+go install monorel.disaresta.com/cmd/monorel@v0.1.0
 monorel --version
 # v0.1.0
 ```

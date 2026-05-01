@@ -25,7 +25,7 @@ using explicit ".changeset/*.md" files instead of inferring releases from
 commit messages. Pair with the disaresta-org/monorel-action GitHub Action
 to run an always-open release PR.
 
-Reference docs: https://github.com/disaresta-org/monorel`,
+Reference docs: https://monorel.disaresta.com`,
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,

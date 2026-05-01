@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
+	"monorel.disaresta.com/internal/changeset"
 )
 
 func newPreCmd() *cobra.Command {

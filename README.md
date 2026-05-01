@@ -23,7 +23,7 @@ The Go ecosystem has a real gap: no battle-tested release tool fits "main module
 
 ```sh
 # 1. Install
-go install github.com/disaresta-org/monorel/cmd/monorel@latest
+go install monorel.disaresta.com/cmd/monorel@latest
 
 # 2. Author a changeset describing this PR
 monorel add --package "transports/zerolog:minor" --message "Adds Lazy() helper."

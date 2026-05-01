@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/disaresta-org/monorel/internal/plan"
-	"github.com/disaresta-org/monorel/internal/release"
+	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/internal/release"
 )
 
 func newReleaseCmd() *cobra.Command {

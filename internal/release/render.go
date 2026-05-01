@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/disaresta-org/monorel/internal/plan"
+	"monorel.disaresta.com/internal/plan"
 )
 
 // RenderPreview formats a [plan.ReleasePlan] as markdown suitable for
@@ -26,7 +26,7 @@ func RenderPreview(p *plan.ReleasePlan, today string) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintln(&b, "This PR was opened by [monorel](https://github.com/disaresta-org/monorel). Merge it to release the following packages:")
+	fmt.Fprintln(&b, "This PR was opened by [monorel](https://monorel.disaresta.com). Merge it to release the following packages:")
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "| Package | Bump | From | To |")
 	fmt.Fprintln(&b, "|---|---|---|---|")

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/forge"
+	"monorel.disaresta.com/internal/forge"
 )
 
 func TestFake_FindOpenReleasePR_None(t *testing.T) {

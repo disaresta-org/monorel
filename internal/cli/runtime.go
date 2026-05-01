@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/git"
+	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/git"
 )
 
 // Runtime is the shared state that read-only commands (plan, status,

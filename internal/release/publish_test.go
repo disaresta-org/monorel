@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/forge"
-	"github.com/disaresta-org/monorel/internal/release"
+	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/release"
 )
 
 func TestPublishReleases_AllTags(t *testing.T) {

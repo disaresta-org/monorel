@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/disaresta-org/monorel/internal/changelog"
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/git"
+	"monorel.disaresta.com/internal/changelog"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/git"
 )
 
 // DiscoverPublishables walks the tags pointing at the repo's HEAD,

@@ -20,9 +20,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/semver"
+	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/semver"
 )
 
 // ReleasePlan is the result of [Plan]: every package that needs to be

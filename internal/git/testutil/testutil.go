@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/git"
+	"monorel.disaresta.com/internal/git"
 )
 
 // TestRepo is a real git repo in a temp directory, populated by the

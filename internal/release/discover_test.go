@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/git"
-	"github.com/disaresta-org/monorel/internal/release"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/git"
+	"monorel.disaresta.com/internal/release"
 )
 
 func writeFile(t *testing.T, dir, rel, content string) {

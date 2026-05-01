@@ -12,7 +12,7 @@ messages. Closes the entire class of "release tool got confused"
 failure modes (footer leaks, squash-merge stripping, full-history
 attribution scans) by construction.
 
-**Module path:** `github.com/disaresta-org/monorel`
+**Module path:** `monorel.disaresta.com` (vanity URL via go-import meta tag)
 **GitHub:** `github.com/disaresta-org/monorel`
 **Docs:** VitePress site under `docs/`
 

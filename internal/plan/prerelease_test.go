@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
-	"github.com/disaresta-org/monorel/internal/plan"
-	"github.com/disaresta-org/monorel/internal/semver"
+	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/internal/semver"
 )
 
 func TestPlan_Prerelease_FirstPre(t *testing.T) {

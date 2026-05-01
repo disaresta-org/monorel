@@ -28,7 +28,7 @@ import (
 
 	"github.com/adrg/frontmatter"
 
-	"github.com/disaresta-org/monorel/internal/semver"
+	"monorel.disaresta.com/internal/semver"
 )
 
 // Changeset is one parsed .changeset/<name>.md file.

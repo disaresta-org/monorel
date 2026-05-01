@@ -2,14 +2,13 @@
 #
 # Single-package repo — only the root module ships. Tag prefix is empty
 # so releases produce bare `vX.Y.Z` tags (e.g. `v0.1.0`), the format
-# `go install github.com/disaresta-org/monorel/cmd/monorel@v0.1.0`
-# expects.
+# `go install monorel.disaresta.com/cmd/monorel@v0.1.0` expects.
 
 [forge]
 owner = "disaresta-org"
 repo = "monorel"
 
-[packages."github.com/disaresta-org/monorel"]
+[packages."monorel.disaresta.com"]
 tag_prefix = ""
 path = "."
 changelog = "CHANGELOG.md"

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/git"
-	"github.com/disaresta-org/monorel/internal/git/testutil"
+	"monorel.disaresta.com/internal/git"
+	"monorel.disaresta.com/internal/git/testutil"
 )
 
 // Tests target both the Exec impl (via testutil.NewRepo) and the

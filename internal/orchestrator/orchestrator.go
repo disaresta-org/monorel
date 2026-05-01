@@ -17,9 +17,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/disaresta-org/monorel/internal/forge"
-	"github.com/disaresta-org/monorel/internal/plan"
-	"github.com/disaresta-org/monorel/internal/release"
+	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/internal/release"
 )
 
 // DefaultHeadBranch is the branch name the orchestrator pushes

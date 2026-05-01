@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/git/testutil"
+	"monorel.disaresta.com/internal/git/testutil"
 )
 
 // fixture builds a real on-disk repo with the given monorel.toml and

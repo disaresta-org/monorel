@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/disaresta-org/monorel/internal/changelog"
-	"github.com/disaresta-org/monorel/internal/forge"
-	"github.com/disaresta-org/monorel/internal/forge/factory"
-	"github.com/disaresta-org/monorel/internal/orchestrator"
-	"github.com/disaresta-org/monorel/internal/plan"
-	"github.com/disaresta-org/monorel/internal/release"
+	"monorel.disaresta.com/internal/changelog"
+	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/forge/factory"
+	"monorel.disaresta.com/internal/orchestrator"
+	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/internal/release"
 )
 
 func newPreviewCmd() *cobra.Command {

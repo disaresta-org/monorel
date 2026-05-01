@@ -15,6 +15,18 @@ export default defineConfig({
   async transformHead({ pageData }) {
     const head: HeadConfig[] = [
       ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+      // Vanity import path. Go's toolchain fetches
+      // monorel.disaresta.com/cmd/monorel?go-get=1, parses these
+      // meta tags, then pulls source from the GitHub repo.
+      // pkg.go.dev uses go-source to render "View Source" links.
+      ['meta', {
+        name: 'go-import',
+        content: 'monorel.disaresta.com git https://github.com/disaresta-org/monorel',
+      }],
+      ['meta', {
+        name: 'go-source',
+        content: 'monorel.disaresta.com https://github.com/disaresta-org/monorel https://github.com/disaresta-org/monorel/tree/main{/dir} https://github.com/disaresta-org/monorel/blob/main{/dir}/{file}#L{line}',
+      }],
       ['meta', {
         name: 'keywords',
         content: 'monorel, go, golang, monorepo, release, changesets, semver',

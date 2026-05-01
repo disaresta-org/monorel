@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/disaresta-org/monorel/internal/forge"
-	"github.com/disaresta-org/monorel/internal/forge/factory"
-	"github.com/disaresta-org/monorel/internal/release"
+	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/forge/factory"
+	"monorel.disaresta.com/internal/release"
 )
 
 func newPublishCmd() *cobra.Command {

@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/disaresta-org/monorel/internal/changeset"
-	"github.com/disaresta-org/monorel/internal/config"
-	"github.com/disaresta-org/monorel/internal/plan"
-	"github.com/disaresta-org/monorel/internal/release"
-	"github.com/disaresta-org/monorel/internal/semver"
+	"monorel.disaresta.com/internal/changeset"
+	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/internal/release"
+	"monorel.disaresta.com/internal/semver"
 )
 
 func TestRenderPreview_Empty(t *testing.T) {
