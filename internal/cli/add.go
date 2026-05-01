@@ -69,7 +69,7 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 		// underlying tea program writes the form UI to stderr by
 		// default; checking stdout would falsely allow `monorel add
 		// 2>/tmp/log` (form invisible).
-		bumps, message, err = promptHuh(cmd.InOrStdin(), cmd.ErrOrStderr(), rt.Config, false)
+		bumps, message, err = promptHuh(cmd.InOrStdin(), cmd.ErrOrStderr(), rt.Config)
 		if err != nil {
 			return err
 		}
@@ -251,13 +251,7 @@ func isWriterTTY(w io.Writer) bool {
 // huh.ErrUserAborted (Ctrl-C) is mapped to ErrExit(130) so main()
 // returns a clean SIGINT exit code without printing "Error: user
 // aborted".
-//
-// accessible toggles huh's accessible (line-based) mode. Production
-// passes false and gets the rich TUI; tests pass true and drive the
-// form by writing to in. There is no user-facing way to trigger
-// accessible mode today; it exists strictly so the form composition
-// can be unit-tested without a teatest harness.
-func promptHuh(in io.Reader, out io.Writer, cfg *config.Config, accessible bool) (map[string]semver.BumpLevel, string, error) {
+func promptHuh(in io.Reader, out io.Writer, cfg *config.Config) (map[string]semver.BumpLevel, string, error) {
 	names := cfg.PackageNames()
 	if len(names) == 0 {
 		return nil, "", errors.New("monorel.toml declares no packages")
@@ -268,13 +262,7 @@ func promptHuh(in io.Reader, out io.Writer, cfg *config.Config, accessible bool)
 		options = append(options, huh.NewOption(n, n))
 	}
 
-	wire := func(f *huh.Form) *huh.Form {
-		f = f.WithInput(in).WithOutput(out)
-		if accessible {
-			f = f.WithAccessible(true)
-		}
-		return f
-	}
+	wire := func(f *huh.Form) *huh.Form { return f.WithInput(in).WithOutput(out) }
 
 	var picked []string
 	pickForm := wire(huh.NewForm(huh.NewGroup(
