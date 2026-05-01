@@ -1,0 +1,15 @@
+# monorel's own release configuration. monorel uses monorel.
+#
+# Single-package repo — only the root module ships. Tag prefix is empty
+# so releases produce bare `vX.Y.Z` tags (e.g. `v0.1.0`), the format
+# `go install github.com/disaresta-org/monorel/cmd/monorel@v0.1.0`
+# expects.
+
+[github]
+owner = "disaresta-org"
+repo = "monorel"
+
+[packages."github.com/disaresta-org/monorel"]
+tag_prefix = ""
+path = "."
+changelog = "CHANGELOG.md"

@@ -1,0 +1,71 @@
+# Git hooks managed by lefthook (https://github.com/evilmartians/lefthook).
+# Install once with: lefthook install
+#
+# Hooks run automatically on `git commit` (pre-commit + commit-msg) and
+# `git push` (pre-push). Skip a hook for a single command with --no-verify.
+
+commit-msg:
+  commands:
+    # Lint the commit message with @conventional-commits/parser.
+    # monorel itself follows Conventional Commits even though it
+    # doesn't *infer* releases from commits — the discipline keeps
+    # CHANGELOG bodies consistent.
+    #
+    # Hard-fails if bun or node_modules is missing; the local hook
+    # only matters if it actually runs.
+    conventional-commits:
+      run: |
+        if ! command -v bun >/dev/null 2>&1; then
+          echo "lefthook: bun not on PATH. Install bun (https://bun.sh) or skip with: git commit --no-verify" >&2
+          exit 1
+        fi
+        if [ ! -d node_modules ]; then
+          echo "lefthook: node_modules missing. Run 'bun install' or skip with: git commit --no-verify" >&2
+          exit 1
+        fi
+        bun scripts/lint-commit.mjs --edit {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.go"
+      run: gofmt -w {staged_files}
+      stage_fixed: true
+    vet:
+      glob: "*.go"
+      run: go vet ./...
+    staticcheck:
+      glob: "*.go"
+      run: |
+        if ! command -v staticcheck >/dev/null 2>&1; then
+          echo "staticcheck not on PATH. Install with: go install honnef.co/go/tools/cmd/staticcheck@latest" >&2
+          echo "Or skip this commit with: git commit --no-verify" >&2
+          exit 1
+        fi
+        staticcheck ./...
+    doctoc:
+      glob: "README.md"
+      run: |
+        if ! command -v bun >/dev/null 2>&1; then
+          echo "lefthook: bun not on PATH. Install bun (https://bun.sh) or skip with: git commit --no-verify" >&2
+          exit 1
+        fi
+        if [ ! -d node_modules ]; then
+          echo "lefthook: node_modules missing. Run 'bun install' or skip with: git commit --no-verify" >&2
+          exit 1
+        fi
+        bun run toc
+      stage_fixed: true
+
+pre-push:
+  commands:
+    tidy:
+      run: |
+        go mod tidy
+        if ! git diff --exit-code -- go.mod go.sum >/dev/null 2>&1; then
+          echo "go.mod / go.sum drift after tidy. Stage the changes and commit." >&2
+          exit 1
+        fi
+    test-race:
+      run: go test -race -count=1 ./...
