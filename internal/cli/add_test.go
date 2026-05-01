@@ -233,3 +233,24 @@ func TestAddCmd_Interactive_NoPicks(t *testing.T) {
 		t.Fatal("expected error for empty selection")
 	}
 }
+
+// promptHuh has no end-to-end test. huh accessible mode is the only
+// way to drive the form deterministically from a test, but each
+// accessible field constructs its own bufio.Scanner over the supplied
+// io.Reader. Scanners over-read into their internal 64KB buffer, so
+// the first form's scanner consumes the second and third forms'
+// inputs, leaving them at EOF and hanging or returning garbage.
+// Working around that requires synchronized io.Pipe writes, which is
+// more harness than the glue layer is worth.
+//
+// What's tested elsewhere:
+//   - The bufio fallback path (TestAddCmd_Interactive*) exercises the
+//     same parsePackageFlags/RandomName/IsValidName/WriteFile pipeline.
+//   - semver.ParseBumpLevel covers the "patch"/"minor"/"major" parsing.
+//   - changeset.{Parse,WriteFile,RandomName} are unit-tested in the
+//     changeset package.
+//
+// What's not tested: the form composition (option order, default
+// selection, validation lambdas). Those need a manual TTY check. Add
+// a teatest harness here if huh form composition becomes a regression
+// hotspot.

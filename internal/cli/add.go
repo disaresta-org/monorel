@@ -59,12 +59,17 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-	} else if isTTY(cmd.InOrStdin()) && isTTY(cmd.OutOrStdout()) {
+	} else if isReaderTTY(cmd.InOrStdin()) && isWriterTTY(cmd.ErrOrStderr()) {
 		// Real human at a terminal: drive a huh form (multi-select +
 		// per-package bump select + multi-line text). Falls through
 		// to the bufio path on piped/redirected stdio so scripted use
 		// (echo "1\nminor\n..." | monorel add) keeps working.
-		bumps, message, err = promptHuh(rt.Config)
+		//
+		// Gate is on stdin + stderr (not stdout) because huh's
+		// underlying tea program writes the form UI to stderr by
+		// default; checking stdout would falsely allow `monorel add
+		// 2>/tmp/log` (form invisible).
+		bumps, message, err = promptHuh(cmd.InOrStdin(), cmd.ErrOrStderr(), rt.Config, false)
 		if err != nil {
 			return err
 		}
@@ -212,12 +217,20 @@ func promptBump(rd *bufio.Reader, out io.Writer, name string) (semver.BumpLevel,
 	return level, nil
 }
 
-// isTTY reports whether r is an *os.File pointing at an interactive
-// terminal. Used to decide between the huh-driven TUI path and the
-// bufio-driven scripted path. Anything that isn't an *os.File (e.g.
-// strings.NewReader in tests, bytes.Buffer) is non-TTY by definition.
-func isTTY(r any) bool {
+// isReaderTTY reports whether r is an *os.File on an interactive
+// terminal. Anything that isn't an *os.File (strings.Reader,
+// bytes.Buffer, pipe wrappers) is non-TTY by definition.
+func isReaderTTY(r io.Reader) bool {
 	f, ok := r.(*os.File)
+	if !ok {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
+}
+
+// isWriterTTY mirrors isReaderTTY for io.Writer.
+func isWriterTTY(w io.Writer) bool {
+	f, ok := w.(*os.File)
 	if !ok {
 		return false
 	}
@@ -229,7 +242,22 @@ func isTTY(r any) bool {
 // level, then a Text field for the changelog body. Each form is run
 // independently so the bump-level questions can be generated from the
 // multi-select's result.
-func promptHuh(cfg *config.Config) (map[string]semver.BumpLevel, string, error) {
+//
+// in/out are wired into each form via WithInput/WithOutput so callers
+// (tests, embedded use cases) can drive the form deterministically
+// without monkey-patching os.Stdin/os.Stderr. Production wires
+// cmd.InOrStdin() / cmd.ErrOrStderr().
+//
+// huh.ErrUserAborted (Ctrl-C) is mapped to ErrExit(130) so main()
+// returns a clean SIGINT exit code without printing "Error: user
+// aborted".
+//
+// accessible toggles huh's accessible (line-based) mode. Production
+// passes false and gets the rich TUI; tests pass true and drive the
+// form by writing to in. There is no user-facing way to trigger
+// accessible mode today; it exists strictly so the form composition
+// can be unit-tested without a teatest harness.
+func promptHuh(in io.Reader, out io.Writer, cfg *config.Config, accessible bool) (map[string]semver.BumpLevel, string, error) {
 	names := cfg.PackageNames()
 	if len(names) == 0 {
 		return nil, "", errors.New("monorel.toml declares no packages")
@@ -240,8 +268,16 @@ func promptHuh(cfg *config.Config) (map[string]semver.BumpLevel, string, error) 
 		options = append(options, huh.NewOption(n, n))
 	}
 
+	wire := func(f *huh.Form) *huh.Form {
+		f = f.WithInput(in).WithOutput(out)
+		if accessible {
+			f = f.WithAccessible(true)
+		}
+		return f
+	}
+
 	var picked []string
-	pickForm := huh.NewForm(huh.NewGroup(
+	pickForm := wire(huh.NewForm(huh.NewGroup(
 		huh.NewMultiSelect[string]().
 			Title("Which packages does this changeset affect?").
 			Description("Space toggles, enter confirms.").
@@ -253,25 +289,29 @@ func promptHuh(cfg *config.Config) (map[string]semver.BumpLevel, string, error) 
 				return nil
 			}).
 			Value(&picked),
-	))
-	if err := pickForm.Run(); err != nil {
+	)))
+	if err := runHuhForm(pickForm); err != nil {
 		return nil, "", err
 	}
 
 	bumps := make(map[string]semver.BumpLevel, len(picked))
 	for _, name := range picked {
 		var level string
-		bumpForm := huh.NewForm(huh.NewGroup(
+		bumpForm := wire(huh.NewForm(huh.NewGroup(
 			huh.NewSelect[string]().
 				Title(fmt.Sprintf("Bump level for %s", name)).
 				Options(
-					huh.NewOption("patch — bug fix, no API change", "patch"),
-					huh.NewOption("minor — new feature, backward-compatible", "minor"),
-					huh.NewOption("major — breaking change", "major"),
+					// Patch is the explicit default (Selected): if a
+					// user hits enter without scrolling, the safe
+					// least-bump applies, matching the principle of
+					// least surprise.
+					huh.NewOption("patch (bug fix, no API change)", "patch").Selected(true),
+					huh.NewOption("minor (new feature, backward-compatible)", "minor"),
+					huh.NewOption("major (breaking change)", "major"),
 				).
 				Value(&level),
-		))
-		if err := bumpForm.Run(); err != nil {
+		)))
+		if err := runHuhForm(bumpForm); err != nil {
 			return nil, "", err
 		}
 		l, err := semver.ParseBumpLevel(level)
@@ -282,17 +322,30 @@ func promptHuh(cfg *config.Config) (map[string]semver.BumpLevel, string, error) 
 	}
 
 	var body string
-	bodyForm := huh.NewForm(huh.NewGroup(
+	bodyForm := wire(huh.NewForm(huh.NewGroup(
 		huh.NewText().
 			Title("Changelog body").
 			Description("Markdown. This becomes the entry under the bump-level heading.").
 			CharLimit(0).
 			Value(&body),
-	))
-	if err := bodyForm.Run(); err != nil {
+	)))
+	if err := runHuhForm(bodyForm); err != nil {
 		return nil, "", err
 	}
 	return bumps, strings.TrimSpace(body), nil
+}
+
+// runHuhForm runs a huh.Form, translating huh.ErrUserAborted into
+// ErrExit(130) so Ctrl-C produces a clean SIGINT exit without the
+// stderr "Error: user aborted" line.
+func runHuhForm(f *huh.Form) error {
+	if err := f.Run(); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return ErrExit(130)
+		}
+		return err
+	}
+	return nil
 }
 
 // readMultiline reads lines from rd until a single blank line, then
