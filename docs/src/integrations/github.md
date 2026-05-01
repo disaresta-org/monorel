@@ -31,7 +31,12 @@ The action wrapper passes the workflow's auto-generated `GITHUB_TOKEN` to the bi
 
 ## Workflows
 
-The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged. Both rely on the `disaresta-org/monorel/ci/github` composite action wrapper, which downloads the binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
+The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged. Both rely on the `disaresta-org/monorel/ci/github` composite action wrapper, which:
+
+- Downloads the monorel binary for the runner OS + arch.
+- Configures the git author for any commits the wrapper makes.
+- Stages the `monorel/release` branch (for the `pr` command's speculative apply).
+- Invokes monorel with the configured command (`pr` or `release`).
 
 ::: tip Pre-1.0 pinning
 monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.6.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
@@ -41,7 +46,14 @@ monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin
 
 <!--@include: ../_partials/github-release-pr-yml.md-->
 
-The `pr` command implements **speculative apply**: it stages a fresh `monorel/release` branch off the default branch, runs `monorel apply` on it (writes per-package CHANGELOG entries / `pre.json` increments, deletes consumed `.changeset/*.md` files, creates one `chore(release): ...` commit), and force-pushes. The release PR's diff IS the file changes the release will produce. The orchestrator (`monorel preview --upsert`) then opens or updates the always-open release PR with the rendered plan in its body.
+The `pr` command implements **speculative apply**:
+
+1. Stages a fresh `monorel/release` branch off the default branch.
+2. Runs `monorel apply` on it. `apply` writes per-package CHANGELOG entries (or `pre.json` increments in pre-release mode), deletes consumed `.changeset/*.md` files, and creates one `chore(release): ...` commit.
+3. Force-pushes the result.
+4. Opens or updates the always-open release PR with the rendered plan in its body (via `monorel preview --upsert`).
+
+The release PR's diff IS the file changes the release will produce.
 
 If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
 

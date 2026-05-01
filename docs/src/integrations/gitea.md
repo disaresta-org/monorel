@@ -110,7 +110,11 @@ The error surfaces from the validator (`config.Validate`) when reading `monorel.
 
 ### `gitea: connect <host>: ...`
 
-The `New` constructor performs a server-version handshake against the configured host. If `gitea.New` fails with a connect error, the host is unreachable from the runner: check spelling, whether you need `http://` (not `https://`) for a dev container, and whether the runner can reach the host at all (firewall, DNS).
+The `New` constructor performs a server-version handshake against the configured host. A connect error means the host is unreachable from the runner. Check:
+
+- Spelling of the host value in `monorel.toml`.
+- Whether you need `http://` (not `https://`) for a dev container or unencrypted instance.
+- Whether the runner can reach the host at all (firewall, DNS, VPN).
 
 ### Per-call deadlines don't fire
 

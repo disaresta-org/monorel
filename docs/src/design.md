@@ -43,7 +43,16 @@ The bot orchestrator stages a `monorel/release` branch off the default branch an
 
 `internal/provider.Client` is a six-method interface (`GetDefaultBranch`, `FindOpenReleasePR`, `CreatePR`, `UpdatePR`, `ClosePR`, `CreateRelease`). The factory dispatches by `config.ProviderConfig.Name` to a per-provider subpackage. GitHub today; GitLab / Gitea / Bitbucket / Forgejo by adding a subpackage.
 
-**Why:** The interface is genuinely the slice of host operations monorel uses. Naming the abstraction `provider` (rather than `github`) is a small upfront cost that pays off the first time someone wants GitLab. Adding a new provider requires one new subpackage, one factory case, one entry in `config.KnownProviders`, and one entry in `provider.TokenEnvVars`.
+**Why:** The interface is genuinely the slice of host operations monorel uses. Naming the abstraction `provider` (rather than `github`) is a small upfront cost that pays off the first time someone wants GitLab.
+
+Adding a new provider requires:
+
+- One new subpackage under `internal/provider/<name>/` implementing `provider.Client`.
+- One case in `internal/provider/factory/factory.go`.
+- One entry in `config.KnownProviders`.
+- One entry in `provider.TokenEnvVars` (if the provider uses an env-var token).
+
+The recipe is documented at the top of `factory.go`.
 
 ::: tip CI wrappers are NOT abstracted in Go
 The orchestration layer is provider-neutral, but the **CI wrapper** (the `action.yml` for GitHub, the `.gitlab-ci.yml` for GitLab, etc.) is per-CI-system YAML. There's no shared schema across providers' CI systems; each wrapper is a thin shim that downloads the monorel binary and runs it. They live under `ci/<provider>/` at the repo root.
