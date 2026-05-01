@@ -43,12 +43,14 @@ defaults (CLI flags still override).`,
 // initOptions are the resolved inputs to doInit. All fields are
 // optional: empty strings get filled in from the existing
 // monorel.toml (when --force) or from `git config remote.origin.url`.
+// Type and fields are unexported; the struct exists only as a test
+// seam between cobra-driven runInit and the doInit body.
 type initOptions struct {
-	Dir      string // working directory; defaults to os.Getwd().
-	Provider string // empty -> existing/github fallback.
-	Owner    string // empty -> existing/git-origin fallback.
-	Repo     string // empty -> existing/git-origin fallback.
-	Force    bool
+	dir      string // working directory; defaults to os.Getwd().
+	provider string // empty -> existing/github fallback.
+	owner    string // empty -> existing/git-origin fallback.
+	repo     string // empty -> existing/git-origin fallback.
+	force    bool
 }
 
 func runInit(cmd *cobra.Command, _ []string) error {
@@ -56,37 +58,45 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	opts := initOptions{Dir: cwd}
-	opts.Provider, _ = cmd.Flags().GetString("provider")
-	opts.Owner, _ = cmd.Flags().GetString("owner")
-	opts.Repo, _ = cmd.Flags().GetString("repo")
-	opts.Force, _ = cmd.Flags().GetBool("force")
+	opts := initOptions{dir: cwd}
+	opts.provider, _ = cmd.Flags().GetString("provider")
+	opts.owner, _ = cmd.Flags().GetString("owner")
+	opts.repo, _ = cmd.Flags().GetString("repo")
+	opts.force, _ = cmd.Flags().GetBool("force")
 	return doInit(cmd.OutOrStdout(), opts)
 }
 
 // doInit is the body of `monorel init`, factored out of runInit so
 // tests can drive it without process-global os.Chdir.
 func doInit(out io.Writer, opts initOptions) error {
-	configPath := filepath.Join(opts.Dir, "monorel.toml")
+	configPath := filepath.Join(opts.dir, "monorel.toml")
 
-	if !opts.Force {
+	if !opts.force {
 		if _, err := os.Stat(configPath); err == nil {
 			return errors.New("monorel.toml already exists; rerun with --force to overwrite")
 		}
 	}
 
 	// On --force, reload the existing config so we can preserve
-	// provider/owner/repo edits the user made by hand. A parse
-	// failure means the file is broken anyway; init is going to
-	// overwrite it, so we just fall through to auto-detection.
+	// provider/owner/repo edits the user made by hand. If the file
+	// doesn't exist (--force on a fresh repo), silently fall through
+	// to auto-detect; any other load failure (malformed TOML, schema
+	// drift, validation error) gets a warning so the user knows their
+	// preserved-fields expectation just didn't fire.
 	var existing *config.Config
-	if opts.Force {
-		if cfg, err := config.Load(configPath); err == nil {
+	if opts.force {
+		cfg, err := config.Load(configPath)
+		switch {
+		case err == nil:
 			existing = cfg
+		case errors.Is(err, fs.ErrNotExist):
+			// Fresh repo; nothing to preserve.
+		default:
+			fmt.Fprintf(out, "warning: existing monorel.toml could not be loaded (%v); falling back to auto-detect\n", err)
 		}
 	}
 
-	provider := opts.Provider
+	provider := opts.provider
 	if provider == "" {
 		if existing != nil && existing.Provider.Name != "" {
 			provider = existing.Provider.Name
@@ -94,9 +104,16 @@ func doInit(out io.Writer, opts initOptions) error {
 			provider = "github"
 		}
 	}
+	// Fail upfront if the provider isn't one this build recognizes.
+	// Otherwise init would happily write a monorel.toml that
+	// `monorel validate` (and every command that calls config.Load)
+	// would refuse — confusing for a user who just ran scaffold.
+	if !config.IsKnownProvider(provider) {
+		return fmt.Errorf("provider %q is not recognized; supported: %v", provider, config.KnownProviders)
+	}
 
-	owner := opts.Owner
-	repo := opts.Repo
+	owner := opts.owner
+	repo := opts.repo
 	if existing != nil {
 		if owner == "" {
 			owner = existing.Provider.Owner
@@ -106,7 +123,7 @@ func doInit(out io.Writer, opts initOptions) error {
 		}
 	}
 	if owner == "" || repo == "" {
-		detectedOwner, detectedRepo, err := detectGitRemote(opts.Dir)
+		detectedOwner, detectedRepo, err := detectGitRemote(opts.dir)
 		if err != nil {
 			return fmt.Errorf("could not auto-detect owner/repo from git origin: %w (pass --owner/--repo)", err)
 		}
@@ -118,7 +135,7 @@ func doInit(out io.Writer, opts initOptions) error {
 		}
 	}
 
-	pkgs, err := detectPackages(opts.Dir)
+	pkgs, err := detectPackages(opts.dir)
 	if err != nil {
 		return err
 	}
@@ -130,7 +147,7 @@ func doInit(out io.Writer, opts initOptions) error {
 		return fmt.Errorf("write monorel.toml: %w", err)
 	}
 
-	changesetDir := filepath.Join(opts.Dir, ".changeset")
+	changesetDir := filepath.Join(opts.dir, ".changeset")
 	if err := os.MkdirAll(changesetDir, 0755); err != nil {
 		return fmt.Errorf("create .changeset/: %w", err)
 	}
@@ -138,10 +155,10 @@ func doInit(out io.Writer, opts initOptions) error {
 	switch _, err := os.Stat(readmePath); {
 	case errors.Is(err, fs.ErrNotExist):
 		if err := os.WriteFile(readmePath, []byte(changesetReadme), 0644); err != nil {
-			return fmt.Errorf("write .changeset/README.md: %w", err)
+			return fmt.Errorf("write %s: %w", readmePath, err)
 		}
 	case err != nil:
-		return fmt.Errorf("stat .changeset/README.md: %w", err)
+		return fmt.Errorf("stat %s: %w", readmePath, err)
 		// else: file present, leave it alone.
 	}
 

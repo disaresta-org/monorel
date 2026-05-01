@@ -203,7 +203,7 @@ func TestDoInit_FreshRepo(t *testing.T) {
 	writeMod(t, dir, "go.mod", "module github.com/acme/widget\n")
 
 	var out bytes.Buffer
-	if err := doInit(&out, initOptions{Dir: dir}); err != nil {
+	if err := doInit(&out, initOptions{dir: dir}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
 
@@ -233,7 +233,7 @@ func TestDoInit_RefusesWithoutForce(t *testing.T) {
 	}
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
-	err := doInit(&bytes.Buffer{}, initOptions{Dir: dir, Owner: "a", Repo: "b"})
+	err := doInit(&bytes.Buffer{}, initOptions{dir: dir, owner: "a", repo: "b"})
 	if err == nil {
 		t.Fatal("expected error when monorel.toml exists without --force")
 	}
@@ -265,7 +265,7 @@ changelog  = "CHANGELOG.md"
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/wrong/wrong.git")
 
-	if err := doInit(&bytes.Buffer{}, initOptions{Dir: dir, Force: true}); err != nil {
+	if err := doInit(&bytes.Buffer{}, initOptions{dir: dir, force: true}); err != nil {
 		t.Fatalf("doInit --force: %v", err)
 	}
 
@@ -303,10 +303,10 @@ changelog  = "CHANGELOG.md"
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
 	if err := doInit(&bytes.Buffer{}, initOptions{
-		Dir:   dir,
-		Force: true,
-		Owner: "new-team",
-		Repo:  "new-name",
+		dir:   dir,
+		force: true,
+		owner: "new-team",
+		repo:  "new-name",
 	}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
@@ -338,9 +338,9 @@ func TestDoInit_ForcePreservesExistingReadme(t *testing.T) {
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
 	if err := doInit(&bytes.Buffer{}, initOptions{
-		Dir:   dir,
-		Owner: "acme",
-		Repo:  "widget",
+		dir:   dir,
+		owner: "acme",
+		repo:  "widget",
 	}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
@@ -355,28 +355,91 @@ func TestDoInit_NoGoMod(t *testing.T) {
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/acme/widget.git")
-	if err := doInit(&bytes.Buffer{}, initOptions{Dir: dir}); err == nil {
+	if err := doInit(&bytes.Buffer{}, initOptions{dir: dir}); err == nil {
 		t.Fatal("expected error when no go.mod files are present")
 	}
 }
 
 func TestDoInit_OwnerRepoOverrideNoRemote(t *testing.T) {
 	dir := t.TempDir()
-	// No git init at all. Must rely on flag-supplied values.
+	// No git init at all. Must rely on flag-supplied values. Provider
+	// stays at the default (github) because init validates against
+	// KnownProviders before writing.
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 	if err := doInit(&bytes.Buffer{}, initOptions{
-		Dir:      dir,
-		Provider: "gitlab",
-		Owner:    "acme",
-		Repo:     "widget",
+		dir:   dir,
+		owner: "acme",
+		repo:  "widget",
 	}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
-	for _, want := range []string{`name  = "gitlab"`, `owner = "acme"`, `repo  = "widget"`} {
+	for _, want := range []string{`name  = "github"`, `owner = "acme"`, `repo  = "widget"`} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("monorel.toml missing %q", want)
 		}
+	}
+}
+
+func TestDoInit_RejectsUnknownProvider(t *testing.T) {
+	dir := t.TempDir()
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+	err := doInit(&bytes.Buffer{}, initOptions{
+		dir:      dir,
+		provider: "gitlab", // not in KnownProviders today.
+		owner:    "acme",
+		repo:     "widget",
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown provider")
+	}
+	if !strings.Contains(err.Error(), "not recognized") {
+		t.Errorf("err = %v, want one mentioning unrecognized provider", err)
+	}
+	if fileExists(filepath.Join(dir, "monorel.toml")) {
+		t.Error("monorel.toml should not be written when provider is rejected")
+	}
+}
+
+func TestDoInit_ForceMalformedConfigFallsThrough(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	// Existing config that fails to parse (unknown TOML key from
+	// the pre-v0.3.0 layout). config.Load returns an error; init
+	// should warn AND fall through to git auto-detect rather than
+	// silently using empty defaults.
+	stale := `[forge]
+name  = "github"
+owner = "old-team"
+repo  = "old-name"
+
+[packages."example.com/foo"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+`
+	if err := os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte(stale), 0644); err != nil {
+		t.Fatal(err)
+	}
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "remote", "add", "origin", "https://github.com/auto-detected/from-origin.git")
+
+	var out bytes.Buffer
+	if err := doInit(&out, initOptions{dir: dir, force: true}); err != nil {
+		t.Fatalf("doInit: %v", err)
+	}
+	if !strings.Contains(out.String(), "warning") {
+		t.Errorf("expected a warning when malformed config falls through, got:\n%s", out.String())
+	}
+	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
+	if !strings.Contains(string(body), `owner = "auto-detected"`) || !strings.Contains(string(body), `repo  = "from-origin"`) {
+		t.Errorf("expected git-origin auto-detect to fill owner/repo:\n%s", body)
+	}
+	// And the stale "old-team"/"old-name" must NOT appear (preserved
+	// values from a malformed file would be a footgun).
+	if strings.Contains(string(body), `"old-team"`) || strings.Contains(string(body), `"old-name"`) {
+		t.Errorf("stale values leaked from malformed config:\n%s", body)
 	}
 }
 
@@ -389,6 +452,11 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
+// requireGit skips when git isn't on PATH. CI is expected to have
+// git; this guard exists for contributor laptops or sparse runner
+// images. If a CI run reports lots of skipped tests, check that git
+// is installed in the runner image — silent skips would otherwise
+// erode integration coverage unnoticed.
 func requireGit(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
