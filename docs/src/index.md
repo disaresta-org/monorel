@@ -6,7 +6,7 @@ layout: home
 
 hero:
   name: monorel
-  text: Releases for Go monorepos.
+  text: Releases for Go monorepos
   tagline: Explicit per-PR changesets. The tag conventions Go modules need.
   image:
     src: /hero.svg
