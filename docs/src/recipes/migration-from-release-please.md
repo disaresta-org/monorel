@@ -108,5 +108,3 @@ The CHANGELOG format change is forward-only. Old entries stay in release-please 
 - Authors write changesets via `monorel add` (or hand-write the file).
 - The release PR opens automatically; merging it cuts releases.
 - Pre-release windows use `monorel pre enter <channel>` / `pre exit`.
-
-For a worked example on a real 25-module repo, see [loglayer-go (worked example)](/recipes/loglayer-go).

@@ -25,11 +25,13 @@ The main module at the repo root uses bare `vX.Y.Z` tags. Sub-modules use `<path
 
 **Why:** It's what `go install <module>@vX.Y.Z` expects. Knope made per-package prefixes mandatory and we couldn't get bare tags for the root; that's a Go-specific requirement Knope wasn't built for.
 
-## Always-open release PR
+## Always-open release PR (speculative apply)
 
-The bot orchestrator force-pushes a speculative-version branch (`monorel/release` by default) to the remote and upserts a PR whose body is the rendered plan. Merging the PR runs `monorel release` on the merge commit; closing it without merging cancels the release.
+The bot orchestrator stages a `monorel/release` branch off the default branch and runs `monorel apply` on it. `apply` writes per-package CHANGELOG entries (or `pre.json` increments in pre-release mode), deletes the consumed `.changeset/*.md` files, and creates one `chore(release): ...` commit with `monorel-Release:` trailers in the body. The orchestrator force-pushes the result. The release PR's diff is the actual file changes the release will produce, not a body summary. Merging the PR runs `monorel tag` on the merge commit, which reads the trailers and creates per-package tags.
 
-**Why:** Release PRs are reviewable, mergeable, and visible. A maintainer can see exactly what's about to ship before approving. The pattern was popularized by release-please and changesets-bot; monorel reuses it because there's nothing better for the public-facing release-cadence-control problem.
+**Why:** Release PRs are reviewable, mergeable, and visible. A maintainer can see exactly what's about to ship before approving, including the rendered CHANGELOG diff. The pattern was popularized by release-please and changesets-bot; monorel reuses it because there's nothing better for the public-facing release-cadence-control problem.
+
+**Why two phases (`apply` / `tag`):** Tags can't be created on the staging branch without leaving them behind if the PR is closed without merging. Splitting file mutations from tag creation lets the staging step be repeatable (force-push the staging branch as many times as the planner output changes) while tags only ever land at merge time, against the merge commit. The trailer block in the commit body is the contract between the two phases: `monorel apply` writes it; `monorel tag` reads it.
 
 ## Pure-function planner
 
