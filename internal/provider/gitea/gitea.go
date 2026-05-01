@@ -30,8 +30,14 @@ type Options struct {
 	// Host is the Gitea instance host, e.g. "gitea.example.com" or
 	// "codeberg.org". Required: Gitea has no canonical "public host"
 	// equivalent to api.github.com, so callers must specify which
-	// instance to talk to. Use the bare hostname (no scheme); the
-	// implementation prepends https://.
+	// instance to talk to.
+	//
+	// Accepts either a bare hostname ("gitea.example.com") or a
+	// fully-qualified URL ("http://localhost:3000",
+	// "https://gitea.example.com"). A bare hostname defaults to
+	// https://. Plain http:// is supported for self-hosted
+	// instances behind a TLS-terminating proxy or for local
+	// container testing.
 	Host string
 
 	// Token is the access token for authenticated API calls.
@@ -63,7 +69,7 @@ func New(ctx context.Context, opts Options) (provider.Client, error) {
 		return nil, ErrMissingHost
 	}
 
-	baseURL := "https://" + strings.TrimSuffix(opts.Host, "/")
+	baseURL := normalizeHost(opts.Host)
 	clientOpts := []gtsdk.ClientOption{gtsdk.SetContext(ctx)}
 	if opts.Token != "" {
 		clientOpts = append(clientOpts, gtsdk.SetToken(opts.Token))
@@ -186,6 +192,18 @@ func convertPR(src *gtsdk.PullRequest) *provider.PullRequest {
 		pr.HeadRef = src.Head.Ref
 	}
 	return pr
+}
+
+// normalizeHost turns Options.Host into the base URL the SDK
+// expects. Accepts a bare hostname (defaults to https://) or a
+// fully-qualified http(s):// URL. Trailing slash is stripped
+// either way.
+func normalizeHost(host string) string {
+	host = strings.TrimSuffix(host, "/")
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		return host
+	}
+	return "https://" + host
 }
 
 // derefString returns *s, or "" when s is nil. The Gitea SDK's

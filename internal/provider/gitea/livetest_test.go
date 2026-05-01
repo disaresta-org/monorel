@@ -65,27 +65,41 @@ func liveOpts(t *testing.T) (host, owner, repo, token string) {
 // liveClientGitea returns a raw Gitea SDK client for harness setup
 // (creating branches, pushing files) that's outside the
 // provider.Client surface monorel uses in production. Distinct from
-// the provider.Client we're testing.
+// the provider.Client we're testing. Mirrors normalizeHost in the
+// production package so a host with or without a scheme works.
 func liveClientGitea(t *testing.T, host, token string) *gtsdk.Client {
 	t.Helper()
-	c, err := gtsdk.NewClient("https://"+strings.TrimSuffix(host, "/"), gtsdk.SetToken(token))
-	if err == nil {
-		return c
+	host = strings.TrimSuffix(host, "/")
+	var candidates []string
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		candidates = []string{host}
+	} else {
+		candidates = []string{"https://" + host, "http://" + host}
 	}
-	// Fallback: localhost without TLS.
-	c, err = gtsdk.NewClient("http://"+host, gtsdk.SetToken(token))
-	if err != nil {
-		t.Fatalf("connect to %s: %v", host, err)
+	for _, base := range candidates {
+		c, err := gtsdk.NewClient(base, gtsdk.SetToken(token))
+		if err == nil {
+			return c
+		}
 	}
-	return c
+	t.Fatalf("connect to %s: no reachable scheme", host)
+	return nil
 }
 
 // pingGitea checks the instance is reachable; skips the test if not.
-// Useful for local laptops where Gitea is started ad-hoc.
+// Accepts a bare host ("localhost:3000") or a fully-qualified URL
+// ("http://localhost:3000"). Bare hosts try http:// then https://;
+// scheme'd URLs are used as-is.
 func pingGitea(t *testing.T, host string) {
 	t.Helper()
-	for _, scheme := range []string{"http://", "https://"} {
-		req, _ := http.NewRequest("GET", scheme+host+"/api/v1/version", nil)
+	var candidates []string
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		candidates = []string{host}
+	} else {
+		candidates = []string{"http://" + host, "https://" + host}
+	}
+	for _, base := range candidates {
+		req, _ := http.NewRequest("GET", base+"/api/v1/version", nil)
 		req.Header.Set("Accept", "application/json")
 		c := http.Client{Timeout: 2 * time.Second}
 		if resp, err := c.Do(req); err == nil {
