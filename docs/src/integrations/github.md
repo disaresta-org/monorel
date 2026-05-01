@@ -7,66 +7,39 @@ description: "Wire up monorel against a GitHub repository: action wrapper, workf
 
 The canonical monorel-on-GitHub setup: a composite action wrapper plus two workflow files that drive the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
 
-The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary for use in GitHub Actions: it downloads the right binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
+## Configuration
 
-## Installation
+`monorel.toml`:
 
-Add the action to a workflow:
-
-```yaml
-- uses: disaresta-org/monorel/ci/github@v0.6.0
-  with:
-    command: release
+```toml
+[provider]
+name  = "github"  # optional; default
+owner = "acme"
+repo  = "widget"
+host  = ""        # optional; set for GitHub Enterprise
 ```
+
+| Field | Notes |
+|-------|-------|
+| `name` | `"github"` (the default; can be omitted). |
+| `owner`, `repo` | The user / org that owns the repo and the repository name. |
+| `host` | API host for GitHub Enterprise (e.g. `github.example.com`). Empty for github.com. |
+
+## Token
+
+The action wrapper passes the workflow's auto-generated `GITHUB_TOKEN` to the binary by default. Required workflow permissions: `contents: write`, `pull-requests: write`. Override with the `token` input when you need a personal access token or GitHub App token; see [Tokens and required status checks](#tokens-and-required-status-checks) below for the escalation path.
+
+## Workflows
+
+The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged. Both rely on the `disaresta-org/monorel/ci/github` composite action wrapper, which downloads the binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
 
 ::: tip Pre-1.0 pinning
 monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.6.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
-## Inputs
-
-| Input | Default | Description |
-|-------|---------|-------------|
-| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
-| `version` | `latest` | Pin a specific monorel version, e.g. `v0.6.0`. |
-| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. |
-| `config` | `monorel.toml` | Path to the config file. |
-
-::: tip Token override
-If you need a different token (e.g. a personal access token to bypass branch protection), pass it via the `token` input using GitHub Actions context syntax. The action uses the workflow's default token when the input is unset.
-:::
-
-## Workflows
-
-The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged.
-
 ### `release-pr.yml`: maintain the always-open release PR
 
-```yaml
-name: release-pr
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  pull-requests: write
-
-jobs:
-  release-pr:
-    # Skip on the release PR's own merge commit (subject begins with
-    # "chore(release):" by monorel convention) so the workflow doesn't
-    # churn the just-merged PR.
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.6.0
-        with:
-          command: pr
-```
+<!--@include: ../_partials/github-release-pr-yml.md-->
 
 The `pr` command implements **speculative apply**: it stages a fresh `monorel/release` branch off the default branch, runs `monorel apply` on it (writes per-package CHANGELOG entries / `pre.json` increments, deletes consumed `.changeset/*.md` files, creates one `chore(release): ...` commit), and force-pushes. The release PR's diff IS the file changes the release will produce. The orchestrator (`monorel preview --upsert`) then opens or updates the always-open release PR with the rendered plan in its body.
 
@@ -76,28 +49,7 @@ If the planner has nothing to apply (no pending changesets), `monorel apply` exi
 
 The minimal shape (release-only) is:
 
-```yaml
-name: release
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.6.0
-        with:
-          command: release
-```
+<!--@include: ../_partials/github-release-yml.md-->
 
 The `release` command runs three monorel invocations in order on the merge commit:
 
@@ -108,6 +60,15 @@ The `release` command runs three monorel invocations in order on the merge commi
 The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
 The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
+
+### Action wrapper inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
+| `version` | `latest` | Pin a specific monorel version, e.g. `v0.6.0`. |
+| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. Override with a PAT or App token via `secrets.<name>` syntax. |
+| `config` | `monorel.toml` | Path to the config file. |
 
 ### Chaining downstream workflows (deploy-docs, build-binaries, etc.)
 

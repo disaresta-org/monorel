@@ -57,53 +57,17 @@ Next steps:
 
 ## Wire up the GitHub Action
 
-Two workflow files drive the release lifecycle.
+Two workflow files drive the release lifecycle. The walkthrough below uses GitHub; if you're on Gitea or Forgejo, see the [Gitea / Forgejo integration page](/integrations/gitea) for the equivalent workflow files.
 
 **`.github/workflows/release-pr.yml`** maintains the always-open release PR. Fires on every push to `main`:
 
-```yaml
-name: release-pr
-on:
-  push:
-    branches: [main]
-permissions:
-  contents: write
-  pull-requests: write
-jobs:
-  release-pr:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
-        with:
-          command: pr
-```
+<!--@include: ./_partials/github-release-pr-yml.md-->
 
 **`.github/workflows/release.yml`** cuts the release after the always-open release PR is merged:
 
-```yaml
-name: release
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-permissions:
-  contents: write
-jobs:
-  release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
-        with:
-          command: release
-```
+<!--@include: ./_partials/github-release-yml.md-->
 
-Commit both files. The `release-pr` workflow will fire on the next push to `main`; the release PR opens once there's a changeset to release.
+Commit both files. The `release-pr` workflow will fire on the next push to `main`; the release PR opens once there's a changeset to release. The [GitHub integration page](/integrations/github) covers the Inputs table, branch-protection setup, and the PAT / App token escalation; this Getting Started section shows the canonical YAML.
 
 ::: warning Branch protection with required status checks
 If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the wiring.

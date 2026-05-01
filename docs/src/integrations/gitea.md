@@ -5,7 +5,7 @@ description: "Wire up monorel against a Gitea or Forgejo repository: configurati
 
 # Gitea / Forgejo
 
-monorel's Gitea provider talks to any Gitea or Forgejo instance via the standard Gitea REST API. Forgejo is a Gitea fork that maintains API compatibility, so the same provider implementation covers both; point `provider.host` at whichever instance you're targeting.
+monorel's Gitea provider talks to any Gitea or Forgejo instance via the standard Gitea REST API. [Forgejo](https://forgejo.org/) is a Gitea fork that maintains API compatibility, so the same provider implementation covers both; point `provider.host` at whichever instance you're targeting. Tested against Gitea 1.23 via the `code.gitea.io/sdk/gitea` SDK.
 
 ::: info Available in v0.6+
 The Gitea provider landed in monorel v0.6.0. Earlier versions only support GitHub.
@@ -25,7 +25,7 @@ repo  = "widget"
 
 | Field | Notes |
 |-------|-------|
-| `name` | Must be `"gitea"`. Set explicitly: the default (`"github"`) won't work against a Gitea instance. |
+| `name` | Must be `"gitea"`. Set explicitly: the default (`"github"`) won't work against a Gitea instance. The same value is used for Forgejo. |
 | `host` | Required. Gitea / Forgejo have no canonical public host equivalent to `api.github.com`. Accepts a bare hostname (`gitea.example.com`, defaults to `https://`) or a fully-qualified URL (`http://localhost:3000` for dev, `https://gitea.example.com` for prod). |
 | `owner`, `repo` | Same as GitHub: the user / org and the repository name. |
 
@@ -40,9 +40,9 @@ monorel reads the auth token from the `GITEA_TOKEN` environment variable. Genera
 
 Set `GITEA_TOKEN` in your shell or CI environment before running `monorel preview --upsert`, `monorel publish`, or any command that talks to the API.
 
-## CI options
+## Workflows
 
-monorel doesn't ship a Gitea-specific CI wrapper today. Three viable approaches:
+monorel doesn't ship a Gitea-specific CI wrapper. Three viable approaches:
 
 ### Gitea Actions (recommended)
 
@@ -53,53 +53,14 @@ Gitea Actions (since Gitea 1.21, Forgejo 1.21) implements GitHub Actions' workfl
 
 `.gitea/workflows/release-pr.yml`:
 
-```yaml
-name: release-pr
-on:
-  push:
-    branches: [main]
-permissions:
-  contents: write
-  pull-requests: write
-jobs:
-  release-pr:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.6.0
-        with:
-          command: pr
-        env:
-          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+<!--@include: ../_partials/gitea-release-pr-yml.md-->
 
 `.gitea/workflows/release.yml`:
 
-```yaml
-name: release
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-permissions:
-  contents: write
-jobs:
-  release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.6.0
-        with:
-          command: release
-        env:
-          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+<!--@include: ../_partials/gitea-release-yml.md-->
 
-The auto-injected `GITHUB_TOKEN` is enough for the basic case (open / update / close the release PR; create tags; create Releases). Same anti-recursion limit as on GitHub: PRs created with this token won't trigger downstream workflows on Gitea Actions either. If you have required status checks on the default branch, swap to a personal access token by replacing `secrets.GITHUB_TOKEN` with a `secrets.MONOREL_GITEA_TOKEN` you generate at `/-/user/settings/applications` and add as a repo secret. Mirrors the [GitHub page's Tokens and required status checks section](/integrations/github#tokens-and-required-status-checks).
+
+The auto-injected `GITHUB_TOKEN` is enough for the basic case (open / update / close the release PR; create tags; create Releases). The PAT escalation for required-status-check repos is documented under [Tokens and required status checks](#tokens-and-required-status-checks) below.
 
 ### Local CLI (no CI)
 
@@ -117,15 +78,27 @@ Works on a contributor's laptop or any non-Gitea-Actions CI (Drone, Woodpecker, 
 
 monorel is a single static binary; any CI that can run a shell command can run it. The pattern is the same as the local CLI flow: download the binary, set `GITEA_TOKEN`, run `monorel release` + `git push --follow-tags` + `monorel publish`. There's no monorel-specific machinery to install.
 
-## Force-push to the staging branch
+## Branch protection
 
-The `pr` command force-pushes to `monorel/release` on every release-pr workflow run. By default Gitea allows this for unprotected branches; if you've added branch protection rules covering `monorel/release`, allow force-push for that ref (or the bot account that owns the workflow).
+The `pr` command force-pushes to `monorel/release` on every release-pr workflow run. By default Gitea allows this for unprotected branches; if you've added branch protection rules covering `monorel/release`, allow force-push for that ref (or for the bot account that owns the workflow).
 
-## Forgejo notes
+The release PR's commit body carries `monorel-Release:` trailers that `monorel tag` reads post-merge. The merge strategy must preserve the body. Use **rebase merge** (recommended) or **create a merge commit** (which preserves the head commit verbatim as the parent and lets `monorel tag` find trailers via the merged commit). Squash merge with default settings on Gitea collapses the body; verify on a test PR before relying on it.
 
-[Forgejo](https://forgejo.org/) is a Gitea fork with stated API compatibility. The Gitea provider works against Forgejo unchanged: set `provider.host` to your Forgejo instance and use a Forgejo-issued access token in `GITEA_TOKEN`. The token UI lives at `/user/settings/applications` (same path as Gitea).
+## Tokens and required status checks
 
-If you hit an API call that behaves differently between Gitea and Forgejo, file an issue: the SDK monorel uses (`code.gitea.io/sdk/gitea`) is supposed to handle both. We've tested the implementation against Gitea 1.23.
+PRs created via Gitea Actions' auto-injected `secrets.GITHUB_TOKEN` are subject to the same anti-recursion rule GitHub has: workflows configured to run on `pull_request` won't fire for those PRs. If your Gitea instance enforces required status checks on the default branch, the always-open release PR will sit on "Some checks haven't completed yet" with no path to merge.
+
+Fix: generate a personal access token at `/-/user/settings/applications` (or your Forgejo instance's equivalent) with `repository: write` + `user: read`. Add it as a repo secret (e.g. `MONOREL_GITEA_TOKEN`) and pass it to the action wrapper instead of the auto-injected token:
+
+```yaml
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
+        with:
+          command: pr
+        env:
+          GITEA_TOKEN: ${{ secrets.MONOREL_GITEA_TOKEN }}
+```
+
+Same trade-off as on GitHub: PATs are tied to a user; a service-account user is the durable shape. See the [GitHub page's Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the full PAT / GitHub App / bypass discussion: the Gitea equivalents (Gitea API tokens, Gitea OAuth Apps, branch-protection bypass lists) follow the same shape with provider-renamed UI labels.
 
 ## Troubleshooting
 
