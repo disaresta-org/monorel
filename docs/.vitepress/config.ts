@@ -74,9 +74,6 @@ export default defineConfig({
     outline: { level: [2, 3] },
     nav: [
       { text: 'Get Started', link: '/getting-started' },
-      { text: 'Configuration', link: '/configuration' },
-      { text: 'CLI', link: '/cli-reference' },
-      { text: 'API', link: '/api' },
       {
         text: '<img alt="Go Reference" src="https://pkg.go.dev/badge/monorel.disaresta.com.svg" />',
         link: 'https://pkg.go.dev/monorel.disaresta.com',
@@ -92,6 +89,7 @@ export default defineConfig({
         items: [
           { text: 'Why monorel?', link: '/introduction' },
           { text: 'Getting Started', link: '/getting-started' },
+          { text: 'Workflows', link: '/workflows' },
           { text: 'Design', link: '/design' },
         ],
       },
@@ -103,6 +101,13 @@ export default defineConfig({
           { text: 'Library API', link: '/api' },
           { text: 'Changesets', link: '/changesets' },
           { text: 'GitHub Action', link: '/github-action' },
+          { text: 'Glossary', link: '/glossary' },
+        ],
+      },
+      {
+        text: 'Help',
+        items: [
+          { text: 'FAQ', link: '/faq' },
         ],
       },
       {
@@ -110,7 +115,7 @@ export default defineConfig({
         items: [
           { text: 'Running in Docker', link: '/docker' },
           { text: 'Migrating from release-please', link: '/recipes/migration-from-release-please' },
-          { text: 'Bootstrapping monorel', link: '/bootstrap' },
+          { text: 'Bootstrapping monorel itself', link: '/recipes/bootstrapping-monorel' },
         ],
       },
     ],

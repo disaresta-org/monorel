@@ -12,6 +12,26 @@ The Go ecosystem doesn't have a release tool that handles the canonical Go monor
 
 The off-the-shelf options each have a sharp edge for this layout.
 
+## At a glance
+
+| Capability | release-please | changesets | Knope | monorel |
+|------------|:---:|:---:|:---:|:---:|
+| Per-package versioning | ✅ | ✅ | ✅ | ✅ |
+| Auto-generated CHANGELOG | ✅ | ✅ | ✅ | ✅ |
+| Pre-release / RC support | ✅ | ✅ | ✅ | ✅ |
+| Always-open release PR | ✅ | ✅ via changesets-bot | ⚠️ via custom workflow | ✅ |
+| Local CLI (works off-CI) | ⚠️ via npm package | ✅ | ✅ | ✅ |
+| Bare-tag root (`vX.Y.Z`) | ✅ | n/a (JS layout) | ❌ prefixes mandatory | ✅ |
+| Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
+| Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
+| Native to | TypeScript | TypeScript | Rust | Go |
+| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub today; seam ready |
+| Polyglot / non-language-specific | ✅ | ⚠️ JS-shaped (`package.json` per package) | ✅ | ❌ Go-only by design |
+
+The first three rows are the common ground: every tool in this category will manage independent per-package versions, write a per-package CHANGELOG, and support pre-release windows. The friction shows up below those rows: how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.
+
+The per-tool sections below dive into each tool's specific friction point for the Go-monorepo layout.
+
 ### release-please
 
 Works, with friction. The friction lives in three sharp edges:

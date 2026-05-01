@@ -12,13 +12,13 @@ The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary 
 Add the action to a workflow:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.0
+- uses: disaresta-org/monorel/ci/github@v0.4.1
   with:
     command: release
 ```
 
 ::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.1` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
 ## Inputs
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.0
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
         with:
           command: pr
 ```
@@ -103,12 +103,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.0
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
         with:
           command: release
 ```
 
-The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/bootstrap)).
+The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
 
 ### Chaining downstream workflows (deploy-docs, build-binaries, etc.)
 
@@ -126,7 +126,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.4.0
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
         with:
           command: release
       - name: Capture root tag
@@ -194,7 +194,101 @@ Rebase-merge and merge-commit both preserve the staged commit verbatim, so neith
 If a release PR merged without trailers, recovery is to manually create the tags (`git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m 'Release ...'` for each package) and push them, then run `monorel publish` against the pushed tags.
 :::
 
+## Tokens and required status checks
+
+By default the action uses the workflow's auto-generated `GITHUB_TOKEN`. This works for most monorel operations: opening / updating the release PR, creating tags, publishing GitHub Releases. It has one significant limitation: **PRs created by `GITHUB_TOKEN` don't trigger other workflows** (GitHub's [anti-recursion rule](https://docs.github.com/en/actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow)).
+
+This bites monorel specifically when:
+
+- Branch protection requires status checks (e.g. `lint`, `test`) to pass before merging.
+- The `release-pr` workflow opens or updates the always-open release PR.
+- Those required checks never fire on the release PR (because `pull_request` events for `GITHUB_TOKEN`-created PRs are suppressed).
+- The release PR sits forever with "Some checks haven't completed yet" and can't be merged through standard branch protection.
+
+The fix is to use a token whose author identity isn't `github-actions[bot]`. Three options:
+
+### PAT (personal access token)
+
+Simplest path. Create a fine-grained PAT scoped to the target repo with these permissions:
+
+- **Pull requests**: Read and write.
+- **Contents**: Read and write.
+
+Add it as a repo secret (e.g. `MONOREL_PR_TOKEN`) and pass it to the action's `token` input:
+
+```yaml
+- uses: disaresta-org/monorel/ci/github@v0.4.1
+  with:
+    command: pr
+    token: ${{ secrets.MONOREL_PR_TOKEN }}
+```
+
+PRs the action creates with this token are authored by your user, which means GitHub treats them as ordinary PRs and fires the workflows you'd expect.
+
+::: warning PAT lifecycle
+The PAT is tied to the user who minted it. If that user leaves the org or rotates credentials, the token must be regenerated. Use a service-account user if your org allows them; otherwise plan for the rotation.
+:::
+
+### GitHub App
+
+More robust for org-managed repos. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps) with these repository permissions:
+
+- **Pull requests**: Read and write.
+- **Contents**: Read and write.
+
+Install it on the target repo. Save the App ID as a repo variable (`MONOREL_APP_ID`) and the private key as a repo secret (`MONOREL_APP_PRIVATE_KEY`).
+
+In the workflow, exchange the App's private key for a short-lived installation token via [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token):
+
+```yaml
+jobs:
+  release-pr:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ vars.MONOREL_APP_ID }}
+          private-key: ${{ secrets.MONOREL_APP_PRIVATE_KEY }}
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
+        with:
+          command: pr
+          token: ${{ steps.app-token.outputs.token }}
+```
+
+PRs created with the App's token are authored by the App's bot user (e.g. `monorel-bot[bot]`). They trigger workflows normally and aren't tied to any individual user. Tokens are short-lived (~1 hour) and minted per workflow run.
+
+### Bypass branch protection
+
+Last resort. In repo Settings → Rules → Rulesets, add `github-actions[bot]` (or whichever identity the workflow runs as) to the **Bypass list** of the ruleset enforcing the required checks. The release PR can then merge without the checks firing.
+
+::: warning Trade-off
+The release PR's diff IS the actual file changes the release will produce (CHANGELOG entries, changeset deletions). Running CI on it validates the staged result. Bypass means you trust the changeset content sight-unseen. Recommend only when CI on the release PR doesn't catch anything CI on the source PRs already caught.
+:::
+
+### Which to pick
+
+| Repo size | Use case | Recommended |
+|-----------|----------|-------------|
+| Small / personal | One maintainer, infrequent rotation | PAT |
+| Org-managed | Multiple maintainers, secret hygiene rules | GitHub App |
+| Solo experiments | Don't care about CI on the release PR | Bypass |
+
+The same token also applies to the `release` step (post-merge tag/push/publish), but the anti-recursion concern only blocks the `pr` step. The `release` step uses the token for `monorel publish`'s API calls; `GITHUB_TOKEN` is sufficient there.
+
 ## Troubleshooting
+
+### Release PR is stuck on "Some checks haven't completed yet"
+
+Symptom: the always-open release PR shows required checks (`lint`, `test`, etc.) as "Expected — Waiting for status to be reported" indefinitely. The merge button is disabled.
+
+Cause: GitHub's anti-recursion rule suppresses `pull_request` triggers on PRs created by `secrets.GITHUB_TOKEN`. The `release-pr` workflow opened the PR using the default token, so your CI workflows didn't fire on it.
+
+Fix: switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](#tokens-and-required-status-checks).
 
 ### "tag already exists" on release
 
