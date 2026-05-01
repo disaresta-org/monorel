@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/modfile"
 )
 
 func newInitCmd() *cobra.Command {
@@ -225,36 +225,23 @@ func detectPackages(repoRoot string) ([]initPkg, error) {
 	return pkgs, nil
 }
 
-// readModulePath returns the value of go.mod's `module` directive.
-// Tolerates blank lines, comments, and the // <comment> trailing form.
+// readModulePath returns the value of go.mod's `module` directive,
+// using the official x/mod/modfile parser so every spec-allowed shape
+// (block-form modules, comments, quoted paths, retract/exclude/replace
+// directives) is handled the same way `go` itself handles it.
 func readModulePath(goModPath string) (string, error) {
-	f, err := os.Open(goModPath)
+	data, err := os.ReadFile(goModPath)
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "//") {
-			continue
-		}
-		if !strings.HasPrefix(line, "module ") {
-			continue
-		}
-		rest := strings.TrimSpace(strings.TrimPrefix(line, "module "))
-		// Drop trailing comment if present.
-		if i := strings.Index(rest, "//"); i >= 0 {
-			rest = strings.TrimSpace(rest[:i])
-		}
-		// Strip surrounding quotes if any (rare but allowed by spec).
-		rest = strings.Trim(rest, `"`)
-		return rest, nil
-	}
-	if err := scanner.Err(); err != nil {
+	f, err := modfile.Parse(goModPath, data, nil)
+	if err != nil {
 		return "", err
 	}
-	return "", errors.New("no module directive found")
+	if f.Module == nil {
+		return "", errors.New("no module directive found")
+	}
+	return f.Module.Mod.Path, nil
 }
 
 func renderInitTOML(provider, owner, repo string, pkgs []initPkg) string {

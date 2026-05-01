@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/huh v1.0.0
 	github.com/google/go-github/v68 v68.0.0
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/mod v0.35.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/term v0.42.0
 )
