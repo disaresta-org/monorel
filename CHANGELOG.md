@@ -43,7 +43,7 @@ level, instead of inferring releases from commit messages.
 - **GitHub Action wrapper** at `disaresta-org/monorel/ci/github@v1`. Composite
   action; downloads the runner-matched binary and invokes monorel with the
   requested command.
-- **Docker image** at `ghcr.io/disaresta-org/monorel:v0.1.0` for `linux/amd64`
+- **Docker image** at `ghcr.io/disaresta-org/monorel:0.1.0` for `linux/amd64`
   + `linux/arm64`. macOS / Windows users can sidestep the unsigned-binary OS
   prompts by running monorel inside the container.
 - **Vanity import path**: `go install monorel.disaresta.com/cmd/monorel@v0.1.0`.
