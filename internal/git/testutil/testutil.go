@@ -35,15 +35,27 @@ func NewRepo(t *testing.T) *TestRepo {
 	dir := t.TempDir()
 
 	exec := git.Open(dir)
+	// Disable global git config so contributor environments
+	// (signing keys, SSH agents like 1Password, hooks, etc.) can't
+	// reach into hermetic test commits. GIT_CONFIG_GLOBAL=/dev/null
+	// + GIT_CONFIG_SYSTEM=/dev/null is the documented way to do it.
 	exec.Env = append(os.Environ(),
 		"GIT_AUTHOR_NAME=test",
 		"GIT_AUTHOR_EMAIL=test@test",
 		"GIT_COMMITTER_NAME=test",
 		"GIT_COMMITTER_EMAIL=test@test",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
 	)
 
 	r := &TestRepo{t: t, Dir: dir, Repo: exec}
 	r.runOrFatal("init", "-q", "-b", "main")
+	// Persist signing-disabled to the repo's local config so any
+	// later git invocation against this repo (including from code
+	// under test that opens its own git.Exec) doesn't try to use
+	// the contributor's signing key / agent.
+	r.runOrFatal("config", "commit.gpgsign", "false")
+	r.runOrFatal("config", "tag.gpgsign", "false")
 	r.runOrFatal("commit", "-q", "--allow-empty", "-m", "init")
 	return r
 }

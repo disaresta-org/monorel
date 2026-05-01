@@ -14,6 +14,8 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/disaresta-org/monorel/internal/forge"
 )
 
 // Config is the parsed contents of monorel.toml.
@@ -89,17 +91,6 @@ func (p PackageConfig) TagFor(version string) string {
 	return p.FullTagPrefix() + version
 }
 
-// knownProvider reports whether the given forge provider has an
-// implementation. Adding a new provider requires updating this list
-// and the factory in internal/forge.
-func knownProvider(name string) bool {
-	switch name {
-	case "github":
-		return true
-	}
-	return false
-}
-
 // PackageNames returns every package name in lexicographic order.
 // Stable iteration is convenient for tests, log output, and PR
 // rendering.
@@ -155,8 +146,9 @@ func (c *Config) Validate() error {
 	if c.Forge.Repo == "" {
 		return errors.New("forge.repo is required")
 	}
-	if c.Forge.Provider != "" && !knownProvider(c.Forge.Provider) {
-		return fmt.Errorf("forge.provider %q is not recognized (use one of: github)", c.Forge.Provider)
+	if c.Forge.Provider != "" && !forge.IsKnownProvider(c.Forge.Provider) {
+		return fmt.Errorf("forge.provider %q is not recognized (use one of: %v)",
+			c.Forge.Provider, forge.KnownProviders)
 	}
 	if len(c.Packages) == 0 {
 		return ErrNoPackages

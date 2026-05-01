@@ -1,22 +1,78 @@
 // Package forge is the version-control-host seam for monorel.
 //
-// monorel needs a small slice of host-specific operations:
-//   - upsert an open change request (PR / merge request) for the
-//     always-open release-PR pattern
+// [Client] models the slice of host operations monorel needs:
+//   - upsert an open change request (PR / merge request)
 //   - create a release pointing at a tag with markdown notes
 //   - read repository metadata (default branch)
 //
-// These are universal across forges; the differences (auth, API
-// shapes, terminology) are hidden behind this package's [Client]
-// interface. The default provider is [github] (internal/forge/github);
-// future providers (gitlab, gitea, bitbucket, forgejo) plug in by
-// implementing Client and registering with the factory in this file.
-//
-// Higher layers (the orchestrator and the release CLI) take a
-// [Client] and never touch upstream APIs directly.
+// Implementations live in subpackages under internal/forge.
 package forge
 
-import "context"
+import (
+	"context"
+	"os"
+)
+
+// Provider names recognized by [IsKnownProvider] and [TokenEnvVars].
+// Adding a new provider: append to KnownProviders, add a case to
+// TokenEnvVars (if the provider uses an env-var token), and add a
+// case to internal/forge/factory.New.
+const (
+	ProviderGitHub = "github"
+)
+
+// DefaultProvider is the value [ResolveProvider] returns for an
+// empty input. Callers reading config should pass through
+// ResolveProvider so the empty-string default is applied uniformly.
+const DefaultProvider = ProviderGitHub
+
+// KnownProviders is every provider name supported in this build,
+// in alphabetical order. Used by config validation.
+var KnownProviders = []string{
+	ProviderGitHub,
+}
+
+// ResolveProvider returns name, or [DefaultProvider] if name is empty.
+func ResolveProvider(name string) string {
+	if name == "" {
+		return DefaultProvider
+	}
+	return name
+}
+
+// IsKnownProvider reports whether name is a recognized provider.
+// Empty name is rejected; resolve to the default first if you mean
+// "accept empty as github."
+func IsKnownProvider(name string) bool {
+	for _, p := range KnownProviders {
+		if p == name {
+			return true
+		}
+	}
+	return false
+}
+
+// TokenEnvVars returns the environment variable names to consult for
+// a given provider's auth token, in priority order. Unknown providers
+// (or providers that don't use a static env-var token) yield nil.
+func TokenEnvVars(provider string) []string {
+	switch ResolveProvider(provider) {
+	case ProviderGitHub:
+		return []string{"GITHUB_TOKEN", "GH_TOKEN"}
+	}
+	return nil
+}
+
+// TokenFromEnv returns the first non-empty env var value listed by
+// [TokenEnvVars] for the given provider, or "" if none is set.
+func TokenFromEnv(provider string) string {
+	for _, name := range TokenEnvVars(provider) {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 // Client is the slice of forge operations monorel needs. The methods
 // are intentionally narrow: a forge implementation only has to model

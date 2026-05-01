@@ -65,9 +65,6 @@ func New(ctx context.Context, opts Options) (forge.Client, error) {
 	}
 	gh := gogh.NewClient(httpClient)
 	if opts.Host != "" {
-		// SetHost sets both the upload and base URLs to the
-		// GitHub Enterprise install. WithEnterpriseURLs would
-		// also work but requires constructing two URL strings.
 		baseURL := fmt.Sprintf("https://%s/api/v3/", opts.Host)
 		uploadURL := fmt.Sprintf("https://%s/api/uploads/", opts.Host)
 		var err error
@@ -91,19 +88,26 @@ func (c *client) GetDefaultBranch(ctx context.Context) (string, error) {
 }
 
 func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*forge.PullRequest, error) {
-	prs, _, err := c.gh.PullRequests.List(ctx, c.owner, c.repo, &gogh.PullRequestListOptions{
-		State: "open",
-		Head:  fmt.Sprintf("%s:%s", c.owner, headBranch),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list PRs (head=%s): %w", headBranch, err)
+	opts := &gogh.PullRequestListOptions{
+		State:       "open",
+		Head:        fmt.Sprintf("%s:%s", c.owner, headBranch),
+		ListOptions: gogh.ListOptions{PerPage: 100},
 	}
-	for _, pr := range prs {
-		if pr.GetHead().GetRef() == headBranch {
-			return convertPR(pr), nil
+	for {
+		prs, resp, err := c.gh.PullRequests.List(ctx, c.owner, c.repo, opts)
+		if err != nil {
+			return nil, fmt.Errorf("list PRs (head=%s): %w", headBranch, err)
 		}
+		for _, pr := range prs {
+			if pr.GetHead().GetRef() == headBranch {
+				return convertPR(pr), nil
+			}
+		}
+		if resp == nil || resp.NextPage == 0 {
+			return nil, nil
+		}
+		opts.Page = resp.NextPage
 	}
-	return nil, nil
 }
 
 func (c *client) CreatePR(ctx context.Context, opts forge.CreatePROptions) (*forge.PullRequest, error) {

@@ -1,4 +1,4 @@
-package forge_test
+package release_test
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func TestPublishReleases_AllTags(t *testing.T) {
 		},
 	}
 
-	out, err := forge.PublishReleases(context.Background(), f, res, p)
+	out, err := release.PublishReleases(context.Background(), f, res, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestPublishReleases_PrereleaseFlag(t *testing.T) {
 		Tags:   []string{"transports/foo/v1.6.0-rc.0"},
 		Bodies: map[string]string{"transports/foo/v1.6.0-rc.0": "rc body"},
 	}
-	if _, err := forge.PublishReleases(context.Background(), f, res, p); err != nil {
+	if _, err := release.PublishReleases(context.Background(), f, res, p); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.Releases) != 1 {
@@ -76,7 +76,7 @@ func TestPublishReleases_PartialOnError(t *testing.T) {
 	wantErr := errors.New("synthetic")
 	f.FailNext = wantErr
 
-	out, err := forge.PublishReleases(context.Background(), f, res, p)
+	out, err := release.PublishReleases(context.Background(), f, res, p)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -89,10 +89,10 @@ func TestPublishReleases_PartialOnError(t *testing.T) {
 }
 
 func TestPublishReleases_NilArgs(t *testing.T) {
-	if _, err := forge.PublishReleases(context.Background(), forge.NewFake(), nil, &plan.ReleasePlan{}); err == nil {
+	if _, err := release.PublishReleases(context.Background(), forge.NewFake(), nil, &plan.ReleasePlan{}); err == nil {
 		t.Error("expected error for nil result")
 	}
-	if _, err := forge.PublishReleases(context.Background(), forge.NewFake(), &release.Result{}, nil); err == nil {
+	if _, err := release.PublishReleases(context.Background(), forge.NewFake(), &release.Result{}, nil); err == nil {
 		t.Error("expected error for nil plan")
 	}
 }

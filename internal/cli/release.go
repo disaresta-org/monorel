@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,7 +36,7 @@ CI wrapper or run "git push --follow-tags" yourself.`,
 	cmd.Flags().Bool("publish", false,
 		"After tagging, create one forge release per tag using the configured "+
 			"forge provider. Requires the provider's auth token in the environment "+
-			"(GITHUB_TOKEN/GH_TOKEN for github) and that tags have been pushed.")
+			"and that tags have been pushed.")
 	return cmd
 }
 
@@ -85,16 +85,17 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		token := tokenForProvider(rt.Config.Forge.Provider)
+		provider := forge.ResolveProvider(rt.Config.Forge.Provider)
+		token := forge.TokenFromEnv(provider)
 		if token == "" {
-			return fmt.Errorf("--publish requires an auth token in the environment for provider %q",
-				effectiveProvider(rt.Config.Forge.Provider))
+			envVars := strings.Join(forge.TokenEnvVars(provider), " or ")
+			return fmt.Errorf("--publish: provider %q requires %s in the environment", provider, envVars)
 		}
 		client, err := factory.New(ctx, rt.Config.Forge, token)
 		if err != nil {
 			return fmt.Errorf("forge client: %w", err)
 		}
-		published, err := forge.PublishReleases(ctx, client, res, p)
+		published, err := release.PublishReleases(ctx, client, res, p)
 		if err != nil {
 			fmt.Fprintf(out, "Created %d/%d releases before failing.\n", len(published), len(res.Tags))
 			return err
@@ -105,36 +106,6 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 
 	fmt.Fprintln(out, "Run `git push --follow-tags` to publish.")
 	return nil
-}
-
-// effectiveProvider returns provider, falling back to "github" when
-// the config left it empty.
-func effectiveProvider(provider string) string {
-	if provider == "" {
-		return "github"
-	}
-	return provider
-}
-
-// tokenForProvider returns the auth token for the given forge
-// provider from the environment, in priority order. Empty when none
-// is set.
-func tokenForProvider(provider string) string {
-	switch effectiveProvider(provider) {
-	case "github":
-		return firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"))
-	}
-	return ""
-}
-
-// firstNonEmpty returns the first non-empty argument, or "".
-func firstNonEmpty(s ...string) string {
-	for _, v := range s {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 // short returns the first 7 characters of a SHA, or the whole string
