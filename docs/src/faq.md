@@ -21,9 +21,15 @@ Yes. Delete the file from `main` (open a PR that removes it). The next `release-
 
 Open a follow-up PR adding the changeset. monorel doesn't enforce "PR must have a changeset"; that's a convention, optionally enforced by a separate CI check. If you want to enforce it, see the changesets-style ["Are changesets required?"](https://github.com/changesets/changesets/blob/main/docs/intro-to-using-changesets.md) check pattern; monorel doesn't ship one because what counts as "release-affecting" is repo-specific.
 
-### One changeset per PR, or multiple?
+### Can a PR include multiple changeset files?
 
-One per **coherent change**. If a PR contains a feature in package A and an unrelated fix in package B, write two changesets so the rendered CHANGELOGs read cleanly. If the PR is a single coordinated change touching multiple packages (e.g. a feature in package A that requires a pass-through patch in package B), one multi-package changeset is the right shape.
+Yes. monorel reads every `.changeset/*.md` file regardless of which PR added it; a PR can include zero, one, or many. Three patterns come up:
+
+- **One file, one package.** The simple case. `monorel add --package "foo:minor" --message "..."` writes one file targeting one package.
+- **One file, multiple packages** (a multi-package changeset). When a single coordinated change touches several packages — e.g. a feature in package A that requires a pass-through patch in package B — name them all in the same changeset's frontmatter. The body becomes the changelog entry for every named package, bucketed at each package's bump level.
+- **Multiple files in one PR.** When a PR contains genuinely independent changes — a feature in package A and an unrelated fix in package B — write one changeset file per change. The bodies appear separately in the rendered CHANGELOG, which reads cleaner than one merged entry.
+
+Rule of thumb: write one changeset per **coherent change**, not one per PR. A PR with N independent changes deserves N changeset files; a PR with one change spanning N packages deserves one multi-package changeset.
 
 ### Can multiple PRs target the same package in the same release window?
 
