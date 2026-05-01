@@ -222,4 +222,3 @@ func readMultiline(rd *bufio.Reader) (string, error) {
 	}
 	return strings.TrimSpace(b.String()), nil
 }
-

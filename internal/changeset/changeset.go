@@ -64,10 +64,10 @@ func (c *Changeset) PackageNames() []string {
 // Reserved filenames inside .changeset/ that are NOT changesets.
 // LoadAll skips these.
 var reservedNames = map[string]bool{
-	"pre.json":     true, // pre-release mode state
-	"README.md":    true, // optional human-facing README
-	".gitkeep":     true, // empty-directory marker
-	"config.json":  true, // reserved for future config
+	"pre.json":    true, // pre-release mode state
+	"README.md":   true, // optional human-facing README
+	".gitkeep":    true, // empty-directory marker
+	"config.json": true, // reserved for future config
 }
 
 // LoadAll reads every changeset file under dir (excluding reserved
@@ -199,4 +199,3 @@ func (c *Changeset) WriteFile(dir string) error {
 	}
 	return nil
 }
-

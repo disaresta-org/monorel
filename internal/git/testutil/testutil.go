@@ -50,10 +50,14 @@ func NewRepo(t *testing.T) *TestRepo {
 
 	r := &TestRepo{t: t, Dir: dir, Repo: exec}
 	r.runOrFatal("init", "-q", "-b", "main")
-	// Persist signing-disabled to the repo's local config so any
-	// later git invocation against this repo (including from code
-	// under test that opens its own git.Exec) doesn't try to use
-	// the contributor's signing key / agent.
+	// Persist hermeticity to the repo's local config so any later
+	// git invocation against this repo (including from code under
+	// test that opens its own git.Exec) finds an author identity
+	// without going through the contributor's signing key / agent.
+	// Local config beats env vars and global config; the bare CI
+	// runner environment otherwise has no user.name / user.email.
+	r.runOrFatal("config", "user.name", "test")
+	r.runOrFatal("config", "user.email", "test@test")
 	r.runOrFatal("config", "commit.gpgsign", "false")
 	r.runOrFatal("config", "tag.gpgsign", "false")
 	r.runOrFatal("commit", "-q", "--allow-empty", "-m", "init")

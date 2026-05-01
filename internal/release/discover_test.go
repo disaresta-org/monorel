@@ -155,4 +155,3 @@ func TestDiscoverPublishables_BareTagRoot(t *testing.T) {
 		}
 	}
 }
-

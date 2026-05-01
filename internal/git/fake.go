@@ -12,10 +12,10 @@ import (
 //
 // Operations record into the corresponding fields so tests can assert
 // on them; it doesn't simulate every git invariant. Specifically:
-// - Add/Remove just track which paths have been touched; there's no
-//   actual working tree.
-// - Commit appends to Commits with the staged paths cleared.
-// - CreateTag fails on duplicate names (matches git behavior).
+//   - Add/Remove just track which paths have been touched; there's no
+//     actual working tree.
+//   - Commit appends to Commits with the staged paths cleared.
+//   - CreateTag fails on duplicate names (matches git behavior).
 //
 // Construct with NewFake; the zero value is usable but tests usually
 // want to seed initial tags via NewFake's argument.

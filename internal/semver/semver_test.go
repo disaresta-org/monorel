@@ -24,9 +24,9 @@ func TestBumpLevel_String(t *testing.T) {
 
 func TestParseBumpLevel(t *testing.T) {
 	cases := []struct {
-		in       string
-		want     BumpLevel
-		wantErr  bool
+		in      string
+		want    BumpLevel
+		wantErr bool
 	}{
 		{"major", Major, false},
 		{"Minor", Minor, false},
