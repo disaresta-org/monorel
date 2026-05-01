@@ -9,6 +9,39 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.4.0] - 2026-05-01
+
+### Minor Changes
+
+- `monorel add` now uses a [huh](https://github.com/charmbracelet/huh)
+  form when stdin is an interactive terminal: arrow-key multi-select
+  for packages, per-package bump-level select, and a multi-line text
+  field for the changelog body.
+
+  Non-TTY stdin (piped input, redirected files, scripted use, tests)
+  falls back to the existing line-based bufio prompt — the contract
+  that `printf '1\nminor\nFix.\n\n' | monorel add` works is preserved.
+  The auto-detected TTY check uses `golang.org/x/term.IsTerminal`.
+
+  This was in the original v1 plan as a direct dependency but never
+  landed; the form is now what the plan called for.
+
+### Patch Changes
+
+- Fix `release-pr` workflow regression where `git push --force-with-lease`
+  rejected the staged release branch with "stale info". The previous
+  `monorel apply` PR replaced `git push -f` with `--force-with-lease`
+  on review feedback, but `--force-with-lease` requires a previously-
+  fetched value of the remote ref to compare against — and the
+  speculative-apply step builds the local `monorel/release` from
+  `origin/main` without ever fetching the remote `monorel/release`,
+  so the lease has no expected value and the push is rejected.
+
+  Reverted to plain `git push -f` in both `.github/workflows/release-pr.yml`
+  and `ci/github/action.yml`. The `monorel/release` branch is
+  bot-exclusive (the workflow is its only writer), so blind force-push
+  is the intended behavior. Comments updated to spell out why.
+
 ## [0.3.0] - 2026-05-01
 
 ### Minor Changes
