@@ -7,10 +7,10 @@ layout: home
 hero:
   name: monorel
   text: Releases for Go monorepos
-  tagline: Explicit per-PR changesets. The tag conventions Go modules need.
+  tagline: Explicit per-PR changesets. Native Go tag conventions.
   image:
-    src: /hero.svg
-    alt: A release timeline as a railroad track
+    src: /logo.webp
+    alt: "monorel logo: many incoming rails merging into one"
   actions:
     - theme: brand
       text: Why monorel?
@@ -24,9 +24,9 @@ hero:
 
 features:
   - title: Changeset files, not commit messages
-    details: Every release-affecting PR includes a .changeset/<name>.md file naming affected packages and bump levels. No path-attribution leaks, no Release-As footers stripped by squash-merges.
+    details: Every release-affecting PR includes a .changeset/{name}.md file naming affected packages and bump levels. No path-attribution leaks, no Release-As footers stripped by squash-merges.
   - title: Native Go tag conventions
-    details: Bare vX.Y.Z for the main module, <path>/vX.Y.Z for sub-modules. The format go install actually expects, configurable per package.
+    details: Bare vX.Y.Z for the main module, {path}/vX.Y.Z for sub-modules. The format go install actually expects, configurable per package.
   - title: Always-open release PR
     details: The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Reviewable, mergeable. The CLI also works standalone for local dry-runs.
   - title: Pre-release support

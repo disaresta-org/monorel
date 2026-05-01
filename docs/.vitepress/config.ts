@@ -65,7 +65,7 @@ export default defineConfig({
     return head
   },
   themeConfig: {
-    logo: { src: '/favicon.svg', alt: 'monorel' },
+    logo: { src: '/logo.webp', alt: 'monorel' },
     editLink: {
       pattern: 'https://github.com/disaresta-org/monorel/edit/main/docs/src/:path',
       text: 'Edit this page on GitHub',
@@ -111,5 +111,17 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', link: 'https://github.com/disaresta-org/monorel' },
     ],
+    lastUpdated: {
+      text: 'Updated',
+      formatOptions: { dateStyle: 'medium' },
+    },
+    docFooter: {
+      prev: 'Previous',
+      next: 'Next',
+    },
+    footer: {
+      message: 'Released under the MIT License.',
+      copyright: 'monorel · made with ❤️ by <a href="https://disaresta.com">Disaresta</a>',
+    },
   },
 })

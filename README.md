@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/src/public/logo.webp" alt="monorel" width="220" />
+</p>
+
 # monorel
 
 A changesets-style release tool for multi-module Go monorepos.

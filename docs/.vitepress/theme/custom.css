@@ -1,0 +1,139 @@
+/* monorel theme.
+ *
+ * Logo rail palette (sampled from the rounded PNG):
+ *   green   #6aa57a   →  custom container ::: tip
+ *   yellow  #f0a830   →  custom container ::: warning, sidebar accent
+ *   blue    #6c9ad8   →  primary brand (links, buttons, info)
+ *   purple  #b288d8   →  hero name gradient stop
+ *   coral   #e0805c   →  ::: danger
+ *   navy bg #0c1220   →  body background (deep blueprint)
+ *
+ * Strategy: lift logo colors into VitePress' built-in semantic
+ * variables so the look is coherent without bespoke CSS for every
+ * component. Body text, sidebar layout, and code typography stay
+ * default — the theme is the palette, not the chrome.
+ */
+
+:root {
+  /* ---------- backgrounds ---------- */
+  --vp-c-bg:       #0c1220;
+  --vp-c-bg-alt:   #0f172a;
+  --vp-c-bg-soft:  #131c30;
+  --vp-c-bg-elv:   #131c30;
+
+  /* dividers a touch warmer-cool to read against the navy body */
+  --vp-c-divider:  rgba(125, 145, 185, 0.18);
+  --vp-c-gutter:   #0a0e1a;
+
+  /* default-soft: used for hover bgs, table stripes, etc. */
+  --vp-c-default-soft: rgba(108, 154, 216, 0.10);
+
+  /* ---------- brand: merged-rail blue ---------- */
+  --vp-c-brand-1: #7da7df;
+  --vp-c-brand-2: #92b6e6;
+  --vp-c-brand-3: #5a87cc;
+  --vp-c-brand-soft: rgba(108, 154, 216, 0.18);
+
+  /* primary buttons (the "Why monorel?" CTA): rail purple, deepened */
+  --vp-button-brand-bg:           #8a62b5;
+  --vp-button-brand-hover-bg:     #9b75c8;
+  --vp-button-brand-active-bg:    #75528e;
+  --vp-button-brand-border:       #8a62b5;
+  --vp-button-brand-hover-border: #9b75c8;
+  --vp-button-brand-text:         #ffffff;
+  --vp-button-brand-hover-text:   #ffffff;
+
+  /* ---------- hero ---------- */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background:
+    -webkit-linear-gradient(120deg,
+      #6aa57a 0%,
+      #f0a830 26%,
+      #6c9ad8 52%,
+      #b288d8 76%,
+      #e0805c 100%);
+
+  /* logo speaks for itself — hide the default circular blur backdrop. */
+  --vp-home-hero-image-background-image: none;
+  --vp-home-hero-image-filter: none;
+
+  /* ---------- custom containers (callouts) ---------- */
+
+  /* ::: tip  → rail green */
+  --vp-c-tip-1:    #88c39c;
+  --vp-c-tip-2:    #6aa57a;
+  --vp-c-tip-3:    #5a8e6a;
+  --vp-c-tip-soft: rgba(106, 165, 122, 0.16);
+
+  /* ::: warning → rail yellow / gold */
+  --vp-c-warning-1:    #f4b948;
+  --vp-c-warning-2:    #f0a830;
+  --vp-c-warning-3:    #d6921c;
+  --vp-c-warning-soft: rgba(240, 168, 48, 0.18);
+
+  /* ::: danger → rail coral */
+  --vp-c-danger-1:    #ec9579;
+  --vp-c-danger-2:    #e0805c;
+  --vp-c-danger-3:    #c66c4a;
+  --vp-c-danger-soft: rgba(224, 128, 92, 0.16);
+
+  /* ::: info / note → rail blue */
+  --vp-c-note-1:    #7da7df;
+  --vp-c-note-soft: rgba(108, 154, 216, 0.16);
+
+  /* ---------- code surfaces ---------- */
+  --vp-code-bg: #0a0f1c;          /* inline `code` */
+  --vp-code-block-bg: #0a0f1c;    /* fenced ``` blocks */
+
+  /* ---------- selection (highlight color when you select text) ---------- */
+  --vp-c-text-1: #e8eef7;          /* body text — slightly warmer than default */
+}
+
+/* selection bar for active sidebar entry: brand blue with gold accent */
+.VPSidebarItem.is-active > .item .text,
+.VPSidebarItem.is-active > .item .link.active {
+  color: var(--vp-c-brand-1);
+}
+
+/* outline (right-hand "On this page") active marker */
+.VPDocOutlineItem.active > a {
+  color: var(--vp-c-brand-1);
+}
+
+/* hero image's circular backdrop element — kill it entirely. */
+.VPHero .image-bg {
+  display: none !important;
+}
+
+/* table-row striping uses default-soft, which we tinted blue —
+   tone it down so tables don't look bright-blue striped. */
+.vp-doc tr:nth-child(2n) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* ---------- homepage feature cards ----------
+ * Rotate the rail palette across the six feature cards so the
+ * homepage isn't visually monochrome navy. Each card gets a tinted
+ * top border + a matching colored title. The card body and hover
+ * behavior stay default. */
+
+.VPFeatures .items .item:nth-child(6n+1) .VPFeature { border-top: 3px solid #6aa57a; }
+.VPFeatures .items .item:nth-child(6n+2) .VPFeature { border-top: 3px solid #f0a830; }
+.VPFeatures .items .item:nth-child(6n+3) .VPFeature { border-top: 3px solid #6c9ad8; }
+.VPFeatures .items .item:nth-child(6n+4) .VPFeature { border-top: 3px solid #b288d8; }
+.VPFeatures .items .item:nth-child(6n+5) .VPFeature { border-top: 3px solid #e0805c; }
+.VPFeatures .items .item:nth-child(6n+6) .VPFeature { border-top: 3px solid #6aa57a; }
+
+.VPFeatures .items .item:nth-child(6n+1) .VPFeature .title { color: #88c39c; }
+.VPFeatures .items .item:nth-child(6n+2) .VPFeature .title { color: #f4b948; }
+.VPFeatures .items .item:nth-child(6n+3) .VPFeature .title { color: #7da7df; }
+.VPFeatures .items .item:nth-child(6n+4) .VPFeature .title { color: #c39ee5; }
+.VPFeatures .items .item:nth-child(6n+5) .VPFeature .title { color: #ec9579; }
+.VPFeatures .items .item:nth-child(6n+6) .VPFeature .title { color: #88c39c; }
+
+/* round the top of each card so the tinted border doesn't fight
+   the card's own rounding */
+.VPFeatures .VPFeature {
+  border-radius: 12px;
+}
+
