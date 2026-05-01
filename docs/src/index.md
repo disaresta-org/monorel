@@ -8,6 +8,9 @@ hero:
   name: monorel
   text: Changesets-style releases for Go monorepos.
   tagline: Per-PR intent via .changeset/*.md files. Bare main tags + prefixed sub-module tags. No commit-message inference, no leaked footers.
+  image:
+    src: /hero.svg
+    alt: A stack of release tags, the latest in gold
   actions:
     - theme: brand
       text: Why monorel?

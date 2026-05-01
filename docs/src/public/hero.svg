@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-label="monorel: stacked release tags">
+  <!--
+    Concept: a stack of three release tags, each labeled with a
+    version. Bottom-to-top: dim slate → bright slate → gold. Reads
+    as a version history flowing up to the next release. Visually
+    consistent with the three-bar favicon mark.
+  -->
+  <rect width="360" height="360" rx="32" fill="#0f172a"/>
+
+  <!-- decorative connector: implies "main branch" running through the stack -->
+  <line x1="180" y1="60" x2="180" y2="300" stroke="#1e293b" stroke-width="2"/>
+
+  <!-- tag 1 (oldest) -->
+  <g transform="translate(60, 90)">
+    <path d="M0 0 H180 L220 24 L180 48 H0 Z" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <circle cx="186" cy="24" r="4" fill="#0f172a"/>
+    <text x="24" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" font-weight="500" fill="#64748b">v1.0.0</text>
+  </g>
+
+  <!-- tag 2 -->
+  <g transform="translate(60, 156)">
+    <path d="M0 0 H180 L220 24 L180 48 H0 Z" fill="#334155" stroke="#475569" stroke-width="1"/>
+    <circle cx="186" cy="24" r="4" fill="#0f172a"/>
+    <text x="24" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" font-weight="500" fill="#e2e8f0">v1.6.0</text>
+  </g>
+
+  <!-- tag 3 (latest, highlighted) -->
+  <g transform="translate(60, 222)">
+    <path d="M0 0 H180 L220 24 L180 48 H0 Z" fill="#facc15"/>
+    <circle cx="186" cy="24" r="4" fill="#0f172a"/>
+    <text x="24" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" font-weight="600" fill="#0f172a">v1.7.0</text>
+  </g>
+</svg>
