@@ -1,4 +1,4 @@
-package github
+package forge
 
 import (
 	"context"
@@ -7,8 +7,9 @@ import (
 	"sync"
 )
 
-// Fake is an in-memory [Client] for unit tests of the action
-// orchestrator and the release CLI's GitHub-Releases extension.
+// Fake is an in-memory [Client] for unit tests of the orchestrator
+// and any forge-aware higher layer. Provider-neutral: same fake
+// satisfies the contract for every forge implementation.
 type Fake struct {
 	mu sync.Mutex
 
@@ -46,8 +47,6 @@ func (f *Fake) take() error {
 	return nil
 }
 
-// nextPRNumber returns the next available PR number. Caller must hold
-// f.mu. Numbers are 1-based and monotonic across the fake's lifetime.
 func (f *Fake) nextPRNumber() int {
 	max := 0
 	for n := range f.PRs {
@@ -102,10 +101,10 @@ func (f *Fake) CreatePR(_ context.Context, opts CreatePROptions) (*PullRequest, 
 		return nil, err
 	}
 	if opts.Title == "" {
-		return nil, errors.New("github fake: CreatePR title is empty")
+		return nil, errors.New("forge fake: CreatePR title is empty")
 	}
 	if opts.HeadBranch == "" || opts.BaseBranch == "" {
-		return nil, errors.New("github fake: CreatePR HeadBranch/BaseBranch required")
+		return nil, errors.New("forge fake: CreatePR HeadBranch/BaseBranch required")
 	}
 	num := f.nextPRNumber()
 	pr := &PullRequest{
@@ -114,7 +113,7 @@ func (f *Fake) CreatePR(_ context.Context, opts CreatePROptions) (*PullRequest, 
 		Title:   opts.Title,
 		Body:    opts.Body,
 		HeadRef: opts.HeadBranch,
-		HTMLURL: fmt.Sprintf("https://github.com/fake/fake/pull/%d", num),
+		HTMLURL: fmt.Sprintf("https://forge.fake/fake/pull/%d", num),
 	}
 	f.PRs[num] = pr
 	cp := *pr
@@ -130,7 +129,7 @@ func (f *Fake) UpdatePR(_ context.Context, number int, opts UpdatePROptions) (*P
 	}
 	pr, ok := f.PRs[number]
 	if !ok {
-		return nil, fmt.Errorf("github fake: PR #%d not found", number)
+		return nil, fmt.Errorf("forge fake: PR #%d not found", number)
 	}
 	if opts.Title != nil {
 		pr.Title = *opts.Title
@@ -151,7 +150,7 @@ func (f *Fake) ClosePR(_ context.Context, number int) error {
 	}
 	pr, ok := f.PRs[number]
 	if !ok {
-		return fmt.Errorf("github fake: PR #%d not found", number)
+		return fmt.Errorf("forge fake: PR #%d not found", number)
 	}
 	pr.State = "closed"
 	return nil
@@ -165,13 +164,13 @@ func (f *Fake) CreateRelease(_ context.Context, opts CreateReleaseOptions) (*Rel
 		return nil, err
 	}
 	if opts.Tag == "" {
-		return nil, errors.New("github fake: CreateRelease Tag is empty")
+		return nil, errors.New("forge fake: CreateRelease Tag is empty")
 	}
 	id := f.nextReleaseID()
 	rel := &Release{
 		ID:      id,
 		Tag:     opts.Tag,
-		HTMLURL: fmt.Sprintf("https://github.com/fake/fake/releases/tag/%s", opts.Tag),
+		HTMLURL: fmt.Sprintf("https://forge.fake/fake/releases/tag/%s", opts.Tag),
 	}
 	f.Releases[id] = rel
 	cp := *rel

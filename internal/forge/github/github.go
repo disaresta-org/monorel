@@ -1,3 +1,8 @@
+// Package github is the [forge.Client] implementation for GitHub.com
+// and GitHub Enterprise (via the Host option).
+//
+// Wraps go-github + oauth2. Constructed via [New]; the returned
+// concrete type satisfies [forge.Client] structurally.
 package github
 
 import (
@@ -9,17 +14,11 @@ import (
 
 	gogh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
+
+	"github.com/disaresta-org/monorel/internal/forge"
 )
 
-// Exec is a [Client] backed by go-github + oauth2. Constructed via
-// [New]; no zero-value usage.
-type Exec struct {
-	owner string
-	repo  string
-	gh    *gogh.Client
-}
-
-// Options configures a new go-github-backed [Exec].
+// Options configures a new GitHub-backed [forge.Client].
 type Options struct {
 	// Owner is the GitHub user or org that owns the repo (e.g.
 	// "disaresta-org").
@@ -27,6 +26,10 @@ type Options struct {
 
 	// Repo is the repository name (e.g. "monorel").
 	Repo string
+
+	// Host is the API host for GitHub Enterprise (e.g.
+	// "github.example.com"). Empty means use the public api.github.com.
+	Host string
 
 	// Token is the personal access token or installation token
 	// used for authenticated API calls. Required for any operation
@@ -39,10 +42,19 @@ type Options struct {
 // an owner and repo. Without them every API call is meaningless.
 var ErrMissingOwnerRepo = errors.New("github: Owner and Repo are required")
 
-// New returns an [Exec] authenticated by Options.Token. An empty
-// token yields an unauthenticated client (useful for read-only
-// access to public repos in tests).
-func New(ctx context.Context, opts Options) (*Exec, error) {
+// client is the package-private concrete impl. Callers receive it as
+// [forge.Client] from [New], so the type itself is not exported.
+type client struct {
+	owner string
+	repo  string
+	gh    *gogh.Client
+}
+
+// New returns a [forge.Client] backed by go-github, authenticated by
+// opts.Token (empty token yields an unauthenticated client). When
+// opts.Host is non-empty, the client targets a GitHub Enterprise
+// installation.
+func New(ctx context.Context, opts Options) (forge.Client, error) {
 	if opts.Owner == "" || opts.Repo == "" {
 		return nil, ErrMissingOwnerRepo
 	}
@@ -51,18 +63,26 @@ func New(ctx context.Context, opts Options) (*Exec, error) {
 		ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: opts.Token})
 		httpClient = oauth2.NewClient(ctx, ts)
 	}
-	return &Exec{
-		owner: opts.Owner,
-		repo:  opts.Repo,
-		gh:    gogh.NewClient(httpClient),
-	}, nil
+	gh := gogh.NewClient(httpClient)
+	if opts.Host != "" {
+		// SetHost sets both the upload and base URLs to the
+		// GitHub Enterprise install. WithEnterpriseURLs would
+		// also work but requires constructing two URL strings.
+		baseURL := fmt.Sprintf("https://%s/api/v3/", opts.Host)
+		uploadURL := fmt.Sprintf("https://%s/api/uploads/", opts.Host)
+		var err error
+		gh, err = gh.WithEnterpriseURLs(baseURL, uploadURL)
+		if err != nil {
+			return nil, fmt.Errorf("github: enterprise host %q: %w", opts.Host, err)
+		}
+	}
+	return &client{owner: opts.Owner, repo: opts.Repo, gh: gh}, nil
 }
 
-// GetDefaultBranch implements [Client.GetDefaultBranch].
-func (e *Exec) GetDefaultBranch(ctx context.Context) (string, error) {
-	repo, _, err := e.gh.Repositories.Get(ctx, e.owner, e.repo)
+func (c *client) GetDefaultBranch(ctx context.Context) (string, error) {
+	repo, _, err := c.gh.Repositories.Get(ctx, c.owner, c.repo)
 	if err != nil {
-		return "", fmt.Errorf("get repo %s/%s: %w", e.owner, e.repo, err)
+		return "", fmt.Errorf("get repo %s/%s: %w", c.owner, c.repo, err)
 	}
 	if repo.DefaultBranch == nil {
 		return "", errors.New("repo has no default branch")
@@ -70,14 +90,10 @@ func (e *Exec) GetDefaultBranch(ctx context.Context) (string, error) {
 	return *repo.DefaultBranch, nil
 }
 
-// FindOpenReleasePR implements [Client.FindOpenReleasePR].
-func (e *Exec) FindOpenReleasePR(ctx context.Context, headBranch string) (*PullRequest, error) {
-	// The GitHub API expects "owner:branch" for cross-repo PRs but
-	// "branch" for same-repo PRs. monorel always operates within a
-	// single repo, so the bare branch name suffices.
-	prs, _, err := e.gh.PullRequests.List(ctx, e.owner, e.repo, &gogh.PullRequestListOptions{
+func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*forge.PullRequest, error) {
+	prs, _, err := c.gh.PullRequests.List(ctx, c.owner, c.repo, &gogh.PullRequestListOptions{
 		State: "open",
-		Head:  fmt.Sprintf("%s:%s", e.owner, headBranch),
+		Head:  fmt.Sprintf("%s:%s", c.owner, headBranch),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list PRs (head=%s): %w", headBranch, err)
@@ -90,15 +106,14 @@ func (e *Exec) FindOpenReleasePR(ctx context.Context, headBranch string) (*PullR
 	return nil, nil
 }
 
-// CreatePR implements [Client.CreatePR].
-func (e *Exec) CreatePR(ctx context.Context, opts CreatePROptions) (*PullRequest, error) {
+func (c *client) CreatePR(ctx context.Context, opts forge.CreatePROptions) (*forge.PullRequest, error) {
 	if opts.Title == "" {
 		return nil, errors.New("github: CreatePR title is empty")
 	}
 	if opts.HeadBranch == "" || opts.BaseBranch == "" {
 		return nil, errors.New("github: CreatePR HeadBranch and BaseBranch are required")
 	}
-	pr, _, err := e.gh.PullRequests.Create(ctx, e.owner, e.repo, &gogh.NewPullRequest{
+	pr, _, err := c.gh.PullRequests.Create(ctx, c.owner, c.repo, &gogh.NewPullRequest{
 		Title: gogh.Ptr(opts.Title),
 		Body:  gogh.Ptr(opts.Body),
 		Head:  gogh.Ptr(opts.HeadBranch),
@@ -110,8 +125,7 @@ func (e *Exec) CreatePR(ctx context.Context, opts CreatePROptions) (*PullRequest
 	return convertPR(pr), nil
 }
 
-// UpdatePR implements [Client.UpdatePR].
-func (e *Exec) UpdatePR(ctx context.Context, number int, opts UpdatePROptions) (*PullRequest, error) {
+func (c *client) UpdatePR(ctx context.Context, number int, opts forge.UpdatePROptions) (*forge.PullRequest, error) {
 	patch := &gogh.PullRequest{}
 	dirty := false
 	if opts.Title != nil {
@@ -125,16 +139,15 @@ func (e *Exec) UpdatePR(ctx context.Context, number int, opts UpdatePROptions) (
 	if !dirty {
 		return nil, errors.New("github: UpdatePR has nothing to change")
 	}
-	pr, _, err := e.gh.PullRequests.Edit(ctx, e.owner, e.repo, number, patch)
+	pr, _, err := c.gh.PullRequests.Edit(ctx, c.owner, c.repo, number, patch)
 	if err != nil {
 		return nil, fmt.Errorf("edit PR #%d: %w", number, err)
 	}
 	return convertPR(pr), nil
 }
 
-// ClosePR implements [Client.ClosePR].
-func (e *Exec) ClosePR(ctx context.Context, number int) error {
-	_, _, err := e.gh.PullRequests.Edit(ctx, e.owner, e.repo, number, &gogh.PullRequest{
+func (c *client) ClosePR(ctx context.Context, number int) error {
+	_, _, err := c.gh.PullRequests.Edit(ctx, c.owner, c.repo, number, &gogh.PullRequest{
 		State: gogh.Ptr("closed"),
 	})
 	if err != nil {
@@ -143,8 +156,7 @@ func (e *Exec) ClosePR(ctx context.Context, number int) error {
 	return nil
 }
 
-// CreateRelease implements [Client.CreateRelease].
-func (e *Exec) CreateRelease(ctx context.Context, opts CreateReleaseOptions) (*Release, error) {
+func (c *client) CreateRelease(ctx context.Context, opts forge.CreateReleaseOptions) (*forge.Release, error) {
 	if opts.Tag == "" {
 		return nil, errors.New("github: CreateRelease Tag is empty")
 	}
@@ -152,7 +164,7 @@ func (e *Exec) CreateRelease(ctx context.Context, opts CreateReleaseOptions) (*R
 	if name == "" {
 		name = opts.Tag
 	}
-	rel, _, err := e.gh.Repositories.CreateRelease(ctx, e.owner, e.repo, &gogh.RepositoryRelease{
+	rel, _, err := c.gh.Repositories.CreateRelease(ctx, c.owner, c.repo, &gogh.RepositoryRelease{
 		TagName:    gogh.Ptr(opts.Tag),
 		Name:       gogh.Ptr(name),
 		Body:       gogh.Ptr(opts.Body),
@@ -161,18 +173,18 @@ func (e *Exec) CreateRelease(ctx context.Context, opts CreateReleaseOptions) (*R
 	if err != nil {
 		return nil, fmt.Errorf("create release %q: %w", opts.Tag, err)
 	}
-	return &Release{
+	return &forge.Release{
 		ID:      rel.GetID(),
 		Tag:     rel.GetTagName(),
 		HTMLURL: rel.GetHTMLURL(),
 	}, nil
 }
 
-func convertPR(pr *gogh.PullRequest) *PullRequest {
+func convertPR(pr *gogh.PullRequest) *forge.PullRequest {
 	if pr == nil {
 		return nil
 	}
-	out := &PullRequest{
+	out := &forge.PullRequest{
 		Number:  pr.GetNumber(),
 		State:   strings.ToLower(pr.GetState()),
 		Title:   pr.GetTitle(),

@@ -24,16 +24,31 @@ import (
 // package's filesystem path for sub-modules ("transports/zerolog") and
 // the import path for the root module ("github.com/foo/bar").
 type Config struct {
-	GitHub   GitHubConfig             `toml:"github"`
+	Forge    ForgeConfig              `toml:"forge"`
 	Packages map[string]PackageConfig `toml:"packages"`
 }
 
-// GitHubConfig identifies the GitHub repo monorel manages releases
-// for. Used by the GitHub API client when creating Releases and
-// maintaining the always-open release PR.
-type GitHubConfig struct {
+// ForgeConfig identifies the version-control host monorel manages
+// releases on (GitHub, GitLab, Gitea, etc.). The Provider field
+// selects the implementation; Owner/Repo (and Host for self-hosted
+// installations) identify the specific repository.
+type ForgeConfig struct {
+	// Provider selects the forge implementation. Recognized values:
+	// "github" (default when empty). Future: "gitlab", "gitea",
+	// "bitbucket", "forgejo".
+	Provider string `toml:"provider"`
+
+	// Owner is the user or org that owns the repo. On GitLab this
+	// maps to the namespace; on Bitbucket to the workspace.
 	Owner string `toml:"owner"`
-	Repo  string `toml:"repo"`
+
+	// Repo is the repository name.
+	Repo string `toml:"repo"`
+
+	// Host is the API host for self-hosted installations (e.g.
+	// "gitlab.example.com"). Empty means use the provider's default
+	// public host.
+	Host string `toml:"host"`
 }
 
 // PackageConfig is the per-package settings block in monorel.toml.
@@ -72,6 +87,17 @@ func (p PackageConfig) FullTagPrefix() string {
 // "transports/zerolog/v1.6.2" or "v1.6.2".
 func (p PackageConfig) TagFor(version string) string {
 	return p.FullTagPrefix() + version
+}
+
+// knownProvider reports whether the given forge provider has an
+// implementation. Adding a new provider requires updating this list
+// and the factory in internal/forge.
+func knownProvider(name string) bool {
+	switch name {
+	case "github":
+		return true
+	}
+	return false
 }
 
 // PackageNames returns every package name in lexicographic order.
@@ -123,11 +149,14 @@ var ErrNoPackages = errors.New("no packages declared")
 // Validate checks invariants beyond what TOML parsing enforces.
 // Returns the first violation encountered.
 func (c *Config) Validate() error {
-	if c.GitHub.Owner == "" {
-		return errors.New("github.owner is required")
+	if c.Forge.Owner == "" {
+		return errors.New("forge.owner is required")
 	}
-	if c.GitHub.Repo == "" {
-		return errors.New("github.repo is required")
+	if c.Forge.Repo == "" {
+		return errors.New("forge.repo is required")
+	}
+	if c.Forge.Provider != "" && !knownProvider(c.Forge.Provider) {
+		return fmt.Errorf("forge.provider %q is not recognized (use one of: github)", c.Forge.Provider)
 	}
 	if len(c.Packages) == 0 {
 		return ErrNoPackages

@@ -7,7 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	gh "github.com/disaresta-org/monorel/internal/github"
+	"github.com/disaresta-org/monorel/internal/forge"
+	"github.com/disaresta-org/monorel/internal/forge/factory"
 	"github.com/disaresta-org/monorel/internal/plan"
 	"github.com/disaresta-org/monorel/internal/release"
 )
@@ -28,13 +29,14 @@ are emitted to CHANGELOGs at the next stable release after pre exit.
 
 Idempotency: if a planned tag already exists, the command aborts with
 a clear error rather than re-tagging. Push is the caller's
-responsibility — this command does not push commits or tags. Use the
-GitHub Action wrapper or run "git push --follow-tags" yourself.`,
+responsibility: this command does not push commits or tags. Use the
+CI wrapper or run "git push --follow-tags" yourself.`,
 		RunE: runRelease,
 	}
-	cmd.Flags().Bool("github", false,
-		"Also create one GitHub Release per tag. "+
-			"Requires GITHUB_TOKEN (or GH_TOKEN) and that tags have been pushed.")
+	cmd.Flags().Bool("publish", false,
+		"After tagging, create one forge release per tag using the configured "+
+			"forge provider. Requires the provider's auth token in the environment "+
+			"(GITHUB_TOKEN/GH_TOKEN for github) and that tags have been pushed.")
 	return cmd
 }
 
@@ -78,34 +80,51 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintf(out, "  %s\n", tag)
 	}
 
-	if doGitHub, _ := cmd.Flags().GetBool("github"); doGitHub {
-		token := firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"))
-		if token == "" {
-			return fmt.Errorf("--github requires GITHUB_TOKEN or GH_TOKEN in the environment")
-		}
-		client, err := gh.New(cmd.Context(), gh.Options{
-			Owner: rt.Config.GitHub.Owner,
-			Repo:  rt.Config.GitHub.Repo,
-			Token: token,
-		})
-		if err != nil {
-			return fmt.Errorf("github client: %w", err)
-		}
+	if publish, _ := cmd.Flags().GetBool("publish"); publish {
 		ctx := cmd.Context()
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		published, err := gh.PublishReleases(ctx, client, res, p)
+		token := tokenForProvider(rt.Config.Forge.Provider)
+		if token == "" {
+			return fmt.Errorf("--publish requires an auth token in the environment for provider %q",
+				effectiveProvider(rt.Config.Forge.Provider))
+		}
+		client, err := factory.New(ctx, rt.Config.Forge, token)
 		if err != nil {
-			fmt.Fprintf(out, "Created %d/%d GitHub Releases before failing.\n", len(published), len(res.Tags))
+			return fmt.Errorf("forge client: %w", err)
+		}
+		published, err := forge.PublishReleases(ctx, client, res, p)
+		if err != nil {
+			fmt.Fprintf(out, "Created %d/%d releases before failing.\n", len(published), len(res.Tags))
 			return err
 		}
-		fmt.Fprintf(out, "Published %d GitHub Release(s).\n", len(published))
+		fmt.Fprintf(out, "Published %d release(s).\n", len(published))
 		return nil
 	}
 
 	fmt.Fprintln(out, "Run `git push --follow-tags` to publish.")
 	return nil
+}
+
+// effectiveProvider returns provider, falling back to "github" when
+// the config left it empty.
+func effectiveProvider(provider string) string {
+	if provider == "" {
+		return "github"
+	}
+	return provider
+}
+
+// tokenForProvider returns the auth token for the given forge
+// provider from the environment, in priority order. Empty when none
+// is set.
+func tokenForProvider(provider string) string {
+	switch effectiveProvider(provider) {
+	case "github":
+		return firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"))
+	}
+	return ""
 }
 
 // firstNonEmpty returns the first non-empty argument, or "".

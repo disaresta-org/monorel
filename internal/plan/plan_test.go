@@ -24,7 +24,7 @@ func cfg(prefixes map[string]string) *config.Config {
 		}
 	}
 	return &config.Config{
-		GitHub:   config.GitHubConfig{Owner: "x", Repo: "y"},
+		Forge:    config.ForgeConfig{Owner: "x", Repo: "y"},
 		Packages: pkgs,
 	}
 }

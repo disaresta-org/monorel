@@ -20,7 +20,8 @@ func writeTempConfig(t *testing.T, content string) string {
 
 func TestLoad_Valid(t *testing.T) {
 	path := writeTempConfig(t, `
-[github]
+[forge]
+provider = "github"
 owner = "acme"
 repo = "widget"
 
@@ -38,8 +39,8 @@ changelog = "transports/foo/CHANGELOG.md"
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.GitHub.Owner != "acme" || cfg.GitHub.Repo != "widget" {
-		t.Errorf("github: %+v", cfg.GitHub)
+	if cfg.Forge.Provider != "github" || cfg.Forge.Owner != "acme" || cfg.Forge.Repo != "widget" {
+		t.Errorf("forge: %+v", cfg.Forge)
 	}
 	if len(cfg.Packages) != 2 {
 		t.Errorf("packages: %d, want 2", len(cfg.Packages))
@@ -58,9 +59,32 @@ changelog = "transports/foo/CHANGELOG.md"
 	}
 }
 
+func TestLoad_DefaultProviderEmpty(t *testing.T) {
+	// Provider field omitted: validation accepts it, factory will
+	// default to github at construction time.
+	path := writeTempConfig(t, `
+[forge]
+owner = "acme"
+repo = "w"
+
+[packages.foo]
+tag_prefix = "foo"
+path = "foo"
+changelog = "foo/CHANGELOG.md"
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Forge.Provider != "" {
+		t.Errorf("Provider = %q, want empty (default)", cfg.Forge.Provider)
+	}
+}
+
 func TestLoad_PackageNamesSorted(t *testing.T) {
 	path := writeTempConfig(t, `
-[github]
+[forge]
+provider = "github"
 owner = "acme"
 repo = "w"
 
@@ -102,33 +126,47 @@ func TestLoad_RejectsMissingFields(t *testing.T) {
 		wantSub string
 	}{
 		{
-			name: "no github owner",
+			name: "no forge owner",
 			content: `
-[github]
+[forge]
 repo = "x"
 [packages.foo]
 tag_prefix = "foo"
 path = "foo"
 changelog = "foo/CHANGELOG.md"
 `,
-			wantSub: "github.owner is required",
+			wantSub: "forge.owner is required",
 		},
 		{
-			name: "no github repo",
+			name: "no forge repo",
 			content: `
-[github]
+[forge]
 owner = "acme"
 [packages.foo]
 tag_prefix = "foo"
 path = "foo"
 changelog = "foo/CHANGELOG.md"
 `,
-			wantSub: "github.repo is required",
+			wantSub: "forge.repo is required",
+		},
+		{
+			name: "unknown forge provider",
+			content: `
+[forge]
+provider = "unicorn"
+owner = "acme"
+repo = "x"
+[packages.foo]
+tag_prefix = "foo"
+path = "foo"
+changelog = "foo/CHANGELOG.md"
+`,
+			wantSub: "not recognized",
 		},
 		{
 			name: "no packages",
 			content: `
-[github]
+[forge]
 owner = "acme"
 repo = "x"
 `,
@@ -137,7 +175,7 @@ repo = "x"
 		{
 			name: "package missing path",
 			content: `
-[github]
+[forge]
 owner = "acme"
 repo = "x"
 [packages.foo]
@@ -149,7 +187,7 @@ changelog = "foo/CHANGELOG.md"
 		{
 			name: "package missing changelog",
 			content: `
-[github]
+[forge]
 owner = "acme"
 repo = "x"
 [packages.foo]
@@ -161,7 +199,7 @@ path = "foo"
 		{
 			name: "duplicate tag_prefix",
 			content: `
-[github]
+[forge]
 owner = "acme"
 repo = "x"
 [packages.foo]
@@ -178,7 +216,7 @@ changelog = "bar/CHANGELOG.md"
 		{
 			name: "unknown top-level key",
 			content: `
-[github]
+[forge]
 owner = "acme"
 repo = "x"
 
@@ -208,7 +246,7 @@ changelog = "foo/CHANGELOG.md"
 
 func TestLoad_NoPackagesIsErrorIs(t *testing.T) {
 	path := writeTempConfig(t, `
-[github]
+[forge]
 owner = "acme"
 repo = "x"
 `)

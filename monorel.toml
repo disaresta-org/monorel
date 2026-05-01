@@ -5,7 +5,7 @@
 # `go install github.com/disaresta-org/monorel/cmd/monorel@v0.1.0`
 # expects.
 
-[github]
+[forge]
 owner = "disaresta-org"
 repo = "monorel"
 
