@@ -9,6 +9,49 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.4.1] - 2026-05-01
+
+### Patch Changes
+
+- Update docs for the v0.4.0 speculative-apply design:
+
+  - **`docs/src/cli-reference.md`**: New sections for `monorel apply`,
+    `monorel tag`, and `monorel publish`. Updated `monorel release` to
+    describe it as the local one-shot wrapper around apply+tag.
+    Replaced the stale "Planned for Phase 9" placeholder for
+    `monorel preview` with the real reference. Frontmatter description
+    updated to list every command.
+
+  - **`docs/src/github-action.md`**: Replaced the empty marker-commit
+    description with the speculative-apply explanation throughout.
+    Action wrapper version pins bumped from `@v0.1.2` examples to
+    `@v0.4.0`. The Branch Protection warning was rewritten: the v0.1.x
+    squash-subject-inheritance footgun no longer applies (the staged
+    commit is now a real `chore(release): <pkg> <ver>`). A NEW concern
+    is documented: the `monorel-Release:` body trailers must survive
+    the merge for `monorel tag` to work, which means avoiding the
+    squash settings that strip the body. Troubleshooting tail rewritten
+    with the new error symptoms (`ErrNoReleaseCommit`,
+    `ErrUnknownReleasedPackage`, `ErrTagExists`).
+
+  - **`docs/src/design.md`**: The "Always-open release PR" section now
+    describes the two-phase apply/tag split and what each phase does.
+    Added a "Why two phases" sub-paragraph naming the contract (the
+    `monorel-Release:` trailer block) that bridges them.
+
+  - **`docs/src/getting-started.md`**: Action wrapper pin bumped from
+    the non-existent `@v1` to `@v0.4.0`.
+
+  - **`docs/src/recipes/loglayer-go.md` removed.** The page narrated
+    monorel's own v0.1.x bug-fix saga during the loglayer-go
+    migration. Useful as historical context for monorel maintainers,
+    not for someone integrating monorel into their own repo. Sidebar
+    entry and the inbound link from
+    `docs/src/recipes/migration-from-release-please.md` removed too.
+
+  `docs/src/bootstrap.md` is left as-is; its `v0.1.0` references are
+  accurate as the one-time bootstrap context.
+
 ## [0.4.0] - 2026-05-01
 
 ### Minor Changes
