@@ -128,10 +128,9 @@ How a beta / rc window works. Multiple pre-release cuts accumulate changes; a si
 │      - pre.json counter increments                      │
 │        (next rc will be -rc.1)                          │
 └────────────────────────┬────────────────────────────────┘
-                         │  more PRs land, repeat from 2
-                         │  ─────────────────────────────►
-                         │
-                         │  ready to ship stable
+                         │  loop back to 2 for the next rc;
+                         │  or proceed to 4 when ready to
+                         │  ship stable
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │ 4. monorel pre exit                                     │

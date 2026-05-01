@@ -106,7 +106,7 @@ jobs:
 Commit both files. The `release-pr` workflow will fire on the next push to `main`; the release PR opens once there's a changeset to release.
 
 ::: warning Branch protection with required status checks
-If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/github-action#tokens-and-required-status-checks) for the wiring.
+If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/github-action#tokens-and-required-status-checks) for the wiring.
 :::
 
 ## How releases work
@@ -118,6 +118,8 @@ Three steps across the lifecycle:
 3. **Merge the release PR when ready to ship.** The `release` workflow reads the merge commit's body trailers, creates per-package tags, pushes them, and creates one GitHub Release per tag.
 
 A PR without a changeset doesn't trigger a release. The release PR auto-updates as more changesets accumulate; closing it without merging cancels that release window.
+
+For a visual end-to-end view (including the pre-release-cycle variant), see [Workflows](/workflows).
 
 ## Author your first changeset
 

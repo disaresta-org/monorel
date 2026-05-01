@@ -13,7 +13,10 @@ The single, persistent pull request the bot orchestrator maintains on `monorel/r
 
 ## Apply (speculative apply)
 
-The file-mutation half of monorel's release flow: write per-package CHANGELOG entries (or `pre.json` increments in pre-release mode), delete the consumed `.changeset/*.md` files, and create one `chore(release): ...` commit. Implemented by `monorel apply`. Called "speculative" when run against the `monorel/release` staging branch in CI (the changes preview the next release without yet being merged); called "real" when run as part of `monorel release` locally.
+Two senses worth keeping straight:
+
+- **`apply` the command**: `monorel apply` writes per-package CHANGELOG entries (or `pre.json` increments in pre-release mode), deletes the consumed `.changeset/*.md` files, and creates one `chore(release): ...` commit. The file-mutation half of the release flow.
+- **The concept**: called "speculative" when `monorel apply` runs against the `monorel/release` staging branch in CI (the changes preview the next release without yet being merged); called "real" when it runs as part of `monorel release` locally.
 
 ## Bare-tag root
 
@@ -80,6 +83,10 @@ The version-control host (GitHub, GitLab, Gitea, Bitbucket, Forgejo). monorel's 
 
 The pull request the always-open release PR pattern produces. Its diff IS the file changes the next release will produce (CHANGELOG entries + changeset deletions, written by speculative apply). Its merge triggers `monorel tag` post-merge to create the per-package tags.
 
+## SemVer / Semantic Versioning
+
+[`MAJOR.MINOR.PATCH`](https://semver.org/), with optional `-<channel>.N` pre-release suffix. monorel applies SemVer 2.0.0 rules: any breaking change bumps MAJOR, additive changes bump MINOR, backward-compatible fixes bump PATCH. Pre-release versions (`-rc.0`, `-beta.1`) sort before the corresponding stable version.
+
 ## Speculative apply
 
 See [Apply](#apply-speculative-apply).
@@ -107,10 +114,6 @@ monorel-PreRelease: false
 ```
 
 Multi-package commits emit one `monorel-Release:` per package in plan order. The squash-merge setting must preserve the commit body for `monorel tag` to find these.
-
-## SemVer / Semantic Versioning
-
-[`MAJOR.MINOR.PATCH`](https://semver.org/), with optional `-<channel>.N` pre-release suffix. monorel applies SemVer 2.0.0 rules: any breaking change bumps MAJOR, additive changes bump MINOR, backward-compatible fixes bump PATCH. Pre-release versions (`-rc.0`, `-beta.1`) sort before the corresponding stable version.
 
 ## Validate
 

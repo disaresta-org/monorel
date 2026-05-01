@@ -25,7 +25,7 @@ The off-the-shelf options each have a sharp edge for this layout.
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
 | Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
-| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / Gitea | GitHub today; seam ready |
+| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub today; seam ready |
 | Polyglot / non-language-specific | ✅ | ⚠️ JS-shaped (`package.json` per package) | ✅ | ❌ Go-only by design |
 
 The first three rows are the common ground: every tool in this category will manage independent per-package versions, write a per-package CHANGELOG, and support pre-release windows. The friction shows up below those rows: how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.

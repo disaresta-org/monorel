@@ -26,8 +26,8 @@ Open a follow-up PR adding the changeset. monorel doesn't enforce "PR must have 
 Yes. monorel reads every `.changeset/*.md` file regardless of which PR added it; a PR can include zero, one, or many. Three patterns come up:
 
 - **One file, one package.** The simple case. `monorel add --package "foo:minor" --message "..."` writes one file targeting one package.
-- **One file, multiple packages** (a multi-package changeset). When a single coordinated change touches several packages — e.g. a feature in package A that requires a pass-through patch in package B — name them all in the same changeset's frontmatter. The body becomes the changelog entry for every named package, bucketed at each package's bump level.
-- **Multiple files in one PR.** When a PR contains genuinely independent changes — a feature in package A and an unrelated fix in package B — write one changeset file per change. The bodies appear separately in the rendered CHANGELOG, which reads cleaner than one merged entry.
+- **One file, multiple packages** (a multi-package changeset). When a single coordinated change touches several packages (e.g. a feature in package A that requires a pass-through patch in package B), name them all in the same changeset's frontmatter. The body becomes the changelog entry for every named package, bucketed at each package's bump level.
+- **Multiple files in one PR.** When a PR contains genuinely independent changes (a feature in package A and an unrelated fix in package B), write one changeset file per change. The bodies appear separately in the rendered CHANGELOG, which reads cleaner than one merged entry.
 
 Rule of thumb: write one changeset per **coherent change**, not one per PR. A PR with N independent changes deserves N changeset files; a PR with one change spanning N packages deserves one multi-package changeset.
 
@@ -133,7 +133,7 @@ No. The planner reads tags from git history to determine the current version per
 
 ### Does monorel require GitHub?
 
-Today, yes. The provider seam is in place for GitLab / Gitea / Bitbucket / Forgejo, but only the GitHub implementation is wired up. A monorel build can read a `monorel.toml` with `provider.name = "gitlab"` and reject it at validation time.
+Today, yes. monorel rejects `provider.name = "gitlab"` (or any non-`github` value) at validation time. The provider seam exists for GitLab / Gitea / Bitbucket / Forgejo but only the GitHub implementation is wired up.
 
 ### Can monorel coordinate releases across multiple repos?
 

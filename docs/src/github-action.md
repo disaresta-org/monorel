@@ -12,13 +12,13 @@ The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary 
 Add the action to a workflow:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.0
+- uses: disaresta-org/monorel/ci/github@v0.4.1
   with:
     command: release
 ```
 
 ::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.1` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
 ## Inputs
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.0
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
         with:
           command: pr
 ```
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.0
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
         with:
           command: release
 ```
@@ -126,7 +126,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.4.0
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
         with:
           command: release
       - name: Capture root tag
@@ -249,7 +249,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@v3
         id: app-token
         with:
           app-id: ${{ vars.MONOREL_APP_ID }}
@@ -267,7 +267,7 @@ PRs created with the App's token are authored by the App's bot user (e.g. `monor
 Last resort. In repo Settings → Rules → Rulesets, add `github-actions[bot]` (or whichever identity the workflow runs as) to the **Bypass list** of the ruleset enforcing the required checks. The release PR can then merge without the checks firing.
 
 ::: warning Trade-off
-The release PR's diff IS the actual file changes the release will produce (CHANGELOG entries, changeset deletions). Running CI on it validates the staged result. Bypass means you trust the changeset content sight-unseen — recommend only when CI on the release PR doesn't catch anything CI on the source PRs already caught.
+The release PR's diff IS the actual file changes the release will produce (CHANGELOG entries, changeset deletions). Running CI on it validates the staged result. Bypass means you trust the changeset content sight-unseen. Recommend only when CI on the release PR doesn't catch anything CI on the source PRs already caught.
 :::
 
 ### Which to pick
@@ -282,7 +282,7 @@ The same token also applies to the `release` step (post-merge tag/push/publish),
 
 ## Troubleshooting
 
-### Release PR is stuck on "Some checks haven't completed"
+### Release PR is stuck on "Some checks haven't completed yet"
 
 Symptom: the always-open release PR shows required checks (`lint`, `test`, etc.) as "Expected — Waiting for status to be reported" indefinitely. The merge button is disabled.
 
