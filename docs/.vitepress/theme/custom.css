@@ -85,8 +85,9 @@
   --vp-code-bg: #0a0f1c;          /* inline `code` */
   --vp-code-block-bg: #0a0f1c;    /* fenced ``` blocks */
 
-  /* ---------- selection (highlight color when you select text) ---------- */
-  --vp-c-text-1: #e8eef7;          /* body text — slightly warmer than default */
+  /* ---------- text ---------- */
+  /* primary body text, slightly warmer than the default near-white */
+  --vp-c-text-1: #e8eef7;
 }
 
 /* selection bar for active sidebar entry: brand blue with gold accent */
