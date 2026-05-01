@@ -33,21 +33,26 @@ jobs:
           git config user.name  "monorel-bot[automation]"
           git config user.email "monorel-bot@users.noreply.github.com"
 
-      # GitHub's PR-create API requires the head branch to exist on
-      # the remote before opening a PR against it. Stage monorel/release
-      # as origin/main + one empty marker commit, force-push, then run
-      # the orchestrator. See ci/github/action.yml for the same logic
-      # with full commentary.
-      - name: Stage release branch
+      # Speculative apply: run `monorel apply` on a fresh monorel/release
+      # branch off origin/main, force-push, then upsert the always-open
+      # release PR. The PR's diff IS the file changes the release will
+      # produce. See ci/github/action.yml for the equivalent logic in
+      # the published action wrapper.
+      - name: Stage release branch (speculative apply)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
-          git branch -f monorel/release origin/main
-          git checkout -q monorel/release
-          git -c commit.gpgsign=false commit --allow-empty \
-            -m "chore(release): always-open release PR marker"
-          git push -f origin monorel/release
-          git checkout -q -
+          git checkout -q -B monorel/release origin/main
+          apply_out=$(go run ./cmd/monorel apply)
+          echo "$apply_out"
+          if echo "$apply_out" | grep -qF "Nothing to apply."; then
+            git checkout -q -
+          else
+            git push --force-with-lease origin monorel/release
+            git checkout -q -
+          fi
 
       - name: monorel preview --upsert
         env:

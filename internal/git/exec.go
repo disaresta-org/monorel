@@ -85,6 +85,18 @@ func (e *Exec) CurrentSHA() (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// HeadCommitMessage implements [Repo.HeadCommitMessage].
+func (e *Exec) HeadCommitMessage() (string, error) {
+	// %B is the raw body (subject + blank line + body, no trailing
+	// newline normalization). git log adds a trailing newline; trim
+	// it to match what git itself stores.
+	out, err := e.run("log", "-1", "--format=%B", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(out, "\n"), nil
+}
+
 // Add implements [Repo.Add].
 func (e *Exec) Add(paths ...string) error {
 	if len(paths) == 0 {

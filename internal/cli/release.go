@@ -59,7 +59,7 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         rt.Repo,
 		RepoDir:      rt.RepoDir,

@@ -116,43 +116,45 @@ runs:
         set -euo pipefail
         case "$COMMAND" in
           pr)
-            # GitHub's PR-create API requires the head branch to exist
-            # on the remote before opening a PR against it. Stage
-            # monorel/release as a fast-forward of the default branch
-            # plus one empty marker commit, then force-push so the
-            # always-open release PR has somewhere to live.
+            # Speculative apply: run `monorel apply` on a fresh branch
+            # off the default branch, force-push to monorel/release,
+            # then open / update the always-open release PR. The PR's
+            # diff is the actual file changes the release will produce
+            # (CHANGELOG entries, changeset deletions). The orchestrator
+            # also writes the rendered plan into the PR body.
             #
-            # The branch's diff is empty (the rendered plan goes in the
-            # PR body, not the branch). At merge time, the squash
-            # commit's subject is the orchestrator-set PR title
-            # (`chore(release): ...`), which release.yml uses to gate.
-            #
-            # If the orchestrator decides the plan is empty (no pending
-            # changesets) it'll close any open release PR — the staged
-            # branch is harmless leftover state in that case and gets
-            # overwritten on the next non-empty plan.
+            # If the planner has no pending changesets, `monorel apply`
+            # exits with "Nothing to apply." and we skip the force-push;
+            # the orchestrator then closes any open release PR.
             base="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
             base="${base:-$(git rev-parse --abbrev-ref HEAD)}"
             git fetch --no-tags origin "$base"
-            git branch -f monorel/release "origin/$base"
-            git checkout -q monorel/release
-            git -c commit.gpgsign=false commit --allow-empty \
-              -m "chore(release): always-open release PR marker"
-            git push -f origin monorel/release
-            git checkout -q -
+            git checkout -q -B monorel/release "origin/$base"
+
+            apply_out=$(monorel apply --config "$CONFIG")
+            echo "$apply_out"
+            if echo "$apply_out" | grep -qF "Nothing to apply."; then
+              # No release-affecting changesets pending. Don't force-push
+              # the staging branch (it'd just be a no-op of main); let
+              # the orchestrator close any open release PR by running
+              # preview with an empty plan.
+              git checkout -q -
+            else
+              git push --force-with-lease origin monorel/release
+              git checkout -q -
+            fi
 
             monorel preview --config "$CONFIG" --upsert
             ;;
           release)
-            # The post-merge release pipeline. Order matters:
-            #   1. release: write CHANGELOGs, delete changesets,
-            #      commit, create tags locally.
-            #   2. push: send commits + tags to the remote.
-            #   3. publish: create one provider release per tag, with
-            #      the body sourced from each tag's CHANGELOG entry.
-            # Splitting (1) and (3) ensures tags exist on the remote
-            # before the provider tries to validate them.
-            monorel release --config "$CONFIG"
+            # Post-merge release pipeline. The merge brought the file
+            # changes (CHANGELOGs, changeset deletions) onto main from
+            # the always-open release PR's branch. We just need to
+            # create the tags from the commit's monorel-Release: trailers
+            # and publish. Order matters: tags must exist on the remote
+            # before the provider can validate them when creating the
+            # Release.
+            monorel tag --config "$CONFIG"
             git push --follow-tags
             monorel publish --config "$CONFIG"
             ;;

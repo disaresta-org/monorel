@@ -67,7 +67,7 @@ func TestApply_Stable_HappyPath(t *testing.T) {
 	r, p, _ := setupRepo(t, "first-feature", "First feature line.", semver.Minor,
 		[]string{"transports/foo/v1.5.0"})
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -121,7 +121,7 @@ func TestApply_Stable_HappyPath(t *testing.T) {
 
 func TestApply_Stable_InitialRelease(t *testing.T) {
 	r, p, _ := setupRepo(t, "first", "First feature.", semver.Minor, nil)
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -148,7 +148,7 @@ func TestApply_TagAlreadyExistsAborts(t *testing.T) {
 	// behavior.
 	r.Tag(p.Releases[0].Tag, "")
 
-	_, err := release.Apply(release.Options{
+	_, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -170,7 +170,7 @@ func TestApply_TagAlreadyExistsAborts(t *testing.T) {
 
 func TestApply_EmptyPlan(t *testing.T) {
 	r := testutil.NewRepo(t)
-	_, err := release.Apply(release.Options{
+	_, err := release.ApplyAndTag(release.Options{
 		Plan:         &plan.ReleasePlan{},
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -214,7 +214,7 @@ func TestApply_PreRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -295,7 +295,7 @@ changelog = "transports/bar/CHANGELOG.md"
 		t.Fatal(err)
 	}
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -323,6 +323,143 @@ changelog = "transports/bar/CHANGELOG.md"
 	}
 }
 
+func TestApply_WritesParseableTrailers(t *testing.T) {
+	// Apply -> Tag is bridged by the commit-body trailer format. This
+	// test pins the format that Apply emits so a future change to
+	// commitMessage's output can't silently break Tag's parser.
+	r := testutil.NewRepo(t)
+	r.WriteFile("monorel.toml", `
+[provider]
+owner = "x"
+repo = "y"
+
+[packages.foo]
+tag_prefix = "transports/foo"
+path = "transports/foo"
+changelog = "transports/foo/CHANGELOG.md"
+
+[packages.bar]
+tag_prefix = "transports/bar"
+path = "transports/bar"
+changelog = "transports/bar/CHANGELOG.md"
+`)
+	r.WriteFile("transports/foo/CHANGELOG.md", "# Changelog\n")
+	r.WriteFile("transports/bar/CHANGELOG.md", "# Changelog\n")
+	r.WriteFile(filepath.Join(".changeset", "multi.md"),
+		"---\n\"foo\": minor\n\"bar\": patch\n---\n\nMulti.\n")
+	r.AddCommit("seed",
+		"monorel.toml",
+		"transports/foo/CHANGELOG.md",
+		"transports/bar/CHANGELOG.md",
+		filepath.Join(".changeset", "multi.md"),
+	)
+	r.Tag("transports/foo/v1.5.0", "")
+	r.Tag("transports/bar/v0.1.0", "")
+
+	cfg, err := config.Load(filepath.Join(r.Dir, "monorel.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	changesets, _ := changeset.LoadAll(filepath.Join(r.Dir, ".changeset"))
+	tags, _ := r.Repo.ListTags("")
+	p, err := plan.Plan(cfg, changesets, tags, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Run Apply (NOT ApplyAndTag) so the commit lands without tags.
+	if _, err := release.Apply(release.Options{
+		Plan:         p,
+		Repo:         r.Repo,
+		RepoDir:      r.Dir,
+		ChangesetDir: filepath.Join(r.Dir, ".changeset"),
+		Today:        "2026-04-30",
+	}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	msg, err := r.Repo.HeadCommitMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Each package contributes one trailer; PreRelease line is set.
+	for _, want := range []string{
+		"monorel-Release: foo v1.6.0",
+		"monorel-Release: bar v0.1.1",
+		"monorel-PreRelease: false",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("commit message missing %q\nfull:\n%s", want, msg)
+		}
+	}
+	// Trailer order must match plan order (Tag relies on this for
+	// stable ReleaseInfo ordering downstream).
+	if len(p.Releases) != 2 {
+		t.Fatalf("plan has %d releases, want 2", len(p.Releases))
+	}
+	first := strings.Index(msg, "monorel-Release: "+p.Releases[0].Name)
+	second := strings.Index(msg, "monorel-Release: "+p.Releases[1].Name)
+	if first < 0 || second < 0 || first > second {
+		t.Errorf("trailer order doesn't match plan order %v: %q at %d, %q at %d\nfull:\n%s",
+			[]string{p.Releases[0].Name, p.Releases[1].Name},
+			p.Releases[0].Name, first, p.Releases[1].Name, second, msg)
+	}
+}
+
+func TestApply_PreRelease_TrailerFlagsTrue(t *testing.T) {
+	// Pre-release Apply must set monorel-PreRelease: true so Tag
+	// propagates the flag into ReleaseInfo.Prerelease (which the
+	// publish step reads to flag the GitHub Release).
+	r := testutil.NewRepo(t)
+	r.WriteFile("monorel.toml", oneFooTOML)
+	r.WriteFile("transports/foo/CHANGELOG.md", "# Changelog\n")
+	r.WriteFile(filepath.Join(".changeset", "first.md"),
+		"---\n\"foo\": minor\n---\n\nFeature.\n")
+	pre := &changeset.PreState{Mode: "pre", Channel: "rc", Counters: map[string]int{}}
+	if err := pre.Write(filepath.Join(r.Dir, ".changeset")); err != nil {
+		t.Fatal(err)
+	}
+	r.AddCommit("seed",
+		"monorel.toml",
+		"transports/foo/CHANGELOG.md",
+		filepath.Join(".changeset", "first.md"),
+		filepath.Join(".changeset", "pre.json"),
+	)
+	r.Tag("transports/foo/v1.5.0", "")
+
+	cfg, _ := config.Load(filepath.Join(r.Dir, "monorel.toml"))
+	changesets, _ := changeset.LoadAll(filepath.Join(r.Dir, ".changeset"))
+	tags, _ := r.Repo.ListTags("")
+	p, err := plan.Plan(cfg, changesets, tags, pre)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := release.Apply(release.Options{
+		Plan:         p,
+		Repo:         r.Repo,
+		RepoDir:      r.Dir,
+		ChangesetDir: filepath.Join(r.Dir, ".changeset"),
+		PreState:     pre,
+		Today:        "2026-04-30",
+	}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	msg, err := r.Repo.HeadCommitMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"monorel-Release: foo v1.6.0-rc.0",
+		"monorel-PreRelease: true",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("commit message missing %q\nfull:\n%s", want, msg)
+		}
+	}
+}
+
 func TestApply_ReRunIsNoMutation(t *testing.T) {
 	// After a successful Apply, the same plan tag now exists. A
 	// second Apply with the same plan (same changesets gone) is
@@ -331,7 +468,7 @@ func TestApply_ReRunIsNoMutation(t *testing.T) {
 	r, p, _ := setupRepo(t, "first", "Feature.", semver.Minor,
 		[]string{"transports/foo/v1.5.0"})
 
-	if _, err := release.Apply(release.Options{
+	if _, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -343,7 +480,7 @@ func TestApply_ReRunIsNoMutation(t *testing.T) {
 
 	// Re-run with the same plan. The tag is now in the repo, so
 	// preflightTags should reject.
-	_, err := release.Apply(release.Options{
+	_, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,

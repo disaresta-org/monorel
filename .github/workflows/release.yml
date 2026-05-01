@@ -3,7 +3,7 @@ name: release
 # Cuts monorel's own release after the always-open release PR is merged.
 # Self-hosted: this workflow is monorel-specific. Other consumers go
 # through the disaresta-org/monorel/ci/github composite action, which
-# does call `monorel publish` (since they don't run goreleaser
+# additionally calls `monorel publish` (those repos don't run goreleaser
 # themselves; their releases need monorel publish to set bodies and
 # create the GitHub Release in the first place).
 #
@@ -14,10 +14,13 @@ name: release
 #   workflow_dispatch — manual escape hatch (the v0.1.0 bootstrap path).
 #
 # Pipeline (release job):
-#   1. monorel release       — write CHANGELOGs, delete consumed
-#                              .changeset/*.md, create the release
-#                              commit, create per-package tags locally.
-#   2. git push --follow-tags — push commit + tags to the remote.
+#   1. monorel tag           — read HEAD's monorel-Release: trailers
+#                              (written by `monorel apply` on the
+#                              staging branch upstream) and create per-
+#                              package tags. The merge commit already
+#                              has the file changes; only the tags
+#                              still need creating.
+#   2. git push --follow-tags — push the new tags to the remote.
 #
 # Notice the absence of `monorel publish`: monorel's own pipeline lets
 # goreleaser (in build-binaries) create the GitHub Release in one step
@@ -32,9 +35,10 @@ name: release
 #
 # Trade-off: monorel's own GitHub Release bodies are goreleaser's
 # auto-generated commit list, not the curated CHANGELOG entry.
-# CHANGELOG.md still gets the curated entry via `monorel release`.
-# Other consumers (loglayer-go) keep getting curated bodies because
-# they call the action wrapper, which runs `monorel publish`.
+# CHANGELOG.md still gets the curated entry via `monorel apply` on the
+# staging branch. Other consumers (loglayer-go) keep getting curated
+# bodies because they call the action wrapper, which runs `monorel
+# publish` after `monorel tag`.
 #
 # build-binaries and build-image fire as workflow_call jobs gated on
 # the release job having cut a root-module (`vX.Y.Z`) tag. Both are
@@ -78,16 +82,17 @@ jobs:
           git config user.name  "monorel-bot[automation]"
           git config user.email "monorel-bot@users.noreply.github.com"
 
-      - name: monorel release pipeline
+      - name: monorel tag + push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Note the absence of `monorel publish` (see workflow header
-        # comment for why). build-binaries chains downstream and lets
-        # goreleaser create the GitHub Release with its assets in one
-        # step.
+        # The merge commit already has the file changes (CHANGELOGs +
+        # changeset deletions) from the always-open release PR. We
+        # just need to create the tags, push, and let build-binaries
+        # take it from there. No `monorel publish` (see workflow
+        # header comment for why).
         run: |
           set -euo pipefail
-          go run ./cmd/monorel release
+          go run ./cmd/monorel tag
           git push --follow-tags
 
       - name: Capture root tag

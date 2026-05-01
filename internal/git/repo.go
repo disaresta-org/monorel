@@ -34,6 +34,12 @@ type Repo interface {
 	// CurrentSHA returns the SHA at HEAD.
 	CurrentSHA() (string, error)
 
+	// HeadCommitMessage returns the full commit message of HEAD
+	// (subject + body, including any trailers). Used by `monorel tag`
+	// to read the trailers `monorel apply` writes for downstream
+	// tag creation.
+	HeadCommitMessage() (string, error)
+
 	// Add stages the named paths. No-op when paths is empty.
 	Add(paths ...string) error
 
