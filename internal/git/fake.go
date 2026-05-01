@@ -129,6 +129,21 @@ func (f *Fake) CurrentSHA() (string, error) {
 	return f.HeadSHA, nil
 }
 
+// HeadCommitMessage implements [Repo.HeadCommitMessage]. Returns the
+// Message of the last [FakeCommit] in Commits, or "" when no commits
+// have been recorded.
+func (f *Fake) HeadCommitMessage() (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return "", err
+	}
+	if len(f.Commits) == 0 {
+		return "", nil
+	}
+	return f.Commits[len(f.Commits)-1].Message, nil
+}
+
 // Add implements [Repo.Add]. Records the paths in Staged.
 func (f *Fake) Add(paths ...string) error {
 	f.mu.Lock()

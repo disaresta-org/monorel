@@ -67,7 +67,7 @@ func TestApply_Stable_HappyPath(t *testing.T) {
 	r, p, _ := setupRepo(t, "first-feature", "First feature line.", semver.Minor,
 		[]string{"transports/foo/v1.5.0"})
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -121,7 +121,7 @@ func TestApply_Stable_HappyPath(t *testing.T) {
 
 func TestApply_Stable_InitialRelease(t *testing.T) {
 	r, p, _ := setupRepo(t, "first", "First feature.", semver.Minor, nil)
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -148,7 +148,7 @@ func TestApply_TagAlreadyExistsAborts(t *testing.T) {
 	// behavior.
 	r.Tag(p.Releases[0].Tag, "")
 
-	_, err := release.Apply(release.Options{
+	_, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -170,7 +170,7 @@ func TestApply_TagAlreadyExistsAborts(t *testing.T) {
 
 func TestApply_EmptyPlan(t *testing.T) {
 	r := testutil.NewRepo(t)
-	_, err := release.Apply(release.Options{
+	_, err := release.ApplyAndTag(release.Options{
 		Plan:         &plan.ReleasePlan{},
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -214,7 +214,7 @@ func TestApply_PreRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -295,7 +295,7 @@ changelog = "transports/bar/CHANGELOG.md"
 		t.Fatal(err)
 	}
 
-	res, err := release.Apply(release.Options{
+	res, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -331,7 +331,7 @@ func TestApply_ReRunIsNoMutation(t *testing.T) {
 	r, p, _ := setupRepo(t, "first", "Feature.", semver.Minor,
 		[]string{"transports/foo/v1.5.0"})
 
-	if _, err := release.Apply(release.Options{
+	if _, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
@@ -343,7 +343,7 @@ func TestApply_ReRunIsNoMutation(t *testing.T) {
 
 	// Re-run with the same plan. The tag is now in the repo, so
 	// preflightTags should reject.
-	_, err := release.Apply(release.Options{
+	_, err := release.ApplyAndTag(release.Options{
 		Plan:         p,
 		Repo:         r.Repo,
 		RepoDir:      r.Dir,
