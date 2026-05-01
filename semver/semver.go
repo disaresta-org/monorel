@@ -1,10 +1,12 @@
 // Package semver wraps github.com/Masterminds/semver/v3 with the
 // bump-level abstraction monorel uses everywhere it touches versions.
 //
-// Version strings carry the leading "v" required by Go module tags
-// (e.g. "v1.6.2", "v1.0.0-rc.3"). Functions that produce versions
-// always emit the "v" form; functions that accept them tolerate
-// either.
+// Version strings always carry the leading "v" required by Go module
+// tags (e.g. "v1.6.2", "v1.0.0-rc.3"). Functions that produce versions
+// emit the "v" form; functions that accept versions require it.
+// Inputs without a leading "v" are rejected as invalid; this matches
+// what `git tag --list` returns and what `go get` accepts, and catches
+// caller bugs at the boundary instead of letting them propagate.
 package semver
 
 import (
@@ -188,15 +190,20 @@ func IsValid(v string) bool {
 
 // Compare returns -1 if a < b, 0 if a == b, +1 if a > b. Pre-releases
 // sort before their canonical version (v1.0.0-rc.1 < v1.0.0).
-// Returns 0 when either input is unparseable.
-func Compare(a, b string) int {
+//
+// Returns a non-nil error if either input fails to parse as a valid
+// version. Callers that want to silently skip unparseable values
+// should [IsValid]-guard the inputs first; the previous "return 0
+// on parse failure" silently-equal behavior was a footgun that hid
+// bad inputs from a caller computing a max.
+func Compare(a, b string) (int, error) {
 	pa, err := parseStrict(a)
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("compare: a: %w", err)
 	}
 	pb, err := parseStrict(b)
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("compare: b: %w", err)
 	}
-	return pa.Compare(pb)
+	return pa.Compare(pb), nil
 }

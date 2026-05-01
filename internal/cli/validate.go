@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"monorel.disaresta.com/internal/git"
-	"monorel.disaresta.com/internal/validate"
+	"monorel.disaresta.com/validate"
 )
 
 func newValidateCmd() *cobra.Command {
@@ -80,10 +80,10 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 	}
 
 	if validate.HasErrors(findings) {
-		return errExit(1)
+		return ErrExit(1)
 	}
 	if strict && validate.HasWarnings(findings) {
-		return errExit(2)
+		return ErrExit(2)
 	}
 	return nil
 }
@@ -179,33 +179,40 @@ func countSeverity(findings []validate.Finding, s validate.Severity) int {
 	return n
 }
 
-// errExit is a sentinel error wrapping a non-zero exit code so main()
-// can surface it without printing a "Error: ..." line. Cobra normally
-// renders RunE errors; SilenceErrors on root suppresses that, and main
-// inspects the error to set os.Exit. Existing convention in this repo:
-// every command returns plain errors. validate is the first command
-// that wants a specific non-1 exit code (2 for --strict warnings), so
-// we introduce the wrapper here.
-type errExit int
+// ErrExit is a sentinel error wrapping a non-zero exit code. main()
+// uses the wrapped value as the process exit code and suppresses the
+// "Error: ..." stderr line that a plain error would produce.
+//
+// Cobra normally renders RunE errors; SilenceErrors on root suppresses
+// that, and main inspects the error to set os.Exit. Existing convention
+// in this repo: every command returns plain errors. validate is the
+// first command that wants a specific non-1 exit code (2 for --strict
+// warnings), so we introduce the wrapper here.
+type ErrExit int
 
-func (e errExit) Error() string { return fmt.Sprintf("exit %d", int(e)) }
-
-// silentExit marks errExit as opt-out of main()'s default
-// "print error then os.Exit(1)" path. main() type-asserts on this
-// interface and skips printing for matches.
-func (errExit) silentExit() {}
+// Error returns a stable string form. Satisfies the error interface;
+// main() doesn't print this. See ExitCode and IsSilentExit.
+func (e ErrExit) Error() string { return fmt.Sprintf("exit %d", int(e)) }
 
 // ExitCode reports the exit code an error should map to. Returns 0
-// for nil, the wrapped int for any error chain containing errExit
+// for nil, the wrapped int for any error chain containing ErrExit
 // (so callers can wrap-and-still-propagate), and 1 otherwise.
 // main() calls this to set os.Exit.
 func ExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	var ee errExit
+	var ee ErrExit
 	if errors.As(err, &ee) {
 		return int(ee)
 	}
 	return 1
+}
+
+// IsSilentExit reports whether the error chain contains an ErrExit.
+// main() uses this to skip the default "Error: ..." stderr print for
+// errors that are exit-code-only (validate's --strict path emits one).
+func IsSilentExit(err error) bool {
+	var ee ErrExit
+	return errors.As(err, &ee)
 }

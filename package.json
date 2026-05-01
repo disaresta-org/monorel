@@ -2,14 +2,12 @@
   "name": "monorel-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Repo-level tooling for monorel: a commit-message linter that uses the same parser monorel-style projects use, plus a doctoc TOC regenerator. The docs site has its own package.json under docs/.",
+  "description": "Repo-level tooling for monorel: a Conventional-Commits message linter for git hooks and CI. The docs site has its own package.json under docs/.",
   "type": "module",
   "scripts": {
-    "lint-commits": "node scripts/lint-commit.mjs",
-    "toc": "doctoc README.md --github --title '## Table of contents'"
+    "lint-commits": "node scripts/lint-commit.mjs"
   },
   "devDependencies": {
-    "@conventional-commits/parser": "^0.4.1",
-    "doctoc": "^2.2.1"
+    "@conventional-commits/parser": "^0.4.1"
   }
 }

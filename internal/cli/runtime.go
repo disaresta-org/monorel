@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"monorel.disaresta.com/internal/changeset"
-	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/changeset"
+	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/git"
 )
 

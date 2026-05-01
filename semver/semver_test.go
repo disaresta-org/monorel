@@ -203,14 +203,31 @@ func TestIsPrerelease(t *testing.T) {
 }
 
 func TestCompare(t *testing.T) {
-	if Compare("v1.0.0", "v1.0.1") >= 0 {
+	cmp := func(a, b string) int {
+		t.Helper()
+		got, err := Compare(a, b)
+		if err != nil {
+			t.Fatalf("Compare(%q, %q) error: %v", a, b, err)
+		}
+		return got
+	}
+	if cmp("v1.0.0", "v1.0.1") >= 0 {
 		t.Error("v1.0.0 should be < v1.0.1")
 	}
-	if Compare("v1.0.0-rc.1", "v1.0.0") >= 0 {
+	if cmp("v1.0.0-rc.1", "v1.0.0") >= 0 {
 		t.Error("v1.0.0-rc.1 should be < v1.0.0")
 	}
-	if Compare("v1.0.0", "v1.0.0") != 0 {
+	if cmp("v1.0.0", "v1.0.0") != 0 {
 		t.Error("v1.0.0 == v1.0.0 should be 0")
+	}
+}
+
+func TestCompare_InvalidInput(t *testing.T) {
+	if _, err := Compare("not-a-version", "v1.0.0"); err == nil {
+		t.Error("want error for invalid `a`, got nil")
+	}
+	if _, err := Compare("v1.0.0", "not-a-version"); err == nil {
+		t.Error("want error for invalid `b`, got nil")
 	}
 }
 

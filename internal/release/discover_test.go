@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"monorel.disaresta.com/internal/config"
+	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/git"
 	"monorel.disaresta.com/internal/release"
 )

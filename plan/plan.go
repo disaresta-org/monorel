@@ -20,9 +20,9 @@ import (
 	"sort"
 	"strings"
 
-	"monorel.disaresta.com/internal/changeset"
-	"monorel.disaresta.com/internal/config"
-	"monorel.disaresta.com/internal/semver"
+	"monorel.disaresta.com/changeset"
+	"monorel.disaresta.com/config"
+	"monorel.disaresta.com/semver"
 )
 
 // ReleasePlan is the result of [Plan]: every package that needs to be
@@ -248,7 +248,15 @@ func latestStableTagVersion(tags []string, pkg config.PackageConfig) (string, bo
 		if !semver.IsValid(version) || semver.IsPrerelease(version) {
 			continue
 		}
-		if best == "" || semver.Compare(version, best) > 0 {
+		if best == "" {
+			best = version
+			continue
+		}
+		// Both `version` and `best` were already IsValid-guarded
+		// above, so the only error path here is impossible-by-
+		// construction. Treat any unexpected error as "skip"
+		// rather than panicking.
+		if cmp, err := semver.Compare(version, best); err == nil && cmp > 0 {
 			best = version
 		}
 	}

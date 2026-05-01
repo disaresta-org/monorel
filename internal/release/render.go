@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/plan"
 )
 
 // RenderPreview formats a [plan.ReleasePlan] as markdown suitable for

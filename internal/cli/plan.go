@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"monorel.disaresta.com/internal/changeset"
-	"monorel.disaresta.com/internal/plan"
+	"monorel.disaresta.com/changeset"
+	"monorel.disaresta.com/plan"
 )
 
 func newPlanCmd() *cobra.Command {

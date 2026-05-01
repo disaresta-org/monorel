@@ -18,8 +18,8 @@ import (
 	"fmt"
 
 	"monorel.disaresta.com/internal/forge"
-	"monorel.disaresta.com/internal/plan"
 	"monorel.disaresta.com/internal/release"
+	"monorel.disaresta.com/plan"
 )
 
 // DefaultHeadBranch is the branch name the orchestrator pushes

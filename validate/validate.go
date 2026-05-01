@@ -27,9 +27,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"monorel.disaresta.com/internal/changeset"
-	"monorel.disaresta.com/internal/config"
-	"monorel.disaresta.com/internal/semver"
+	"monorel.disaresta.com/changeset"
+	"monorel.disaresta.com/config"
+	"monorel.disaresta.com/semver"
 )
 
 // Severity classifies a finding. Errors fail the run; warnings only
@@ -76,8 +76,10 @@ type Inputs struct {
 	// ListTags supplies the tag list for a given prefix when
 	// CheckTags is true. The prefix is the value returned by
 	// PackageConfig.FullTagPrefix() (e.g. "transports/zerolog/" or
-	// "" for bare-tag root). The callback should return only tags
-	// that begin with that prefix; validate does not re-filter.
+	// "" for bare-tag root). A well-behaved implementation should
+	// return only tags whose names begin with the prefix; validate
+	// re-filters defensively so a misbehaving callback that returns
+	// extra tags will not cross-pollinate findings.
 	//
 	// Stays a callback so the validate package doesn't pull in
 	// internal/git. When CheckTags is true and ListTags is nil,
@@ -325,6 +327,12 @@ func validateTags(cfg *config.Config, listTags func(prefix string) ([]string, er
 		}
 
 		for _, tag := range tags {
+			// Defensive: a misbehaving caller that returns tags
+			// outside the prefix would otherwise produce nonsense
+			// findings against this package's namespace.
+			if !strings.HasPrefix(tag, prefix) {
+				continue
+			}
 			version := strings.TrimPrefix(tag, prefix)
 			if !semver.IsValid(version) {
 				findings = append(findings, Finding{

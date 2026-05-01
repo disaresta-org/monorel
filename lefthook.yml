@@ -44,19 +44,6 @@ pre-commit:
           exit 1
         fi
         staticcheck ./...
-    doctoc:
-      glob: "README.md"
-      run: |
-        if ! command -v bun >/dev/null 2>&1; then
-          echo "lefthook: bun not on PATH. Install bun (https://bun.sh) or skip with: git commit --no-verify" >&2
-          exit 1
-        fi
-        if [ ! -d node_modules ]; then
-          echo "lefthook: node_modules missing. Run 'bun install' or skip with: git commit --no-verify" >&2
-          exit 1
-        fi
-        bun run toc
-      stage_fixed: true
     # Self-hosted: run `monorel validate` against monorel's own config
     # whenever monorel.toml or .changeset/ change. Catches schema /
     # filesystem / changeset issues before they reach CI. `go run`

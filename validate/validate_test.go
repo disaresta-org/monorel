@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"monorel.disaresta.com/internal/validate"
+	"monorel.disaresta.com/validate"
 )
 
 // scenario writes a temporary monorel.toml + filesystem layout +
