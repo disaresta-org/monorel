@@ -138,7 +138,7 @@ monorel-Release: transports/zerolog v1.7.0
 monorel-PreRelease: false
 ```
 
-`apply` is the speculative-apply primitive used by the GitHub Action wrapper's `pr` command — the action stages a fresh `monorel/release` branch, runs `apply`, and force-pushes so the release PR's diff IS the actual file changes. See [GitHub Action](/github-action) for the wiring.
+`apply` is the speculative-apply primitive used by the GitHub Action wrapper's `pr` command. See [GitHub Action](/github-action) for how it's wired.
 
 In pre-release mode (`.changeset/pre.json` present), `apply` increments per-package counters in `pre.json` instead of writing CHANGELOGs and keeps the `.changeset/*.md` files. Tags carry the channel suffix (e.g. `v1.7.0-rc.0`).
 
@@ -150,14 +150,14 @@ Read HEAD's commit trailers and create the corresponding annotated git tags at H
 monorel tag
 # Tagged 1 release(s) at a4f77ab:
 #   transports/zerolog/v1.7.0
-# Run `git push --follow-tags && monorel publish` to ship.
+# Run `git push --follow-tags && monorel publish` to publish.
 ```
 
 Errors:
 
-- `ErrNoReleaseCommit` — HEAD has no `monorel-Release:` trailers (i.e. it's not a release commit). The release-pipeline workflow filters on the `chore(release):` subject, so this only fires if the filter is misconfigured.
-- `ErrUnknownReleasedPackage` — a trailer names a package not declared in `monorel.toml`. Indicates the config drifted between `apply` and `tag`.
-- `ErrTagExists` — preflight: a derived tag is already present. Investigate (probably a partial prior run) and delete the stale tag before re-running.
+- `ErrNoReleaseCommit`: HEAD has no `monorel-Release:` trailers. The release-pipeline workflow filters on the `chore(release):` subject, so this only fires if the filter is misconfigured.
+- `ErrUnknownReleasedPackage`: a trailer names a package not declared in `monorel.toml`. The config drifted between `apply` and `tag`.
+- `ErrTagExists`: a derived tag is already present (preflight check). Investigate (probably a partial prior run) and delete the stale tag before re-running.
 
 ::: warning Partial-tag failure mode
 If `tag` fails on the Nth tag of a multi-package release, tags 1..N-1 exist and N..end don't. A naive re-run hits `ErrTagExists` on tag #1 and aborts. Recovery: `git tag -d <stale-tag>` for each partial tag, then re-run.
@@ -171,23 +171,13 @@ One-shot local release: `apply` + `tag` in sequence with a single preflight pass
 monorel release
 # Released 1 package(s) at a4f77ab:
 #   transports/zerolog/v1.7.0
-# Run `git push --follow-tags` to publish.
+# Run `git push --follow-tags && monorel publish` to publish.
 ```
 
-| Flag | Type | Description |
-|------|------|-------------|
-| `--publish` | bool | After tagging, create one provider release per tag using the configured provider. Requires the provider's auth token in the environment and that tags have been pushed. |
-
-::: tip apply + tag vs. release
-The GitHub Action wrapper uses `apply` (on the staging branch) and `tag` (on the merge commit) as two independent steps. `release` is the convenience for local one-shot use; the speculative-apply flow uses `apply` and `tag` separately so the release PR's diff can be the real release.
-:::
+The split between `release` (local) and `apply` + `tag` (CI) is explained in [Always-open release PR](/design#always-open-release-pr-speculative-apply).
 
 ::: warning Push is the caller's job
 The applier creates the commit and tags locally. Run `git push --follow-tags` (or use the GitHub Action) to publish.
-:::
-
-::: warning --publish requires tags already pushed
-GitHub validates that the tag exists when creating a Release. Push tags first, then run `release --publish`, or run `release` locally and let the GitHub Action's release workflow handle the publish step.
 :::
 
 ### Pre-release mode
@@ -210,7 +200,7 @@ monorel preview
 # Markdown plan rendered to stdout.
 
 monorel preview --upsert
-# Upserted release PR #42 (head: monorel/release, base: main).
+# Created release PR #42: https://github.com/acme/widget/pull/42
 ```
 
 | Flag | Type | Description |
@@ -223,7 +213,7 @@ Read tags pointing at HEAD, match each to a configured package, and create a pro
 
 ```sh
 monorel publish
-# Created 1 release(s):
+# Published 1 release(s):
 #   transports/zerolog/v1.7.0
 ```
 

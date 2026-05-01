@@ -110,7 +110,6 @@ export default defineConfig({
         items: [
           { text: 'Running in Docker', link: '/docker' },
           { text: 'Migrating from release-please', link: '/recipes/migration-from-release-please' },
-          { text: 'loglayer-go (worked example)', link: '/recipes/loglayer-go' },
           { text: 'Bootstrapping monorel', link: '/bootstrap' },
         ],
       },
