@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"monorel.disaresta.com/internal/changeset"
@@ -74,11 +73,16 @@ type Inputs struct {
 	// package's tag namespace.
 	CheckTags bool
 
-	// ListTags supplies the tag list when CheckTags is true. Stays a
-	// callback so the validate package doesn't pull in internal/git.
-	// When CheckTags is true and ListTags is nil, validate emits a
-	// single error finding and skips the tag pass.
-	ListTags func() ([]string, error)
+	// ListTags supplies the tag list for a given prefix when
+	// CheckTags is true. The prefix is the value returned by
+	// PackageConfig.FullTagPrefix() (e.g. "transports/zerolog/" or
+	// "" for bare-tag root). The callback should return only tags
+	// that begin with that prefix; validate does not re-filter.
+	//
+	// Stays a callback so the validate package doesn't pull in
+	// internal/git. When CheckTags is true and ListTags is nil,
+	// validate emits a single error finding and skips the tag pass.
+	ListTags func(prefix string) ([]string, error)
 }
 
 // Run executes every applicable check in order and returns the
@@ -132,16 +136,7 @@ func Run(in Inputs) []Finding {
 				Message:  "CheckTags is set but ListTags is nil",
 			})
 		} else {
-			tags, err := in.ListTags()
-			if err != nil {
-				findings = append(findings, Finding{
-					Severity: SeverityError,
-					Code:     "tag_list_failed",
-					Message:  fmt.Sprintf("list git tags: %v", err),
-				})
-			} else {
-				findings = append(findings, validateTags(cfg, tags)...)
-			}
+			findings = append(findings, validateTags(cfg, in.ListTags)...)
 		}
 	}
 
@@ -255,60 +250,45 @@ func validateChangesets(cfg *config.Config, dir string) []Finding {
 		known[k] = struct{}{}
 	}
 
-	// Reserved names: not changeset files, not warnings.
-	reserved := map[string]bool{
-		"README.md": true,
-		"pre.json":  true,
-	}
-
-	type fileEntry struct {
-		name string
-		path string
-	}
-	var files []fileEntry
+	// os.ReadDir returns entries sorted by name (Go 1.16+), so the
+	// emit order below is already stable without an explicit sort.
+	var findings []Finding
 	for _, entry := range entries {
-		if entry.IsDir() || reserved[entry.Name()] {
+		if entry.IsDir() || changeset.IsReserved(entry.Name()) {
 			continue
 		}
 		if !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		files = append(files, fileEntry{name: entry.Name(), path: filepath.Join(dir, entry.Name())})
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].name < files[j].name })
-
-	var findings []Finding
-	for _, fe := range files {
-		f, err := os.Open(fe.path)
+		path := filepath.Join(dir, entry.Name())
+		f, err := os.Open(path)
 		if err != nil {
 			findings = append(findings, Finding{
 				Severity: SeverityError,
 				Code:     "changeset_unreadable",
-				Message:  fmt.Sprintf("open %s: %v", fe.name, err),
-				Path:     fe.path,
+				Message:  fmt.Sprintf("open %s: %v", entry.Name(), err),
+				Path:     path,
 			})
 			continue
 		}
-		cs, err := changeset.Parse(f, strings.TrimSuffix(fe.name, ".md"))
+		cs, err := changeset.Parse(f, strings.TrimSuffix(entry.Name(), ".md"))
 		f.Close()
 		if err != nil {
 			findings = append(findings, Finding{
 				Severity: SeverityError,
 				Code:     "changeset_parse_failed",
-				Message:  fmt.Sprintf("parse %s: %v", fe.name, err),
-				Path:     fe.path,
+				Message:  fmt.Sprintf("parse %s: %v", entry.Name(), err),
+				Path:     path,
 			})
 			continue
 		}
-		// Stable order: lex by package key for deterministic test output.
-		pkgs := cs.PackageNames()
-		for _, pkg := range pkgs {
+		for _, pkg := range cs.PackageNames() {
 			if _, ok := known[pkg]; !ok {
 				findings = append(findings, Finding{
 					Severity: SeverityError,
 					Code:     "changeset_unknown_package",
 					Message:  fmt.Sprintf("changeset references package %q which is not declared in monorel.toml", pkg),
-					Path:     fe.path,
+					Path:     path,
 					Package:  pkg,
 				})
 			}
@@ -317,31 +297,35 @@ func validateChangesets(cfg *config.Config, dir string) []Finding {
 	return findings
 }
 
-// validateTags walks each package's tag namespace and checks that
-// every tag matching its prefix has a parseable semver version.
-// Non-semver tags surface as warnings; the planner already ignores
-// them, but surfacing them in validate gives operators a chance to
-// clean up tag noise.
-func validateTags(cfg *config.Config, allTags []string) []Finding {
+// validateTags asks the caller for each package's tag list (filtered
+// by the package's prefix) and checks that every returned tag has a
+// parseable semver version. Non-semver tags surface as warnings.
+//
+// Per-package querying lets a git-backed implementation translate the
+// prefix into a `git tag --list <prefix>v*`-style filter and avoid
+// the O(packages * total_tags) cross-product of the previous design.
+// It also removes the need for an empty-prefix root special-case: a
+// well-behaved ListTags("") returns only bare-vX.Y.Z tags rather
+// than every sub-module tag in the repo.
+func validateTags(cfg *config.Config, listTags func(prefix string) ([]string, error)) []Finding {
 	var findings []Finding
 	for _, name := range cfg.PackageNames() {
 		pkg := cfg.Packages[name]
-		prefix := pkg.FullTagPrefix() // e.g. "transports/zerolog/" or ""
+		prefix := pkg.FullTagPrefix()
 
-		for _, tag := range allTags {
-			if !strings.HasPrefix(tag, prefix) {
-				continue
-			}
-			// Strip the prefix; the remainder must look like vX.Y.Z
-			// (or a valid semver pre-release like v1.0.0-rc.1).
+		tags, err := listTags(prefix)
+		if err != nil {
+			findings = append(findings, Finding{
+				Severity: SeverityError,
+				Code:     "tag_list_failed",
+				Message:  fmt.Sprintf("list tags for package %q (prefix %q): %v", name, prefix, err),
+				Package:  name,
+			})
+			continue
+		}
+
+		for _, tag := range tags {
 			version := strings.TrimPrefix(tag, prefix)
-			// For empty-prefix (root) packages, every tag in the
-			// repo "matches"; filter out any tag whose remainder
-			// isn't of the form vX... so sub-module tags don't
-			// pollute the root's namespace.
-			if prefix == "" && (!strings.HasPrefix(version, "v") || strings.Contains(version, "/")) {
-				continue
-			}
 			if !semver.IsValid(version) {
 				findings = append(findings, Finding{
 					Severity: SeverityWarning,

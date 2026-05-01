@@ -70,6 +70,13 @@ var reservedNames = map[string]bool{
 	"config.json": true, // reserved for future config
 }
 
+// IsReserved reports whether name is a reserved (non-changeset)
+// filename inside the changeset directory. Walkers should skip
+// reserved names rather than try to parse them as changesets.
+func IsReserved(name string) bool {
+	return reservedNames[name]
+}
+
 // LoadAll reads every changeset file under dir (excluding reserved
 // names) and returns them sorted by name. Missing dir is not an
 // error: it just yields zero changesets.

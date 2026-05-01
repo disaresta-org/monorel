@@ -337,10 +337,10 @@ bad reference
 
 	got := validate.Run(validate.Inputs{ConfigPath: cfgPath})
 	wantCodes := map[string]bool{
-		"path_missing":                true, // ghost dir
-		"changelog_dir_missing":       true, // ghost/ doesn't exist
-		"changeset_unknown_package":   true, // typo.md
-		"changeset_parse_failed":      true, // broken.md
+		"path_missing":              true, // ghost dir
+		"changelog_dir_missing":     true, // ghost/ doesn't exist
+		"changeset_unknown_package": true, // typo.md
+		"changeset_parse_failed":    true, // broken.md
 	}
 	for _, f := range got {
 		delete(wantCodes, f.Code)
@@ -368,12 +368,12 @@ changelog = "CHANGELOG.md"
 	got := validate.Run(validate.Inputs{
 		ConfigPath: cfgPath,
 		CheckTags:  true,
-		ListTags: func() ([]string, error) {
+		ListTags: func(prefix string) ([]string, error) {
+			// Single root package (prefix == ""); return all bare tags.
 			return []string{"v1.0.0", "v1.0.1", "vGARBAGE"}, nil
 		},
 	})
 
-	// The valid tags pass; the garbage tag warns.
 	if !containsCode(got, "tag_not_semver") {
 		t.Errorf("want tag_not_semver warning; got: %+v", got)
 	}
@@ -384,10 +384,11 @@ changelog = "CHANGELOG.md"
 	}
 }
 
-func TestRun_CheckTags_SubModuleTagsSkipRoot(t *testing.T) {
-	// Root package (empty prefix) should NOT consume sub-module
-	// tags as if they were its own. Otherwise every sub-module
-	// release would warn the root validator.
+func TestRun_CheckTags_PrefixIsThreaded(t *testing.T) {
+	// Verifies the per-package prefix is passed through to the
+	// callback. A well-behaved git-backed implementation uses it
+	// to filter (e.g. `git tag --list <prefix>v*`); validate
+	// trusts the callback's output without re-filtering.
 	cfgPath := setup(t, scenario{
 		configBody: `
 [forge]
@@ -398,19 +399,37 @@ repo = "widget"
 tag_prefix = ""
 path = "."
 changelog = "CHANGELOG.md"
+
+[packages."transports/foo"]
+tag_prefix = "transports/foo"
+path = "transports/foo"
+changelog = "transports/foo/CHANGELOG.md"
 `,
-		dirs: []string{"."},
+		dirs: []string{".", "transports/foo"},
 	})
 
+	seenPrefixes := []string{}
 	got := validate.Run(validate.Inputs{
 		ConfigPath: cfgPath,
 		CheckTags:  true,
-		ListTags: func() ([]string, error) {
-			return []string{"v1.0.0", "transports/foo/v1.0.0"}, nil
+		ListTags: func(prefix string) ([]string, error) {
+			seenPrefixes = append(seenPrefixes, prefix)
+			switch prefix {
+			case "":
+				return []string{"v1.0.0"}, nil
+			case "transports/foo/":
+				return []string{"transports/foo/v1.0.0"}, nil
+			}
+			return nil, nil
 		},
 	})
 	if len(got) != 0 {
-		t.Errorf("sub-module tag should not warn against the root prefix; got: %+v", got)
+		t.Errorf("want clean run; got: %+v", got)
+	}
+	wantPrefixes := []string{"", "transports/foo/"}
+	sort.Strings(seenPrefixes)
+	if !equalSlices(seenPrefixes, wantPrefixes) {
+		t.Errorf("seenPrefixes = %v, want %v", seenPrefixes, wantPrefixes)
 	}
 }
 

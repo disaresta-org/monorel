@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -58,15 +59,12 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 		CheckTags:  checkTags,
 	}
 	if checkTags {
-		// Resolve repo dir from the config's parent. validate.Run also
-		// resolves ConfigPath to absolute, but we need the directory
-		// here to bind a git.Repo before calling Run.
 		abs, err := filepath.Abs(configPath)
 		if err != nil {
 			return fmt.Errorf("resolve --config: %w", err)
 		}
 		repo := git.Open(filepath.Dir(abs))
-		in.ListTags = func() ([]string, error) { return repo.ListTags("") }
+		in.ListTags = func(prefix string) ([]string, error) { return repo.ListTags(prefix) }
 	}
 
 	findings := validate.Run(in)
@@ -110,6 +108,10 @@ func writeFindingsText(w io.Writer, findings []validate.Finding) error {
 		}
 	}
 
+	headers := map[validate.Severity]string{
+		validate.SeverityError:   "ERRORS",
+		validate.SeverityWarning: "WARNINGS",
+	}
 	for _, sev := range []validate.Severity{validate.SeverityError, validate.SeverityWarning} {
 		header := false
 		for _, f := range findings {
@@ -117,7 +119,7 @@ func writeFindingsText(w io.Writer, findings []validate.Finding) error {
 				continue
 			}
 			if !header {
-				if _, err := fmt.Fprintf(w, "\n%s:\n", upper(string(sev))+"S"); err != nil {
+				if _, err := fmt.Fprintf(w, "\n%s:\n", headers[sev]); err != nil {
 					return err
 				}
 				header = true
@@ -177,18 +179,6 @@ func countSeverity(findings []validate.Finding, s validate.Severity) int {
 	return n
 }
 
-// upper avoids pulling in strings just for one Title-style upcase.
-func upper(s string) string {
-	if s == "" {
-		return s
-	}
-	b := []byte(s)
-	if b[0] >= 'a' && b[0] <= 'z' {
-		b[0] -= 'a' - 'A'
-	}
-	return string(b)
-}
-
 // errExit is a sentinel error wrapping a non-zero exit code so main()
 // can surface it without printing a "Error: ..." line. Cobra normally
 // renders RunE errors; SilenceErrors on root suppresses that, and main
@@ -206,14 +196,16 @@ func (e errExit) Error() string { return fmt.Sprintf("exit %d", int(e)) }
 func (errExit) silentExit() {}
 
 // ExitCode reports the exit code an error should map to. Returns 0
-// for nil, 1 for any non-errExit error, the wrapped int for errExit.
+// for nil, the wrapped int for any error chain containing errExit
+// (so callers can wrap-and-still-propagate), and 1 otherwise.
 // main() calls this to set os.Exit.
 func ExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	if e, ok := err.(errExit); ok {
-		return int(e)
+	var ee errExit
+	if errors.As(err, &ee) {
+		return int(ee)
 	}
 	return 1
 }
