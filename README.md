@@ -13,9 +13,7 @@
 
 A changesets-style release tool for multi-module Go monorepos.
 
-`monorel` manages per-package versions, tags, and changelogs in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with the [GitHub Action](#github-action) to drive an always-open release PR.
-
-> **Status: pre-v0.1.0.** Under active development. Not yet ready for external use.
+`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with the [GitHub Action](#github-action) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
 
 ## Why monorel?
 
@@ -25,45 +23,54 @@ The Go ecosystem has a real gap: no battle-tested release tool fits "main module
 - **Knope** doesn't support per-package tag-prefix overrides, so it can't do bare-tag root + prefixed sub-modules.
 - **changesets** is JS-native and needs synthetic `package.json` files in every Go module.
 
-`monorel` fills that gap. Read [the introduction](https://monorel.disaresta.com/introduction) for the full comparison.
+`monorel` fills that gap. See [the introduction](https://monorel.disaresta.com/introduction) for the side-by-side comparison table.
 
 ## Quickstart
+
+In a Go repo with at least one `go.mod`:
 
 ```sh
 # 1. Install
 go install monorel.disaresta.com/cmd/monorel@latest
 
-# 2. Author a changeset describing this PR
-monorel add --package "transports/zerolog:minor" --message "Adds Lazy() helper."
+# 2. Scaffold monorel.toml + .changeset/ from your repo
+monorel init
 
-# 3. Preview the next release
-monorel plan
+# 3. Wire up CI: copy .github/workflows/{release-pr,release}.yml from
+#    https://monorel.disaresta.com/getting-started
 
-# 4. Apply locally (writes CHANGELOGs, deletes consumed changesets,
-#    creates the release commit and tags). Push is your job.
-monorel release
-git push --follow-tags
+# 4. Author a changeset on a feature branch
+monorel add --package "transports/foo:minor" --message "Adds Lazy() helper."
+git commit && gh pr create
+
+# 5. Merge the PR. The release-pr workflow opens (or updates) an
+#    always-open release PR. Merge it when ready to ship.
 ```
 
-For a `monorel.toml` example and full walkthrough, see [Getting Started](https://monorel.disaresta.com/getting-started).
+For a full working example, fork [disaresta-org/monorel-example](https://github.com/disaresta-org/monorel-example): a 2-package repo with everything wired up. Or read [Getting Started](https://monorel.disaresta.com/getting-started) for the walkthrough.
 
 ## Documentation
 
-- [Introduction](https://monorel.disaresta.com/introduction): why monorel, design tradeoffs.
-- [Getting Started](https://monorel.disaresta.com/getting-started): install, init, first release.
+- [Introduction](https://monorel.disaresta.com/introduction): why monorel + comparison vs release-please / changesets / Knope.
+- [Getting Started](https://monorel.disaresta.com/getting-started): install, init, wire up CI, ship the first release.
+- [Workflows](https://monorel.disaresta.com/workflows): ASCII diagrams of the daily flow, release cuts, pre-release cycles.
 - [Configuration](https://monorel.disaresta.com/configuration): `monorel.toml` reference.
 - [CLI](https://monorel.disaresta.com/cli-reference): every command and flag.
-- [Changesets](https://monorel.disaresta.com/changesets): file format, conventions.
-- [GitHub Action](https://monorel.disaresta.com/github-action): always-open PR setup.
-- [Bootstrapping](https://monorel.disaresta.com/bootstrap): one-time procedure for the first release.
+- [Changesets](https://monorel.disaresta.com/changesets): file format and authoring conventions.
+- [GitHub Action](https://monorel.disaresta.com/github-action): action wrapper inputs, branch protection, token setup.
+- [FAQ](https://monorel.disaresta.com/faq): the questions that come up after the first release.
+- [Glossary](https://monorel.disaresta.com/glossary): canonical definitions of monorel terminology.
+- [Library API](https://monorel.disaresta.com/api): Go packages exposed for programmatic use.
 
 ## GitHub Action
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.1.2
+- uses: disaresta-org/monorel/ci/github@v0.5.0
   with:
-    command: pr      # or 'release' on the release-PR merge / dispatch
+    command: pr      # or 'release' for the post-merge tag + push + publish step
 ```
+
+If your repo has required status checks on the default branch, set the `token` input to a PAT or GitHub App token instead of the default `GITHUB_TOKEN`. See [Tokens and required status checks](https://monorel.disaresta.com/github-action#tokens-and-required-status-checks).
 
 Full setup in the [GitHub Action docs](https://monorel.disaresta.com/github-action).
 
@@ -79,7 +86,7 @@ make build         # builds ./monorel
 make test-race     # full test suite under -race
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev-loop details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev-loop reference.
 
 ## License
 
