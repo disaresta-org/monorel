@@ -67,7 +67,12 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun scripts/lint-commit.mjs --range origin/${{ github.base_ref }}..HEAD
+      # Use head.sha rather than HEAD: on PRs, the runner checks out a
+      # synthetic test-merge commit at HEAD with subject `Merge <sha>
+      # into <sha>`, which is not conventional-commits format and
+      # always fails the parser. head.sha points at the PR branch's
+      # actual tip.
+      - run: bun scripts/lint-commit.mjs --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
 
   docs-build:
     if: github.event_name == 'pull_request'
