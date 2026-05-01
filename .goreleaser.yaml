@@ -1,0 +1,58 @@
+version: 2
+
+# GoReleaser builds the per-OS+arch monorel binaries and attaches them
+# to the GitHub Release that `monorel release --publish` already
+# created. The CHANGELOG body on the Release stays as monorel wrote it
+# (changelog.disable: true) and we don't auto-generate footer notes
+# here either.
+
+project_name: monorel
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: monorel
+    main: ./cmd/monorel
+    binary: monorel
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/disaresta-org/monorel/internal/cli.Version={{.Version}}
+
+archives:
+  - id: monorel
+    formats: [tar.gz]
+    name_template: 'monorel_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: 'monorel_{{ .Version }}_checksums.txt'
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-snapshot'
+
+release:
+  github:
+    owner: disaresta-org
+    name: monorel
+  draft: false
+  prerelease: auto
+  # mode "append" so we attach to the Release that
+  # `monorel release --publish` already created without touching the
+  # changelog-derived body.
+  mode: append
+
+changelog:
+  disable: true

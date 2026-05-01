@@ -1,0 +1,38 @@
+name: release
+on:
+  # Manual dispatch + on push of a `chore(release):` commit (the
+  # release PR's merge commit). Manual dispatch is the bootstrap path
+  # before v0.1.0; once monorel-driven releases are in place, the push
+  # path takes over.
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Configure git author
+        run: |
+          git config user.name  "monorel-bot[automation]"
+          git config user.email "monorel-bot@users.noreply.github.com"
+
+      - name: monorel release --publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          go run ./cmd/monorel release --publish
+          git push --follow-tags

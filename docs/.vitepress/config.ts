@@ -92,6 +92,7 @@ export default defineConfig({
         items: [
           { text: 'Migrating from release-please', link: '/recipes/migration-from-release-please' },
           { text: 'loglayer-go (worked example)', link: '/recipes/loglayer-go' },
+          { text: 'Bootstrapping monorel', link: '/bootstrap' },
         ],
       },
     ],

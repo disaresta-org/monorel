@@ -1,0 +1,39 @@
+name: release-pr
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# monorel is self-hosted: this workflow runs against monorel's own
+# repo using `go run` instead of the action wrapper, because the
+# wrapper depends on a published binary that doesn't exist until
+# bootstrap (see docs/src/bootstrap.md). Other repos use the
+# composite action under ci/github/.
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    # Skip release-PR upserts on the release commit itself; otherwise
+    # we'd churn the PR right after merging it.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Configure git author
+        run: |
+          git config user.name  "monorel-bot[automation]"
+          git config user.email "monorel-bot@users.noreply.github.com"
+
+      - name: monorel preview --upsert
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./cmd/monorel preview --upsert
