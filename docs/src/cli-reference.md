@@ -267,7 +267,27 @@ monorel pre status
 
 ## `monorel init`
 
-(Planned.) Scaffold a `monorel.toml` and `.changeset/` for a new repo.
+Scaffold a `monorel.toml` and `.changeset/` directory for a fresh repo. Walks every `go.mod` under the working directory (skipping `vendor/`, `node_modules/`, and hidden directories) and writes one `[packages]` block per Go module. Infers `provider`, `owner`, and `repo` from the git origin remote.
+
+```sh
+monorel init
+# Wrote monorel.toml with 2 package(s):
+#   github.com/acme/widget (path: ., tag prefix: "")
+#   sub/foo (path: sub/foo, tag prefix: "sub/foo")
+# Created .changeset/ with a README.
+# Next steps:
+#   monorel validate     # confirm the config
+#   monorel add          # write your first changeset
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--provider <name>` | string | Version-control host. Default `github`. Used as the `provider.name` value. |
+| `--owner <name>` | string | Repo owner. Auto-detected from `git config remote.origin.url` if empty. |
+| `--repo <name>` | string | Repo name. Auto-detected from `git config remote.origin.url` if empty. |
+| `--force` | bool | Overwrite an existing `monorel.toml` (otherwise the command refuses). |
+
+Refuses to run without at least one `go.mod`. Existing `.changeset/README.md` is preserved; only created when missing.
 
 ## Persistent flags
 
