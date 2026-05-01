@@ -88,6 +88,15 @@ jobs:
             echo "No root tag at HEAD; build-binaries + build-image will skip."
           fi
 
+  deploy-docs:
+    needs: release
+    if: ${{ needs.release.result == 'success' }}
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
   build-binaries:
     needs: release
     if: ${{ needs.release.result == 'success' && needs.release.outputs.root_tag != '' }}

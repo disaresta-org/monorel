@@ -1,11 +1,31 @@
 name: docs
+
+# Builds the VitePress docs site and deploys it to GitHub Pages.
+#
+# Triggers:
+#   pull_request    — build only (no deploy), to verify the site
+#                     still builds when docs change. Path-filtered to
+#                     docs/** so unrelated PRs don't run this.
+#   release         — covers manually-created GitHub Releases. Releases
+#                     created by monorel via GITHUB_TOKEN don't
+#                     propagate this event (GitHub anti-recursion);
+#                     those flow through workflow_call from release.yml.
+#   workflow_dispatch — manual escape hatch ("redeploy current main").
+#   workflow_call   — invoked from release.yml after a monorel-driven
+#                     release is cut, so monorel-driven releases are
+#                     covered without the anti-recursion suppression.
+#
+# Cadence is "deploy on release," not "deploy on every commit to main."
+
 on:
-  push:
-    branches: [main]
   pull_request:
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,7 +33,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: docs-${{ github.ref }}
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -35,12 +55,12 @@ jobs:
         run: bun run docs:build
 
       - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         with:
           path: docs/.vitepress/dist
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
