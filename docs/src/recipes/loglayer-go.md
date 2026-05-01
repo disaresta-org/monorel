@@ -11,10 +11,10 @@ The outcome surfaced two CI gaps in monorel itself, which were fixed in v0.1.1 a
 
 ## Starting state
 
-- Tag history: bare `vX.Y.Z` for the root module (latest `v1.6.2`), `<path>/vX.Y.Z` for sub-modules (most at `v1.6.1`, a few at `v1.6.2` / `v1.0.0` / `v1.1.1` / `v1.2.0`).
+- Tag history: bare `vX.Y.Z` for the root module (latest `v1.6.2`); `<path>/vX.Y.Z` for sub-modules (most at `v1.6.1`, with outliers at `v1.0.0` for `transports/gcplogging` and `plugins/plugintest`, `v1.1.1` for `integrations/sloghandler`, and `v1.2.0` for `integrations/loghttp`). No sub-module is at `v1.6.2`; that's the root's version.
 - `.release-please-config.json` with 26 packages.
 - `.release-please-manifest.json` with current per-package versions.
-- A root `CHANGELOG.md` and per-sub-module `CHANGELOG.md` files. 13 of them have hand-written preambles referencing release-please by name; the other 13 are bare release-please-generated files.
+- 25 `CHANGELOG.md` files in the tree (root + 24 sub-modules). 13 of them have hand-written preambles referencing release-please by name; the other 12 are bare release-please-generated files. The 26th package, `plugins/plugintest`, has never been released and has no `CHANGELOG.md` to migrate.
 - Release workflows under `.github/workflows/release-please*.yml` (main + cleanup), plus a `release-please-state` pre-push lefthook hook backed by `scripts/check-release-please-state.sh`.
 - AGENTS.md sections covering the release-please workflow, the "release-please gotchas" we accumulated, and the multi-step "adding a new transport" recipe with release-please-specific steps.
 
@@ -42,7 +42,7 @@ A mismatch would have meant either the manifest was stale (safe to proceed; mono
 
 ## The migration PR
 
-[loglayer/loglayer-go#44](https://github.com/loglayer/loglayer-go/pull/44) — single commit, all 25 modified files plus 4 added and 5 deleted.
+[loglayer/loglayer-go#44](https://github.com/loglayer/loglayer-go/pull/44) — single commit: 25 modified, 5 added, 5 deleted.
 
 Generated `monorel.toml` mirrors the previous manifest 1:1 in the same order so the diff reviews as "delete config, add toml":
 
@@ -69,7 +69,7 @@ Workflow swap: `release-please.yml` + `release-please-cleanup.yml` deleted; `rel
 
 Prose rewrite: AGENTS.md release sections, README.md, CONTRIBUTING.md, package.json, `.claude/rules/documentation.md`, `scripts/lint-commit.mjs` all dropped "the same parser release-please uses" framing in favour of describing the conventional-commit linter on its own terms (releases are driven by changesets, not commit messages, so the lint stands on its own as a hygiene tool).
 
-13 per-package CHANGELOG.md preambles (the ones that referenced release-please by name) were rewritten to point at monorel; the 13 release-please-generated bare CHANGELOGs were left alone.
+13 per-package `CHANGELOG.md` preambles (the ones that referenced release-please by name) were rewritten to point at monorel; the 12 release-please-generated bare `CHANGELOG.md` files were left alone. `plugins/plugintest` had no `CHANGELOG.md` to touch (no prior releases).
 
 The PR shipped no `.changeset/*.md` files — the migration is tooling-only, not a release. The first real release happens in a follow-up PR.
 
@@ -116,7 +116,7 @@ All four jobs green; tag `transports/blank/v1.6.2` lands on origin. The `workflo
 
 - Every existing tag.
 - Every existing GitHub Release.
-- All 26 CHANGELOG.md historical entries (verbatim below the rewritten preambles).
+- All 25 existing `CHANGELOG.md` historical entries (verbatim below the rewritten preambles).
 - The hand-written `[Unreleased]` section in the root CHANGELOG.
 
 monorel inserts new entries above the existing content; it never rewrites old entries.
