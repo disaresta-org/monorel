@@ -9,6 +9,61 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.1.2] - 2026-05-01
+
+### Patch Changes
+
+- Chain `build-release-binaries` and `build-image` into `release.yml`
+  via `workflow_call` so they fire after every monorel-driven release.
+
+  When `release.yml` pushes a tag using `secrets.GITHUB_TOKEN`, GitHub's
+  anti-recursion rule suppresses the resulting `push: tags` event for
+  other workflows. That meant downstream tag-triggered workflows (the
+  binary builder and the container builder) silently didn't fire on
+  real releases — only on the v0.1.0 bootstrap, which was cut via
+  `workflow_dispatch` (a user-initiated run that doesn't trip the
+  anti-recursion rule).
+
+  Surfaced by monorel's own v0.1.1 release: the tag and GitHub Release
+  appeared, but no binaries were attached and no image was pushed to
+  GHCR. v0.1.1 is consequently usable only via `go install`, not via
+  the action wrapper or `docker pull`.
+
+  Mirrors the same `workflow_call` workaround `docs.yml` already uses
+  (in loglayer-go's release.yml — monorel's docs.yml deploys on every
+  push to main, so it doesn't need this).
+
+  Both build workflows now accept a `tag` input via `workflow_call` and
+  `workflow_dispatch`. The tag-push trigger is preserved so manual
+  `git push <tag>` flows still work. `release.yml`'s release job
+  captures the released root tag (`vX.Y.Z`) and passes it to both build
+  workflows; the chain skips when no root tag was created (sub-module-
+  only release; not yet possible for monorel itself, but forward-looking).
+
+  v0.1.1's missing assets are not backfilled by this change; users on
+  v0.1.1 should bump to v0.1.2.
+- Deploy docs only on release, not on every push to main.
+
+  Previously `docs.yml` deployed to GitHub Pages on every push to `main`,
+  which meant any merge — even a typo fix in a Go file unrelated to
+  docs — would re-deploy the site. Switch the deploy gate to match
+  the loglayer-go pattern:
+
+  - `pull_request` (paths-filtered to `docs/**`): build-only, for
+    verification that the site still builds.
+  - `release: published`: deploy on manually-created GitHub Releases.
+  - `workflow_dispatch`: manual escape hatch.
+  - `workflow_call`: invoked from `release.yml` after a monorel-driven
+    release is cut. Sidesteps GitHub's anti-recursion rule (Releases
+    created via `GITHUB_TOKEN` don't propagate `release: published`
+    events to other workflows).
+
+  `release.yml` chains `docs.yml` via `workflow_call` alongside the
+  existing `build-binaries` and `build-image` chains, so every
+  monorel-driven release deploys the docs that go with it. No
+  deployment fires for non-release commits to main, even if they
+  touch `docs/**`.
+
 ## [0.1.1] - 2026-05-01
 
 ### Patch Changes
