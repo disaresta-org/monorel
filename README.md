@@ -59,7 +59,7 @@ For a `monorel.toml` example and full walkthrough, see [Getting Started](https:/
 ## GitHub Action
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v1
+- uses: disaresta-org/monorel/ci/github@v0.1.2
   with:
     command: pr      # or 'release' on the release-PR merge / dispatch
 ```
