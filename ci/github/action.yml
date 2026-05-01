@@ -133,14 +133,14 @@ runs:
 
             apply_out=$(monorel apply --config "$CONFIG")
             echo "$apply_out"
-            if echo "$apply_out" | grep -q "Nothing to apply."; then
+            if echo "$apply_out" | grep -qF "Nothing to apply."; then
               # No release-affecting changesets pending. Don't force-push
               # the staging branch (it'd just be a no-op of main); let
               # the orchestrator close any open release PR by running
               # preview with an empty plan.
               git checkout -q -
             else
-              git push -f origin monorel/release
+              git push --force-with-lease origin monorel/release
               git checkout -q -
             fi
 

@@ -47,10 +47,10 @@ jobs:
           git checkout -q -B monorel/release origin/main
           apply_out=$(go run ./cmd/monorel apply)
           echo "$apply_out"
-          if echo "$apply_out" | grep -q "Nothing to apply."; then
+          if echo "$apply_out" | grep -qF "Nothing to apply."; then
             git checkout -q -
           else
-            git push -f origin monorel/release
+            git push --force-with-lease origin monorel/release
             git checkout -q -
           fi
 

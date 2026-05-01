@@ -235,6 +235,22 @@ type TagOptions struct {
 //     (CHANGELOGs etc) but no tags yet.
 //   - release.yml runs Tag, which reads the merge commit's trailers
 //     and creates the tags pointing at the merge commit.
+//
+// Failure modes:
+//
+//   - HeadCommitMessage / ListTags / CurrentSHA error before any
+//     CreateTag: clean abort, repo unchanged.
+//   - Preflight detects an existing tag (ErrTagExists): clean abort,
+//     repo unchanged.
+//   - CreateTag fails on the Nth tag of a multi-package release:
+//     tags 1..N-1 exist, N..end do not. A naive re-run will then hit
+//     ErrTagExists on tag #1 and abort. Recovery is "delete the
+//     partial tags (`git tag -d <tag>` for each) and re-run". This is
+//     rare in practice since CreateTag's only realistic failure mode
+//     is a malformed name (which preflight catches via the package
+//     lookup) or a disk error. If multi-package partial-tag recovery
+//     becomes a real operational pain point, make Tag idempotent:
+//     skip tags that already exist and point at HEAD.
 func Tag(opts TagOptions) (*Result, error) {
 	if opts.Config == nil {
 		return nil, errors.New("release: nil Config")
