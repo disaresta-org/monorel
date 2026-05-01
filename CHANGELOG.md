@@ -9,6 +9,67 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.5.0] - 2026-05-01
+
+### Minor Changes
+
+- Implement `monorel init`. Walks every `go.mod` under the working
+  directory (skipping `vendor/`, `node_modules/`, and hidden directories),
+  infers `provider`, `owner`, and `repo` from `git config remote.origin.url`,
+  and writes a starter `monorel.toml` with one `[packages]` block per
+  detected Go module plus a `.changeset/README.md`.
+
+  Flags: `--provider`, `--owner`, `--repo` (overrides for auto-detection),
+  `--force` (overwrite existing `monorel.toml`).
+
+  Refuses to run without at least one `go.mod`. Existing
+  `.changeset/README.md` is preserved when present.
+
+  Removes the "(Planned.)" placeholder from `docs/src/cli-reference.md`
+  and replaces it with the real reference.
+
+### Patch Changes
+
+- Three structural docs improvements based on a comparison against
+  how changesets / release-please / Knope organize their sites:
+
+  - New `docs/src/faq.md`: ~20 entries grouped by Authoring,
+    Release PR, Tags and versions, Pre-release mode, Recovery, and
+    Boundaries. Covers the questions that don't fit into reference
+    docs ("Can I edit a changeset?", "What if I forget to add a
+    changeset?", "Can I downgrade a published version?",
+    "Recovery from `ErrTagExists`?").
+
+  - New `docs/src/glossary.md`: ~20 canonical definitions of terms
+    used across the docs (changeset, speculative apply, tag prefix,
+    bare-tag root, trailer block, pre.json, etc.). Resolves the
+    ambiguity of overloaded terms that previously had no single
+    authoritative definition.
+
+  - `docs/src/bootstrap.md` moved to
+    `docs/src/recipes/bootstrapping-monorel.md`. The page documents
+    monorel's one-time self-hosted bootstrap (a recipe for the next
+    maintainer if the tool ever forks); the previous top-level
+    location implied users needed to do this in their own repo. Now
+    groups with the other recipes, sidebar entry renamed to
+    "Bootstrapping monorel itself" for clarity.
+
+  Sidebar updated:
+  - Glossary added under Reference.
+  - New "Help" group containing the FAQ entry.
+  - Bootstrap recipe moved + renamed.
+
+  The single inbound link to `/bootstrap` (in `github-action.md`)
+  updated to point at the new recipe URL.
+- Documents the GitHub `GITHUB_TOKEN` anti-recursion limitation and
+  the three workarounds (PAT, GitHub App, ruleset bypass) under a new
+  `Tokens and required status checks` section in
+  `docs/src/github-action.md`. This is the recurring pain point that
+  bites every consumer with branch-protection-required status checks.
+
+  Adds a matching troubleshooting entry ("Release PR is stuck on
+  'Some checks haven't completed'") that points at the new section.
+
 ## [0.4.1] - 2026-05-01
 
 ### Patch Changes
