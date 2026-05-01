@@ -81,7 +81,7 @@ Heuristics:
 The complement of the rule above this one: dense bullets become sub-sections; dense prose enumerations become bullets.
 
 ```markdown
-❌ Run `monorel apply` on a fresh `monorel/release` branch off the default branch, runs the speculative apply, force-pushes the result, opens or updates the always-open release PR with the rendered plan in its body, and closes any open release PR if the planner has nothing to apply.
+❌ The `pr` command stages a fresh `monorel/release` branch off the default branch, runs the speculative apply, force-pushes the result, opens or updates the always-open release PR with the rendered plan in its body, and closes any open release PR if the planner has nothing to apply.
 
 ✅ The `pr` command:
    - Stages a fresh `monorel/release` branch off the default branch.
