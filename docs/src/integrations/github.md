@@ -38,19 +38,9 @@ monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin
 If you need a different token (e.g. a personal access token to bypass branch protection), pass it via the `token` input using GitHub Actions context syntax. The action uses the workflow's default token when the input is unset.
 :::
 
-The `release` command runs three monorel invocations in order on the merge commit:
-
-1. `monorel tag`: read HEAD's `monorel-Release:` commit-body trailers (written upstream by `monorel apply`) and create per-package annotated tags. The merge already brought the file changes in via the release PR; only the tags still need creating.
-2. `git push --follow-tags`: push the new tags to the remote.
-3. `monorel publish`: create one GitHub Release per tag at HEAD; body sourced from each package's CHANGELOG entry.
-
-The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
-
-The `pr` command implements **speculative apply**: it stages a fresh `monorel/release` branch off the default branch, runs `monorel apply` on it (writes per-package CHANGELOG entries / `pre.json` increments, deletes consumed `.changeset/*.md` files, creates one `chore(release): ...` commit), and force-pushes. The release PR's diff IS the file changes the release will produce. The orchestrator (`monorel preview --upsert`) then opens or updates the always-open release PR with the rendered plan in its body.
-
-If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
-
 ## Workflows
+
+The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged.
 
 ### `release-pr.yml`: maintain the always-open release PR
 
@@ -80,10 +70,9 @@ jobs:
           command: pr
 ```
 
-On every push to `main` (except the release-PR merge), the action stages the release PR's diff via speculative apply, then either:
+The `pr` command implements **speculative apply**: it stages a fresh `monorel/release` branch off the default branch, runs `monorel apply` on it (writes per-package CHANGELOG entries / `pre.json` increments, deletes consumed `.changeset/*.md` files, creates one `chore(release): ...` commit), and force-pushes. The release PR's diff IS the file changes the release will produce. The orchestrator (`monorel preview --upsert`) then opens or updates the always-open release PR with the rendered plan in its body.
 
-- Creates / updates the release PR if there are pending changesets (the PR's diff is the actual CHANGELOG entries + changeset deletions).
-- Closes the release PR if there are no pending changesets.
+If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
 
 ### `release.yml`: publish on release-PR merge
 
@@ -111,6 +100,14 @@ jobs:
         with:
           command: release
 ```
+
+The `release` command runs three monorel invocations in order on the merge commit:
+
+1. `monorel tag`: read HEAD's `monorel-Release:` commit-body trailers (written upstream by `monorel apply`) and create per-package annotated tags. The merge already brought the file changes in via the release PR; only the tags still need creating.
+2. `git push --follow-tags`: push the new tags to the remote.
+3. `monorel publish`: create one GitHub Release per tag at HEAD; body sourced from each package's CHANGELOG entry.
+
+The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
 The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
 
