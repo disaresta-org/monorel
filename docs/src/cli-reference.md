@@ -63,6 +63,61 @@ monorel status
 # 1 changeset(s) pending.
 ```
 
+## `monorel validate`
+
+Run static checks against `monorel.toml` + `.changeset/*.md` and report findings. Doesn't mutate anything; doesn't compute the release plan; doesn't make network calls. Surfaces every issue in one pass instead of bailing on the first.
+
+```sh
+monorel validate
+# No findings. monorel.toml + .changeset/*.md look valid.
+
+monorel validate --json
+# {"findings": [], "errors": 0, "warnings": 0}
+
+# Example with errors:
+monorel validate
+#
+# ERRORS:
+#   - path_missing: packages."transports/foo".path "transports/foo" does not exist [transports/foo]
+#   - changeset_unknown_package: changeset references package "widgett" which is not declared in monorel.toml [.changeset/typo.md]
+#
+# 2 error(s), 0 warning(s).
+# (exits 1)
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--json` | bool | Emit findings as JSON. Stable schema across versions. |
+| `--strict` | bool | Treat warnings as failures (exit 2 instead of 0). |
+| `--check-tags` | bool | Also walk the local tag namespace and warn on tags whose version part isn't valid semver. Requires a git repo at the config's parent directory. |
+
+### What it checks
+
+- **Schema**: forge fields, package fields, no two packages share a `tag_prefix`. Same checks `monorel plan` runs lazily; this command runs them eagerly and aggregates.
+- **Filesystem**: every package's `path` exists relative to the config and is a directory; no two packages share a `path`; every `changelog`'s parent directory exists (the file itself can be absent — first release creates it).
+- **Changesets**: every `.changeset/*.md` parses cleanly (frontmatter shape, body present, recognized bump levels) and only names packages declared in `monorel.toml`. An unknown package key is the most common authoring typo and is surfaced as an error.
+- **Tags** (opt-in via `--check-tags`): for each package, every tag matching its prefix has a parseable semver version. Non-semver tags surface as warnings; the planner already ignores them, but `validate` lets operators clean up tag noise.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No findings, or warnings without `--strict`. |
+| 1 | One or more errors. |
+| 2 | Warnings only AND `--strict` was passed. |
+
+### Use as a pre-commit hook
+
+```yaml
+# .lefthook.yml or .pre-commit-config.yaml equivalent
+pre-commit:
+  commands:
+    monorel-validate:
+      run: monorel validate --json
+```
+
+`--json` makes the output machine-readable for IDE integrations and CI parsers; the field shape is the public `Finding` type's encoding.
+
 ## `monorel release`
 
 Apply pending changesets: bump versions, write changelogs, tag, commit. Idempotency: aborts if a planned tag already exists.
