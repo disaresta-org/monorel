@@ -57,6 +57,15 @@ pre-commit:
         fi
         bun run toc
       stage_fixed: true
+    # Self-hosted: run `monorel validate` against monorel's own config
+    # whenever monorel.toml or .changeset/ change. Catches schema /
+    # filesystem / changeset issues before they reach CI. `go run`
+    # avoids the chicken-and-egg of needing a built binary.
+    monorel-validate:
+      glob:
+        - "monorel.toml"
+        - ".changeset/*.md"
+      run: go run ./cmd/monorel validate
 
 pre-push:
   commands:
