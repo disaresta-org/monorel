@@ -163,6 +163,13 @@ func IsPrerelease(v string) bool {
 	return semver.Prerelease(v) != ""
 }
 
+// IsValid reports whether v parses as a Go module semver version
+// (leading "v", SemVer 2.0). Thin wrapper over semver.IsValid for
+// callers that don't want a direct x/mod dep.
+func IsValid(v string) bool {
+	return semver.IsValid(v)
+}
+
 // Compare returns -1 if a < b, 0 if a == b, +1 if a > b. Same
 // semantics as semver.Compare; pre-releases sort before their
 // canonical version (v1.0.0-rc.1 < v1.0.0).
