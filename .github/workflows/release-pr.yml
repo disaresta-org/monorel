@@ -33,6 +33,22 @@ jobs:
           git config user.name  "monorel-bot[automation]"
           git config user.email "monorel-bot@users.noreply.github.com"
 
+      # GitHub's PR-create API requires the head branch to exist on
+      # the remote before opening a PR against it. Stage monorel/release
+      # as origin/main + one empty marker commit, force-push, then run
+      # the orchestrator. See ci/github/action.yml for the same logic
+      # with full commentary.
+      - name: Stage release branch
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git branch -f monorel/release origin/main
+          git checkout -q monorel/release
+          git -c commit.gpgsign=false commit --allow-empty \
+            -m "chore(release): always-open release PR marker"
+          git push -f origin monorel/release
+          git checkout -q -
+
       - name: monorel preview --upsert
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

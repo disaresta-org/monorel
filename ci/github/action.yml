@@ -116,8 +116,31 @@ runs:
         set -euo pipefail
         case "$COMMAND" in
           pr)
-            # v1: pushes nothing to the head branch; the PR body
-            # shows the rendered plan. Branch staging is a follow-up.
+            # GitHub's PR-create API requires the head branch to exist
+            # on the remote before opening a PR against it. Stage
+            # monorel/release as a fast-forward of the default branch
+            # plus one empty marker commit, then force-push so the
+            # always-open release PR has somewhere to live.
+            #
+            # The branch's diff is empty (the rendered plan goes in the
+            # PR body, not the branch). At merge time, the squash
+            # commit's subject is the orchestrator-set PR title
+            # (`chore(release): ...`), which release.yml uses to gate.
+            #
+            # If the orchestrator decides the plan is empty (no pending
+            # changesets) it'll close any open release PR — the staged
+            # branch is harmless leftover state in that case and gets
+            # overwritten on the next non-empty plan.
+            base="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
+            base="${base:-$(git rev-parse --abbrev-ref HEAD)}"
+            git fetch --no-tags origin "$base"
+            git branch -f monorel/release "origin/$base"
+            git checkout -q monorel/release
+            git -c commit.gpgsign=false commit --allow-empty \
+              -m "chore(release): always-open release PR marker"
+            git push -f origin monorel/release
+            git checkout -q -
+
             monorel preview --config "$CONFIG" --upsert
             ;;
           release)
