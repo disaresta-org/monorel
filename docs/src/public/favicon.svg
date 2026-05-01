@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="monorel">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="monorel">
   <rect width="64" height="64" rx="14" fill="#0f172a"/>
   <!--
-    Three stacked bars: the YAML "---" delimiter that opens and
-    closes every changeset. Top two render in cool slate (prior
-    history); the bottom is gold (the next release at the head
-    of the stack). Reads as a versioned release history.
+    Miniature railroad track: two short vertical rails with three
+    horizontal ties between them. Bottom tie is gold (next release).
+    Same visual language as the hero, scaled down for tab favicons
+    and the navbar logo.
   -->
-  <rect x="16" y="22" width="32" height="3" rx="1.5" fill="#64748b"/>
-  <rect x="16" y="30" width="32" height="3" rx="1.5" fill="#cbd5e1"/>
-  <rect x="16" y="38" width="32" height="3" rx="1.5" fill="#facc15"/>
+  <rect x="18" y="14" width="2.5" height="36" rx="1.25" fill="#475569"/>
+  <rect x="43.5" y="14" width="2.5" height="36" rx="1.25" fill="#475569"/>
+  <rect x="14" y="20" width="36" height="3.5" rx="1.5" fill="#64748b"/>
+  <rect x="14" y="30" width="36" height="3.5" rx="1.5" fill="#cbd5e1"/>
+  <rect x="14" y="40" width="36" height="3.5" rx="1.5" fill="#facc15"/>
 </svg>

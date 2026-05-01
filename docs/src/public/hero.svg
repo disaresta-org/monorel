@@ -1,36 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" role="img" aria-label="monorel: stacked release tags">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" width="360" height="360" role="img" aria-label="monorel: a release timeline as a railroad track">
   <!--
-    Concept: a stack of three release tags, each labeled with a
-    version. Bottom-to-top: dim slate → bright slate → gold. Reads
-    as a version history flowing up to the next release. Visually
-    consistent with the three-bar favicon mark.
+    Railroad track viewed from above. Two parallel rails imply the
+    continuous main branch; the ties between them are individual
+    release tags pinned at regular intervals. Top tie is gold (the
+    next release at the head of the line); ties fade down into
+    dim history.
   -->
   <rect width="360" height="360" rx="32" fill="#0f172a"/>
 
-  <!-- decorative connector: implies "main branch" running through the stack -->
-  <line x1="180" y1="60" x2="180" y2="300" stroke="#1e293b" stroke-width="2"/>
+  <!-- Rails (vertical) -->
+  <rect x="98"  y="40" width="6" height="280" rx="3" fill="#475569"/>
+  <rect x="256" y="40" width="6" height="280" rx="3" fill="#475569"/>
 
-  <!-- tag 1 (oldest) -->
-  <g transform="translate(60, 90)">
-    <path d="M0 0 H180 L220 24 L180 48 H0 Z" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-    <circle cx="186" cy="24" r="4" fill="#0f172a"/>
-    <text x="24" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-          font-size="18" font-weight="500" fill="#64748b">v1.0.0</text>
+  <!-- Tie spikes / bolts at the rails (small dark dots) -->
+  <g fill="#0f172a">
+    <circle cx="101" cy="68"  r="2"/>
+    <circle cx="101" cy="108" r="2"/>
+    <circle cx="101" cy="148" r="2"/>
+    <circle cx="101" cy="188" r="2"/>
+    <circle cx="101" cy="228" r="2"/>
+    <circle cx="101" cy="268" r="2"/>
+    <circle cx="101" cy="308" r="2"/>
+    <circle cx="259" cy="68"  r="2"/>
+    <circle cx="259" cy="108" r="2"/>
+    <circle cx="259" cy="148" r="2"/>
+    <circle cx="259" cy="188" r="2"/>
+    <circle cx="259" cy="228" r="2"/>
+    <circle cx="259" cy="268" r="2"/>
+    <circle cx="259" cy="308" r="2"/>
   </g>
 
-  <!-- tag 2 -->
-  <g transform="translate(60, 156)">
-    <path d="M0 0 H180 L220 24 L180 48 H0 Z" fill="#334155" stroke="#475569" stroke-width="1"/>
-    <circle cx="186" cy="24" r="4" fill="#0f172a"/>
-    <text x="24" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-          font-size="18" font-weight="500" fill="#e2e8f0">v1.6.0</text>
-  </g>
-
-  <!-- tag 3 (latest, highlighted) -->
-  <g transform="translate(60, 222)">
-    <path d="M0 0 H180 L220 24 L180 48 H0 Z" fill="#facc15"/>
-    <circle cx="186" cy="24" r="4" fill="#0f172a"/>
-    <text x="24" y="32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
-          font-size="18" font-weight="600" fill="#0f172a">v1.7.0</text>
-  </g>
+  <!-- Ties (sleepers): horizontal bars between the rails. Top is
+       gold (next release); the rest fade into history. -->
+  <rect x="78" y="64"  width="204" height="8" rx="2" fill="#facc15"/>
+  <rect x="78" y="104" width="204" height="8" rx="2" fill="#cbd5e1"/>
+  <rect x="78" y="144" width="204" height="8" rx="2" fill="#94a3b8"/>
+  <rect x="78" y="184" width="204" height="8" rx="2" fill="#64748b"/>
+  <rect x="78" y="224" width="204" height="8" rx="2" fill="#475569"/>
+  <rect x="78" y="264" width="204" height="8" rx="2" fill="#334155"/>
+  <rect x="78" y="304" width="204" height="8" rx="2" fill="#1e293b"/>
 </svg>
