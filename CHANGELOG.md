@@ -9,6 +9,80 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.2.0] - 2026-05-01
+
+### Minor Changes
+
+- Promote six pure-function packages from `internal/` to the top-level
+  public API. From v0.2.0, external consumers can import:
+
+  - `monorel.disaresta.com/config` — `monorel.toml` schema, `Config.Load`,
+    `Config.Validate`, package iteration helpers.
+  - `monorel.disaresta.com/changeset` — `.changeset/<name>.md` parse
+    and write, frontmatter shape check, name generation.
+  - `monorel.disaresta.com/plan` — pure-function planner: takes
+    config + changesets + tags + pre-release state, returns the
+    release plan.
+  - `monorel.disaresta.com/semver` — bump-level abstraction (Major /
+    Minor / Patch / None), version application, initial-release
+    rules, pre-release suffixing.
+  - `monorel.disaresta.com/validate` — fault-tolerant static checks
+    against a monorel.toml + the changeset directory.
+  - `monorel.disaresta.com/changelog` — Keep-a-Changelog renderer
+    with non-destructive insertion above the existing version
+    history.
+
+  Each package now ships a runnable Example (visible on pkg.go.dev)
+  covering the canonical entry point. Package-level GoDoc was
+  tightened where it leaked monorel-internal context.
+
+  The side-effect-bearing packages stay in `internal/` deliberately:
+  `release` (writes files / commits / tags), `orchestrator` (forge-
+  coupled), `forge` (provider-specific), `git` (shell-out), `cli`
+  (Cobra wiring). These bake in monorel's opinions about side-effect
+  ordering and should not be public commitments.
+
+  This is a non-breaking move for callers within monorel: import
+  paths updated from `monorel.disaresta.com/internal/<pkg>` to
+  `monorel.disaresta.com/<pkg>`. External consumers (none yet)
+  gain a stable API surface from v0.2.0 onward.
+- Add `monorel validate` — a static-checks subcommand that walks
+  `monorel.toml`, the changeset directory, and (opt-in) the local
+  tag namespace, surfacing every issue in one pass.
+
+  Unlike the existing commands' fail-fast loaders (`config.Load`
+  returns the first violation; `changeset.LoadAll` bails on the
+  first malformed file), `validate` is fault-tolerant by design:
+  schema, filesystem, changeset, and tag findings are all
+  collected and reported together so authors fix them in one
+  round-trip.
+
+  Checks:
+
+  - **Schema**: forge fields, package fields, no duplicate tag
+    prefixes. Delegates to existing `Config.Validate()`.
+  - **Filesystem**: every package's `path` exists, no two packages
+    share a path, every changelog's parent directory exists.
+  - **Changesets**: every `.changeset/*.md` parses cleanly and
+    only names packages declared in `monorel.toml`. Unknown
+    package key is the most common authoring typo; surfaced as
+    an error.
+  - **Tags** (opt-in via `--check-tags`): every tag matching a
+    package's prefix has a parseable semver version. Non-semver
+    tags surface as warnings.
+
+  Output: human-readable by default, `--json` for machine-readable
+  (field shape is the public `Finding` type's encoding). Exit codes:
+  `0` clean, `1` errors, `2` warnings only when `--strict`.
+
+  Designed for three use sites: ad-hoc by maintainers after editing
+  the config, pre-commit hook (e.g. `lefthook.yml: monorel validate
+  --json`), and CI gates.
+
+  Implementation lives in `internal/validate/` for now; promotion
+  to a public package is queued as a follow-up alongside the
+  broader library-API design.
+
 ## [0.1.2] - 2026-05-01
 
 ### Patch Changes
