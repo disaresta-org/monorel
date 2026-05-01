@@ -79,10 +79,10 @@ func New(ctx context.Context, opts Options) (provider.Client, error) {
 func (c *client) GetDefaultBranch(ctx context.Context) (string, error) {
 	repo, _, err := c.gh.Repositories.Get(ctx, c.owner, c.repo)
 	if err != nil {
-		return "", fmt.Errorf("get repo %s/%s: %w", c.owner, c.repo, err)
+		return "", fmt.Errorf("github: get repo %s/%s: %w", c.owner, c.repo, err)
 	}
 	if repo.DefaultBranch == nil {
-		return "", errors.New("repo has no default branch")
+		return "", fmt.Errorf("github: %s/%s has no default branch", c.owner, c.repo)
 	}
 	return *repo.DefaultBranch, nil
 }
@@ -96,7 +96,7 @@ func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*pro
 	for {
 		prs, resp, err := c.gh.PullRequests.List(ctx, c.owner, c.repo, opts)
 		if err != nil {
-			return nil, fmt.Errorf("list PRs (head=%s): %w", headBranch, err)
+			return nil, fmt.Errorf("github: list PRs %s/%s (head=%s): %w", c.owner, c.repo, headBranch, err)
 		}
 		for _, pr := range prs {
 			if pr.GetHead().GetRef() == headBranch {
@@ -124,28 +124,22 @@ func (c *client) CreatePR(ctx context.Context, opts provider.CreatePROptions) (*
 		Base:  gogh.Ptr(opts.BaseBranch),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create PR: %w", err)
+		return nil, fmt.Errorf("github: create PR %s -> %s: %w", opts.HeadBranch, opts.BaseBranch, err)
 	}
 	return convertPR(pr), nil
 }
 
 func (c *client) UpdatePR(ctx context.Context, number int, opts provider.UpdatePROptions) (*provider.PullRequest, error) {
 	patch := &gogh.PullRequest{}
-	dirty := false
 	if opts.Title != nil {
 		patch.Title = opts.Title
-		dirty = true
 	}
 	if opts.Body != nil {
 		patch.Body = opts.Body
-		dirty = true
-	}
-	if !dirty {
-		return nil, errors.New("github: UpdatePR has nothing to change")
 	}
 	pr, _, err := c.gh.PullRequests.Edit(ctx, c.owner, c.repo, number, patch)
 	if err != nil {
-		return nil, fmt.Errorf("edit PR #%d: %w", number, err)
+		return nil, fmt.Errorf("github: edit PR #%d: %w", number, err)
 	}
 	return convertPR(pr), nil
 }
@@ -155,7 +149,7 @@ func (c *client) ClosePR(ctx context.Context, number int) error {
 		State: gogh.Ptr("closed"),
 	})
 	if err != nil {
-		return fmt.Errorf("close PR #%d: %w", number, err)
+		return fmt.Errorf("github: close PR #%d: %w", number, err)
 	}
 	return nil
 }
@@ -175,7 +169,7 @@ func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseO
 		Prerelease: gogh.Ptr(opts.Prerelease),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create release %q: %w", opts.Tag, err)
+		return nil, fmt.Errorf("github: create release %q: %w", opts.Tag, err)
 	}
 	return &provider.Release{
 		ID:      rel.GetID(),
