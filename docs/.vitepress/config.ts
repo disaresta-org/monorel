@@ -74,9 +74,6 @@ export default defineConfig({
     outline: { level: [2, 3] },
     nav: [
       { text: 'Get Started', link: '/getting-started' },
-      { text: 'Configuration', link: '/configuration' },
-      { text: 'CLI', link: '/cli-reference' },
-      { text: 'API', link: '/api' },
       {
         text: '<img alt="Go Reference" src="https://pkg.go.dev/badge/monorel.disaresta.com.svg" />',
         link: 'https://pkg.go.dev/monorel.disaresta.com',

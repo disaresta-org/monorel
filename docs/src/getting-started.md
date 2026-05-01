@@ -1,11 +1,19 @@
 ---
 title: Getting Started
-description: "Install monorel, write monorel.toml, author your first changeset, cut your first release."
+description: "Install monorel, scaffold the repo with `monorel init`, wire up the GitHub Action, ship your first release."
 ---
 
 # Getting Started
 
-monorel is a single static binary. There's no daemon and no per-repo install beyond a config file and (optionally) a workflow.
+This page walks you from a fresh repo to a published release using monorel's canonical flow: per-PR `.changeset/*.md` files, an always-open release PR, and a GitHub Action that drives the lifecycle. There's also a local-only flow for repos that don't use CI; see [Working without CI](#working-without-ci) at the bottom.
+
+The shortest version: every release-affecting PR includes a changeset; the bot maintains an always-open release PR; you merge the release PR when you want to ship.
+
+::: info Looking for a working example?
+[monorel-example](https://github.com/disaresta-org/monorel-example) is a minimal two-package Go monorepo wired up with monorel: one root module, one sub-module, the two workflow files, and a `monorel.toml` scaffolded by `monorel init`. Clone it, study it, copy the files you need.
+
+For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 25 sub-modules.
+:::
 
 ## Install
 
@@ -13,79 +21,119 @@ monorel is a single static binary. There's no daemon and no per-repo install bey
 go install monorel.disaresta.com/cmd/monorel@latest
 ```
 
-Or in CI via the GitHub Action wrapper (see [GitHub Action](/github-action)):
-
-```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.0
-  with:
-    command: release
-```
+You'll use the local binary for `monorel init` and `monorel add`. CI uses a published binary via the action wrapper (no install step in your repo).
 
 ::: tip On macOS or Windows?
-The pre-built binaries are unsigned (paid signing certificates aren't worth it for a small open-source project), so Gatekeeper / SmartScreen will pop a warning the first time you run one. If that's friction, run monorel via the official container image instead — same binary, just inside Linux. See [Running in Docker](/docker).
+Pre-built binaries are unsigned, so Gatekeeper / SmartScreen will warn the first time you run one. If that's friction, use the [container image](/docker) instead (same binary, inside Linux).
 :::
 
-## Initialize the repo
+## Scaffold the repo
 
-Pick a `monorel.toml` shape that matches your repo. The minimal single-package config:
-
-```toml
-[provider]
-owner = "acme"
-repo  = "widget"
-
-[packages."github.com/acme/widget"]
-tag_prefix = ""
-path       = "."
-changelog  = "CHANGELOG.md"
-```
-
-For a monorepo with sub-modules, add one `[packages."<name>"]` block per package:
-
-```toml
-[provider]
-owner = "acme"
-repo  = "widget"
-
-[packages."github.com/acme/widget"]
-tag_prefix = ""
-path       = "."
-changelog  = "CHANGELOG.md"
-
-[packages."transports/zerolog"]
-tag_prefix = "transports/zerolog"
-path       = "transports/zerolog"
-changelog  = "transports/zerolog/CHANGELOG.md"
-
-[packages."transports/zap"]
-tag_prefix = "transports/zap"
-path       = "transports/zap"
-changelog  = "transports/zap/CHANGELOG.md"
-```
-
-The package name is the key inside `[packages.<name>]`; conventionally the import path for the root module and the relative directory for sub-modules. See [Configuration](/configuration) for the full reference.
-
-Create the `.changeset/` directory:
+In a git repo with at least one `go.mod` and a configured `origin` remote:
 
 ```sh
-mkdir -p .changeset
+monorel init
 ```
 
-## Author a changeset
+This:
 
-Each PR that needs a release includes a `.changeset/<name>.md` file. Use `monorel add` to write one:
+- Walks every `go.mod` under the working directory and writes one `[packages]` block per detected Go module to `monorel.toml`.
+- Reads `git config remote.origin.url` to fill in `provider.owner` and `provider.repo`.
+- Creates `.changeset/README.md` so contributors land on the format documentation when they open the directory.
+
+Output:
+
+```
+Wrote monorel.toml with 2 package(s):
+  github.com/acme/widget (path: ., tag prefix: "")
+  transports/foo (path: transports/foo, tag prefix: "transports/foo")
+Created .changeset/ with a README.
+Next steps:
+  monorel validate     # confirm the config
+  monorel add          # write your first changeset
+```
+
+`monorel validate` confirms the config is loadable and the package paths exist. See [Configuration](/configuration) when you want to hand-tune `monorel.toml` (per-package `tag_prefix` overrides, self-hosted GitHub Enterprise host, etc.).
+
+## Wire up the GitHub Action
+
+Two workflow files drive the release lifecycle.
+
+**`.github/workflows/release-pr.yml`** maintains the always-open release PR. Fires on every push to `main`:
+
+```yaml
+name: release-pr
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  release-pr:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
+        with:
+          command: pr
+```
+
+**`.github/workflows/release.yml`** cuts the release after the always-open release PR is merged:
+
+```yaml
+name: release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: disaresta-org/monorel/ci/github@v0.4.1
+        with:
+          command: release
+```
+
+Commit both files. The `release-pr` workflow will fire on the next push to `main`; the release PR opens once there's a changeset to release.
+
+::: warning Branch protection with required status checks
+If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/github-action#tokens-and-required-status-checks) for the wiring.
+:::
+
+## How releases work
+
+Three steps across the lifecycle:
+
+1. **Author a feature PR.** Include a `.changeset/<name>.md` file naming the affected packages and the bump level for each. Code change and changeset land in the same PR; merge as normal.
+2. **The `release-pr` workflow updates the always-open release PR.** On each push to `main`, monorel runs a speculative apply on a `monorel/release` branch (writes the staged CHANGELOG entries, deletes the consumed changeset files, makes one `chore(release): ...` commit) and force-pushes. The release PR's diff IS the file changes the next release will produce.
+3. **Merge the release PR when ready to ship.** The `release` workflow reads the merge commit's body trailers, creates per-package tags, pushes them, and creates one GitHub Release per tag.
+
+A PR without a changeset doesn't trigger a release. The release PR auto-updates as more changesets accumulate; closing it without merging cancels that release window.
+
+## Author your first changeset
+
+On a feature branch:
 
 ```sh
 monorel add \
-  --package "transports/zerolog:minor" \
+  --package "transports/foo:minor" \
   --message "Adds Lazy() helper for deferred field evaluation."
 ```
 
-This writes a file like `.changeset/quick-otter.md`:
+This writes `.changeset/<random-name>.md`:
 
 ```markdown
 ---
-"transports/zerolog": minor
+"transports/foo": minor
 ---
 
 Adds Lazy() helper for deferred field evaluation.
@@ -95,69 +143,49 @@ A single changeset can target multiple packages with different bump levels:
 
 ```sh
 monorel add \
-  --package "transports/zerolog:major" \
+  --package "transports/foo:major" \
   --package "github.com/acme/widget:patch" \
-  --message "Reshape the zerolog Config; pass-through fix in the root."
+  --message "Reshape the Foo Config; pass-through fix in the root."
 ```
 
-Or run `monorel add` with no arguments for an interactive flow.
+Or run `monorel add` with no flags for an interactive prompt (multi-select, per-package level, multi-line body).
 
-## Preview the release
+Commit the changeset on your feature branch, open the PR, and merge it as you would any other PR.
 
-```sh
-monorel plan
-```
+## Watch the release PR
 
-```text
-PACKAGE             FROM     BUMP   TO       TAG                          CHANGESETS
-transports/zerolog  v1.6.1   minor  v1.7.0   transports/zerolog/v1.7.0    quick-otter
+After your PR merges, the `release-pr` workflow runs against the new `main`. It:
 
-1 package(s) to release; 1 changeset(s) consumed.
-```
+1. Stages a `monorel/release` branch off `main`.
+2. Runs `monorel apply` on it: writes the speculative `CHANGELOG.md` entries, deletes the consumed `.changeset/*.md` files, makes one `chore(release): <pkg> <ver>` commit.
+3. Force-pushes that branch to the remote.
+4. Opens (or updates) the always-open release PR with the rendered plan in the body.
 
-`monorel status` lists pending changesets one row per (changeset, package) pair without computing bumps.
+The release PR's diff IS the actual file changes the release will produce, so reviewers see real CHANGELOG content rather than just a body summary.
 
-For machine-readable output, `monorel plan --json` emits a stable schema (see [CLI Reference](/cli-reference#plan)).
+If you merge another feature PR with another changeset, the release-pr workflow reruns and the release PR's diff updates.
 
 ## Cut the release
 
-```sh
-monorel release
-```
+Merge the release PR. The `release` workflow fires on the merge commit and:
 
-This:
+1. Reads the commit's `monorel-Release:` body trailers.
+2. Creates per-package annotated tags at the merge commit.
+3. Pushes the tags.
+4. Creates one GitHub Release per tag, body sourced from each package's CHANGELOG entry.
 
-1. Writes the CHANGELOG entry for each affected package.
-2. Deletes the consumed `.changeset/*.md` files.
-3. Creates a single commit (`chore(release): ...`).
-4. Creates one annotated git tag per package release.
-
-::: warning monorel does not push
-The applier creates the commit and tags locally. Push is the caller's responsibility:
-
-```sh
-git push --follow-tags
-```
-
-The [GitHub Action](/github-action) orchestrates the push step in CI.
+::: warning Squash-merge subject inheritance
+The release PR's commit body carries machine-readable trailers that `monorel tag` reads post-merge. The squash-merge setting must preserve the body. See [Branch protection](/github-action#branch-protection) for which settings work.
 :::
-
-To also create one provider release per tag (with the rendered CHANGELOG entry as release notes), pass `--publish`:
-
-```sh
-git push --follow-tags
-GITHUB_TOKEN=... monorel release --publish
-```
-
-For pre-release rcs, see [pre-release mode](/cli-reference#pre-release-mode).
 
 ## Verify
 
 ```sh
+git fetch --tags
 git tag --list
-# transports/zerolog/v1.7.0
+# transports/foo/v1.7.0
 
-cat transports/zerolog/CHANGELOG.md
+cat transports/foo/CHANGELOG.md
 # ## [1.7.0] - 2026-04-30
 #
 # ### Minor Changes
@@ -165,8 +193,35 @@ cat transports/zerolog/CHANGELOG.md
 # - Adds Lazy() helper for deferred field evaluation.
 ```
 
+The corresponding GitHub Release is at `github.com/<owner>/<repo>/releases/tag/transports/foo/v1.7.0` with the same CHANGELOG entry as its release notes.
+
+## Working without CI
+
+For repos that don't use CI, or for local one-shot releases (e.g. ad-hoc patches before the workflow is wired up), the local CLI does the same thing in one shot:
+
+```sh
+monorel release
+```
+
+Which:
+
+1. Runs the same `apply` step as CI, in your working tree.
+2. Creates per-package tags locally.
+
+You then push:
+
+```sh
+git push --follow-tags
+GITHUB_TOKEN=... monorel publish
+```
+
+`monorel publish` creates the GitHub Releases. Splitting `release` from `publish` is necessary because GitHub validates that the tag exists on the remote before allowing a Release to be created against it.
+
+This flow is fine for solo projects or bootstrap. Most real consumers will use the Action-driven flow above so contributors don't need to remember the order or have a `GITHUB_TOKEN` locally.
+
 ## Next steps
 
-- Wire up the [GitHub Action](/github-action) for the always-open release PR pattern.
-- Skim [Changesets](/changesets) for the file format and authoring conventions.
-- Read [Configuration](/configuration) when you're ready to tune `monorel.toml`.
+- [Changesets](/changesets): file format, multi-package shape, pre-release mode interaction.
+- [Configuration](/configuration): every `monorel.toml` field with examples.
+- [GitHub Action](/github-action): every wrapper input, branch protection setup, troubleshooting.
+- [CLI Reference](/cli-reference): per-command flags and output schemas.
