@@ -1,0 +1,123 @@
+name: monorel
+description: "Run monorel against the current repo. Commands: pr (upsert release PR), release (cut a release)."
+author: disaresta-org
+branding:
+  icon: tag
+  color: blue
+
+inputs:
+  command:
+    description: "Either 'pr' (upsert / close the always-open release PR) or 'release' (cut a release on the current commit)."
+    required: true
+  version:
+    description: "monorel version to run, e.g. v1.2.3. Defaults to 'latest'."
+    required: false
+    default: latest
+  config:
+    description: "Path to monorel.toml relative to the repo root."
+    required: false
+    default: monorel.toml
+  token:
+    description: "Token used for forge API calls. Needs contents:write and pull-requests:write permissions on the workflow."
+    required: false
+    default: ${{ github.token }}
+  publish:
+    description: "When command=release, also create one GitHub Release per tag. Requires tags to be pushed."
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Configure git author
+      shell: bash
+      run: |
+        git config user.name  "monorel-bot[automation]"
+        git config user.email "monorel-bot@users.noreply.github.com"
+
+    - name: Resolve binary asset
+      id: resolve
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        case "$RUNNER_OS" in
+          Linux)   os=linux  ;;
+          macOS)   os=darwin ;;
+          Windows) os=windows ;;
+          *) echo "::error::unsupported runner OS: $RUNNER_OS"; exit 1 ;;
+        esac
+        case "$RUNNER_ARCH" in
+          X64)   arch=amd64 ;;
+          ARM64) arch=arm64 ;;
+          *) echo "::error::unsupported runner arch: $RUNNER_ARCH"; exit 1 ;;
+        esac
+        if [ "$VERSION" = "latest" ]; then
+          tag=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/disaresta-org/monorel/releases/latest" \
+            | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)
+        else
+          tag="$VERSION"
+        fi
+        if [ -z "$tag" ]; then
+          echo "::error::could not resolve monorel version"
+          exit 1
+        fi
+        ext=tar.gz
+        [ "$os" = "windows" ] && ext=zip
+        url="https://github.com/disaresta-org/monorel/releases/download/${tag}/monorel_${tag#v}_${os}_${arch}.${ext}"
+        echo "tag=$tag"   >> "$GITHUB_OUTPUT"
+        echo "os=$os"     >> "$GITHUB_OUTPUT"
+        echo "arch=$arch" >> "$GITHUB_OUTPUT"
+        echo "ext=$ext"   >> "$GITHUB_OUTPUT"
+        echo "url=$url"   >> "$GITHUB_OUTPUT"
+
+    - name: Download monorel
+      shell: bash
+      env:
+        URL: ${{ steps.resolve.outputs.url }}
+        EXT: ${{ steps.resolve.outputs.ext }}
+      run: |
+        set -euo pipefail
+        tmp=$(mktemp -d)
+        echo "downloading $URL"
+        curl -fsSL "$URL" -o "$tmp/monorel.$EXT"
+        case "$EXT" in
+          tar.gz) tar -xzf "$tmp/monorel.$EXT" -C "$tmp" ;;
+          zip)    unzip -q "$tmp/monorel.$EXT" -d "$tmp" ;;
+        esac
+        bin=$(find "$tmp" -maxdepth 2 -type f -name 'monorel*' -perm -u+x | head -n1)
+        if [ -z "$bin" ]; then
+          echo "::error::extracted archive does not contain a monorel binary"
+          ls -R "$tmp"
+          exit 1
+        fi
+        install -m 0755 "$bin" /usr/local/bin/monorel
+        monorel --version
+
+    - name: Run monorel ${{ inputs.command }}
+      shell: bash
+      env:
+        COMMAND: ${{ inputs.command }}
+        CONFIG: ${{ inputs.config }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+        PUBLISH: ${{ inputs.publish }}
+      run: |
+        set -euo pipefail
+        case "$COMMAND" in
+          pr)
+            monorel preview --config "$CONFIG" --upsert
+            ;;
+          release)
+            args=(release --config "$CONFIG")
+            if [ "$PUBLISH" = "true" ]; then
+              args+=(--publish)
+            fi
+            monorel "${args[@]}"
+            git push --follow-tags
+            ;;
+          *)
+            echo "::error::unknown command: $COMMAND (expected 'pr' or 'release')"
+            exit 1
+            ;;
+        esac
