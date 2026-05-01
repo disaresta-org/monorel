@@ -9,7 +9,7 @@ hero:
   text: Releases for Go monorepos
   tagline: Explicit per-PR changesets. Native Go tag conventions.
   image:
-    src: /logo.webp
+    src: /logo-v2.webp
     alt: "monorel logo: many incoming rails merging into one"
   actions:
     - theme: brand

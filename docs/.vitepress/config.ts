@@ -65,7 +65,7 @@ export default defineConfig({
     return head
   },
   themeConfig: {
-    logo: { src: '/logo.webp', alt: 'monorel' },
+    logo: { src: '/logo-v2.webp', alt: 'monorel' },
     editLink: {
       pattern: 'https://github.com/disaresta-org/monorel/edit/main/docs/src/:path',
       text: 'Edit this page on GitHub',

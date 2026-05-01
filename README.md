@@ -1,13 +1,15 @@
-<p align="center">
-  <img src="docs/src/public/logo.webp" alt="monorel" width="220" />
-</p>
-
 # monorel
 
-A changesets-style release tool for multi-module Go monorepos.
+<p align="center">
+  <a href="https://monorel.disaresta.com" title="monorel"><img src="docs/src/public/logo-v2.webp" alt="monorel" width="220" /></a>
+</p>
 
-[![CI](https://github.com/disaresta-org/monorel/actions/workflows/ci.yml/badge.svg)](https://github.com/disaresta-org/monorel/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/disaresta-org/monorel/actions/workflows/ci.yml"><img src="https://github.com/disaresta-org/monorel/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
+</p>
+
+A changesets-style release tool for multi-module Go monorepos.
 
 `monorel` manages per-package versions, tags, and changelogs in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with the [GitHub Action](#github-action) to drive an always-open release PR.
 
