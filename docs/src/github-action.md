@@ -12,20 +12,20 @@ The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary 
 Add the action to a workflow:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.1.2
+- uses: disaresta-org/monorel/ci/github@v0.4.0
   with:
     command: release
 ```
 
 ::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.1.2`) until that ships. Bump deliberately when a new monorel patch lands.
+monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
 ## Inputs
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `command` | required | `pr` (run `monorel preview --upsert` to maintain the release PR) or `release` (run the local→push→publish pipeline). |
+| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
 | `version` | `latest` | Pin a specific monorel version, e.g. `v0.1.2`. |
 | `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. |
 | `config` | `monorel.toml` | Path to the config file. |
@@ -34,15 +34,17 @@ monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin
 If you need a different token (e.g. a personal access token to bypass branch protection), pass it via the `token` input using GitHub Actions context syntax. The action uses the workflow's default token when the input is unset.
 :::
 
-The `release` command runs three monorel invocations in order:
+The `release` command runs three monorel invocations in order on the merge commit:
 
-1. `monorel release` — local file mutations + commit + tag.
-2. `git push --follow-tags` — publish commits and tags to the remote.
+1. `monorel tag` — read HEAD's `monorel-Release:` commit-body trailers (written upstream by `monorel apply`) and create per-package annotated tags. The merge already brought the file changes in via the release PR; only the tags still need creating.
+2. `git push --follow-tags` — push the new tags to the remote.
 3. `monorel publish` — create one GitHub Release per tag at HEAD; body sourced from each package's CHANGELOG entry.
 
 The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
-The `pr` command stages the configured head branch (default `monorel/release`) before invoking the orchestrator. It force-creates that branch from `origin/<default-branch>` plus one empty marker commit, then force-pushes, so GitHub's PR-create API accepts the always-open release PR. The branch's diff stays empty by design — the rendered plan goes in the PR body, not in a code diff.
+The `pr` command implements **speculative apply**: it stages a fresh `monorel/release` branch off the default branch, runs `monorel apply` on it (writes per-package CHANGELOG entries / `pre.json` increments, deletes consumed `.changeset/*.md` files, creates one `chore(release): ...` commit), and force-pushes. The release PR's diff IS the file changes the release will produce. The orchestrator (`monorel preview --upsert`) then opens or updates the always-open release PR with the rendered plan in its body.
+
+If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
 
 ## Workflows
 
@@ -69,14 +71,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.1.2
+      - uses: disaresta-org/monorel/ci/github@v0.4.0
         with:
           command: pr
 ```
 
-On every push to `main` (except the release-PR merge), the action computes the plan and either:
+On every push to `main` (except the release-PR merge), the action stages the release PR's diff via speculative apply, then either:
 
-- Creates / updates the release PR if there are pending changesets.
+- Creates / updates the release PR if there are pending changesets (the PR's diff is the actual CHANGELOG entries + changeset deletions).
 - Closes the release PR if there are no pending changesets.
 
 ### `release.yml`: publish on release-PR merge
@@ -101,12 +103,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.1.2
+      - uses: disaresta-org/monorel/ci/github@v0.4.0
         with:
           command: release
 ```
 
-The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): ...`; the prefix check is precise and matches the marker commit's subject inheritance behavior described under [Branch protection](#branch-protection). Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/bootstrap)).
+The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases) — the prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/bootstrap)).
 
 ### Chaining downstream workflows (deploy-docs, build-binaries, etc.)
 
@@ -124,7 +126,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.1.2
+      - uses: disaresta-org/monorel/ci/github@v0.4.0
         with:
           command: release
       - name: Capture root tag
@@ -174,16 +176,22 @@ Recommended settings for the default branch:
 - Require status checks (CI) to pass before merge.
 - Allow squash-merge for non-release PRs; allow merge-commit (or rebase) for the release PR.
 
-The release PR is special: monorel's `chore(release):` commit subject must reach `main` for `release.yml` to trigger. Squash-merging the release PR produces a single `chore(release): ...` commit; rebase-merging produces the same. Both work; just don't squash-merge into a different subject.
+The release PR is special: monorel's `chore(release): <pkg> <ver>` commit subject AND the `monorel-Release:` body trailers must both reach `main` for `release.yml` to trigger and `monorel tag` to derive the right tags.
 
-::: warning Squash-merge subject inheritance
-By default, the marker commit on the staged head branch carries the subject `chore(release): always-open release PR marker`. When you squash-merge the release PR, GitHub picks the squash subject from one of four options under repo Settings → "Default commit message for squash merging":
+::: warning Preserve the staged commit body
+The staging step (speculative apply) creates a real commit on `monorel/release` whose body carries the `monorel-Release:` trailers `monorel tag` reads. The merge commit on `main` MUST keep that body. Configure the squash subject + body via repo Settings → General → Pull Requests → "Default commit message for squash merging":
 
-- **`Default message`** (the legacy setting): the squash subject is the marker commit's subject when the PR has a single commit, e.g. `chore(release): always-open release PR marker`. Functionally fine, visually less informative.
-- **`Pull request title`** (recommended): the squash subject is the orchestrator-set PR title, e.g. `chore(release): transports/blank v1.6.2`. Cleaner.
-- **`Pull request title and commit details`** / **`Pull request title and description`**: the subject is the PR title (same as above); the body of the squash commit pulls in either the commits or the PR description. Either of these is fine for monorel.
+- **`Default message`** (legacy) — for single-commit PRs (which the release PR always is) the subject and body come straight from the head commit. Trailers preserved verbatim. Safe default.
+- **`Pull request title and commit details`** — subject is the PR title, body lists the commit subjects and includes their bodies. The parser tolerates leading whitespace from any indentation, so trailers remain matchable.
 
-The release pipeline works with any of the four — both the marker subject and the orchestrator-set PR title start with `chore(release):`, which is what `release.yml` filters on. Pick `Pull request title` (or one of the variants that uses it) so the merged commit carries the version-specific name instead of the generic marker text.
+What NOT to use:
+
+- **`Pull request title`** — body is empty. Trailers lost. `monorel tag` returns `ErrNoReleaseCommit`.
+- **`Pull request title and description`** — body is the PR description (the rendered plan that `monorel preview --upsert` writes), which doesn't contain the trailers. Trailers lost.
+
+Rebase-merge and merge-commit both preserve the staged commit verbatim, so neither needs configuration.
+
+If a release PR merged without trailers, the recovery is to manually create the tags (`git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m 'Release ...'` for each package) and push them, then run `monorel publish` against the pushed tags.
 :::
 
 ## Troubleshooting
@@ -213,4 +221,16 @@ monorel reports `Created N/M releases before failing.` Re-running publishes the 
 
 ### "422 Field:head Code:invalid" on release-pr
 
-If you see this with a monorel version older than v0.1.1, upgrade to `@v0.1.2` or later. v0.1.1 added the head-branch staging step the orchestrator needs; v0.1.0 didn't push the head branch, so GitHub's PR-create API rejected the always-open PR.
+GitHub's PR-create API requires the head branch to exist on the remote with at least one commit between head and base. The `pr` command's speculative-apply step creates `monorel/release` from the default branch and force-pushes the `monorel apply` commit, so the head exists by the time the orchestrator runs `monorel preview --upsert`. If you see this 422, the staging push failed silently — check the `Run monorel pr` step's log for a `git push` error before the `monorel preview` invocation.
+
+### `monorel tag` returns `ErrNoReleaseCommit`
+
+The merge commit on `main` doesn't have `monorel-Release:` trailers in its body. Most likely cause: the squash-merge setting stripped the staged commit's body. See the [Branch protection](#branch-protection) section's `Preserve the staged commit body` warning for which settings work and how to recover.
+
+### `monorel tag` returns `ErrTagExists`
+
+A tag the trailers ask for already exists on the remote. Most often this means a previous `release` workflow run partially completed (created some tags before failing). Investigate, delete the partial tags (`git tag -d <name>` locally + `git push origin :refs/tags/<name>` to remove from the remote), and re-run.
+
+### `monorel tag` returns `ErrUnknownReleasedPackage`
+
+A trailer names a package not declared in `monorel.toml`. Indicates the config drifted between when the release PR was opened (when `monorel apply` ran) and when it was merged (when `monorel tag` runs). Restore the missing entry in `monorel.toml`, or delete and recreate the release PR.

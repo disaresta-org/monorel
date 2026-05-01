@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: "Per-command reference for monorel: add, plan, status, release, preview, pre, init."
+description: "Per-command reference for monorel: add, plan, status, validate, apply, tag, release, preview, publish, pre, init."
 ---
 
 # CLI Reference
@@ -118,9 +118,54 @@ pre-commit:
 
 `--json` makes the output machine-readable for IDE integrations and CI parsers; the field shape is the public `Finding` type's encoding.
 
+## `monorel apply`
+
+Apply pending changesets to the working tree: write CHANGELOG entries, delete the consumed `.changeset/*.md` files, and create one `chore(release): ...` commit. Does NOT create tags.
+
+```sh
+monorel apply
+# Applied 1 release(s) at a4f77ab:
+#   staged: transports/zerolog/v1.7.0
+# Run `monorel tag` (typically post-merge) to create tags from this commit's trailers.
+```
+
+The commit body carries machine-readable trailers (`monorel-Release: <name> <version>`, `monorel-PreRelease: <bool>`) so a later `monorel tag` can derive the per-package tags without re-reading changesets:
+
+```
+chore(release): transports/zerolog v1.7.0
+
+monorel-Release: transports/zerolog v1.7.0
+monorel-PreRelease: false
+```
+
+`apply` is the speculative-apply primitive used by the GitHub Action wrapper's `pr` command — the action stages a fresh `monorel/release` branch, runs `apply`, and force-pushes so the release PR's diff IS the actual file changes. See [GitHub Action](/github-action) for the wiring.
+
+In pre-release mode (`.changeset/pre.json` present), `apply` increments per-package counters in `pre.json` instead of writing CHANGELOGs and keeps the `.changeset/*.md` files. Tags carry the channel suffix (e.g. `v1.7.0-rc.0`).
+
+## `monorel tag`
+
+Read HEAD's commit trailers and create the corresponding annotated git tags at HEAD. Does NOT mutate files. Used post-merge by the GitHub Action wrapper's `release` command.
+
+```sh
+monorel tag
+# Tagged 1 release(s) at a4f77ab:
+#   transports/zerolog/v1.7.0
+# Run `git push --follow-tags && monorel publish` to ship.
+```
+
+Errors:
+
+- `ErrNoReleaseCommit` — HEAD has no `monorel-Release:` trailers (i.e. it's not a release commit). The release-pipeline workflow filters on the `chore(release):` subject, so this only fires if the filter is misconfigured.
+- `ErrUnknownReleasedPackage` — a trailer names a package not declared in `monorel.toml`. Indicates the config drifted between `apply` and `tag`.
+- `ErrTagExists` — preflight: a derived tag is already present. Investigate (probably a partial prior run) and delete the stale tag before re-running.
+
+::: warning Partial-tag failure mode
+If `tag` fails on the Nth tag of a multi-package release, tags 1..N-1 exist and N..end don't. A naive re-run hits `ErrTagExists` on tag #1 and aborts. Recovery: `git tag -d <stale-tag>` for each partial tag, then re-run.
+:::
+
 ## `monorel release`
 
-Apply pending changesets: bump versions, write changelogs, tag, commit. Idempotency: aborts if a planned tag already exists.
+One-shot local release: `apply` + `tag` in sequence with a single preflight pass. Equivalent to `monorel apply && monorel tag` for trees you don't intend to review through a PR. Idempotency: aborts if any planned tag already exists.
 
 ```sh
 monorel release
@@ -133,7 +178,9 @@ monorel release
 |------|------|-------------|
 | `--publish` | bool | After tagging, create one provider release per tag using the configured provider. Requires the provider's auth token in the environment and that tags have been pushed. |
 
-In stable mode `release` writes per-package CHANGELOG entries, deletes the consumed `.changeset/*.md` files, makes a single commit, and creates per-package annotated tags at HEAD.
+::: tip apply + tag vs. release
+The GitHub Action wrapper uses `apply` (on the staging branch) and `tag` (on the merge commit) as two independent steps. `release` is the convenience for local one-shot use; the speculative-apply flow uses `apply` and `tag` separately so the release PR's diff can be the real release.
+:::
 
 ::: warning Push is the caller's job
 The applier creates the commit and tags locally. Run `git push --follow-tags` (or use the GitHub Action) to publish.
@@ -156,7 +203,41 @@ Accumulated changes are emitted to CHANGELOGs at the next stable release after `
 
 ## `monorel preview`
 
-(Planned for Phase 9.) Renders the release plan as markdown for an always-open release PR body. Used by the GitHub Action wrapper.
+Render the release plan as markdown and (with `--upsert`) open or update the always-open release PR's body. Used by the GitHub Action wrapper's `pr` command after `monorel apply` stages the file changes.
+
+```sh
+monorel preview
+# Markdown plan rendered to stdout.
+
+monorel preview --upsert
+# Upserted release PR #42 (head: monorel/release, base: main).
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--upsert` | bool | Open or update the always-open release PR. Requires `pull-requests: write` and a configured provider token. Closes any open release PR if the plan is empty. |
+
+## `monorel publish`
+
+Read tags pointing at HEAD, match each to a configured package, and create a provider release using the matching CHANGELOG entry as the release notes. Pre-release tags are flagged as such on the provider.
+
+```sh
+monorel publish
+# Created 1 release(s):
+#   transports/zerolog/v1.7.0
+```
+
+Splitting `publish` from `tag` (and from `release`) ensures the tag is on the remote before the provider validates it when creating the Release. The post-merge release pipeline is:
+
+```sh
+monorel tag           # create tags from HEAD's release-commit trailers
+git push --follow-tags
+monorel publish       # create one provider release per tag
+```
+
+Requires the configured provider's auth token in the environment (e.g. `GITHUB_TOKEN` for GitHub). The error message names the expected env var.
+
+If `publish` fails partway through, it reports `Created N/M releases before failing.` and re-running picks up the remainder (each `CreateRelease` is idempotent on the tag name; the provider returns an error on duplicates, which the partial-success path handles).
 
 ## `monorel pre`
 
