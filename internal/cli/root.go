@@ -31,6 +31,7 @@ Reference docs: https://github.com/disaresta-org/monorel`,
 		SilenceErrors: true,
 	}
 
+	addPersistentFlags(cmd)
 	cmd.AddCommand(
 		newAddCmd(),
 		newStatusCmd(),
