@@ -36,36 +36,60 @@ func TestSplitOwnerRepo(t *testing.T) {
 	}
 }
 
-func TestDetectGitRemote(t *testing.T) {
+func TestParseGitRemote(t *testing.T) {
 	cases := []struct {
 		name      string
 		remoteURL string
 		owner     string
 		repo      string
+		shouldErr bool
 	}{
-		{"https with .git", "https://github.com/acme/widget.git", "acme", "widget"},
-		{"https without .git", "https://github.com/acme/widget", "acme", "widget"},
-		{"ssh", "git@github.com:acme/widget.git", "acme", "widget"},
-		{"ssh no .git", "git@gitlab.com:acme/widget", "acme", "widget"},
-		{"https with subgroup (gitlab)", "https://gitlab.com/team/sub/widget.git", "team", "sub/widget"},
+		{"https with .git", "https://github.com/acme/widget.git", "acme", "widget", false},
+		{"https without .git", "https://github.com/acme/widget", "acme", "widget", false},
+		{"http", "http://gitea.example.com/acme/widget.git", "acme", "widget", false},
+		{"ssh-with-scheme", "ssh://git@github.com/acme/widget.git", "acme", "widget", false},
+		{"ssh-with-scheme custom port", "ssh://git@github.com:2222/acme/widget.git", "acme", "widget", false},
+		{"ssh scp-like", "git@github.com:acme/widget.git", "acme", "widget", false},
+		{"ssh scp-like no .git", "git@gitlab.com:acme/widget", "acme", "widget", false},
+		{"git scheme", "git://github.com/acme/widget.git", "acme", "widget", false},
+		{"https with credentials", "https://user:pass@github.com/acme/widget.git", "acme", "widget", false},
+		{"https with subgroup (gitlab)", "https://gitlab.com/team/sub/widget.git", "team", "sub/widget", false},
+		{"https IPv6 host", "https://[::1]/acme/widget", "acme", "widget", false},
+		// Rejected shapes.
+		{"file URL", "file:///home/me/repo", "", "", true},
+		{"unrecognized", "random-string-no-colon", "", "", true},
+		{"git@ no colon", "git@github.com", "", "", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			runGit(t, dir, "init", "-q")
-			runGit(t, dir, "remote", "add", "origin", tc.remoteURL)
-			owner, repo, err := detectGitRemote(dir)
-			if err != nil {
-				t.Fatalf("detectGitRemote: %v", err)
+			owner, repo, err := parseGitRemote(tc.remoteURL)
+			gotErr := err != nil
+			if gotErr != tc.shouldErr {
+				t.Errorf("parseGitRemote(%q): err=%v want shouldErr=%v", tc.remoteURL, err, tc.shouldErr)
 			}
-			if owner != tc.owner || repo != tc.repo {
-				t.Errorf("got owner=%q repo=%q, want %q, %q", owner, repo, tc.owner, tc.repo)
+			if !tc.shouldErr && (owner != tc.owner || repo != tc.repo) {
+				t.Errorf("parseGitRemote(%q) = %q, %q, want %q, %q", tc.remoteURL, owner, repo, tc.owner, tc.repo)
 			}
 		})
 	}
 }
 
+func TestDetectGitRemote(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "remote", "add", "origin", "https://github.com/acme/widget.git")
+	owner, repo, err := detectGitRemote(dir)
+	if err != nil {
+		t.Fatalf("detectGitRemote: %v", err)
+	}
+	if owner != "acme" || repo != "widget" {
+		t.Errorf("got owner=%q repo=%q, want acme/widget", owner, repo)
+	}
+}
+
 func TestDetectGitRemote_NoRemote(t *testing.T) {
+	requireGit(t)
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-q")
 	if _, _, err := detectGitRemote(dir); err == nil {
@@ -117,6 +141,9 @@ func TestDetectPackages(t *testing.T) {
 	writeMod(t, dir, "go.mod", "module example.com/root\n")
 	writeMod(t, dir, "transports/zerolog/go.mod", "module example.com/root/transports/zerolog\n")
 	writeMod(t, dir, "transports/zap/go.mod", "module example.com/root/transports/zap\n")
+	// Three-level nesting. Tests that filepath.ToSlash normalizes
+	// separators and that the rendered path contains forward slashes.
+	writeMod(t, dir, "plugins/foo/livetest/go.mod", "module example.com/root/plugins/foo/livetest\n")
 	// vendor and hidden dirs ignored.
 	writeMod(t, dir, "vendor/github.com/x/y/go.mod", "module github.com/x/y\n")
 	writeMod(t, dir, ".tooling/skip/go.mod", "module example.com/skip\n")
@@ -125,21 +152,24 @@ func TestDetectPackages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detectPackages: %v", err)
 	}
-	if len(pkgs) != 3 {
-		t.Fatalf("want 3 packages, got %d: %+v", len(pkgs), pkgs)
+	if len(pkgs) != 4 {
+		t.Fatalf("want 4 packages, got %d: %+v", len(pkgs), pkgs)
 	}
 	// Root first, then sub-modules alphabetical by path.
 	if pkgs[0].Path != "." || pkgs[0].Name != "example.com/root" {
 		t.Errorf("[0] = %+v, want root", pkgs[0])
 	}
-	if pkgs[1].Path != "transports/zap" {
-		t.Errorf("[1] = %+v, want transports/zap", pkgs[1])
+	if pkgs[1].Path != "plugins/foo/livetest" {
+		t.Errorf("[1] = %+v, want plugins/foo/livetest", pkgs[1])
 	}
-	if pkgs[2].Path != "transports/zerolog" {
-		t.Errorf("[2] = %+v, want transports/zerolog", pkgs[2])
+	if pkgs[1].Changelog != "plugins/foo/livetest/CHANGELOG.md" {
+		t.Errorf("[1].Changelog = %q, want plugins/foo/livetest/CHANGELOG.md", pkgs[1].Changelog)
 	}
-	if pkgs[1].Changelog != "transports/zap/CHANGELOG.md" {
-		t.Errorf("[1].Changelog = %q", pkgs[1].Changelog)
+	if pkgs[2].Path != "transports/zap" {
+		t.Errorf("[2] = %+v, want transports/zap", pkgs[2])
+	}
+	if pkgs[3].Path != "transports/zerolog" {
+		t.Errorf("[3] = %+v, want transports/zerolog", pkgs[3])
 	}
 }
 
@@ -165,25 +195,16 @@ func TestRenderInitTOML(t *testing.T) {
 	}
 }
 
-func TestInitCmd_EndToEnd(t *testing.T) {
+func TestDoInit_FreshRepo(t *testing.T) {
+	requireGit(t)
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/acme/widget.git")
 	writeMod(t, dir, "go.mod", "module github.com/acme/widget\n")
 
-	prevWd, _ := os.Getwd()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(prevWd) })
-
-	root := newRootCmd()
-	var stdout, stderr bytes.Buffer
-	root.SetOut(&stdout)
-	root.SetErr(&stderr)
-	root.SetArgs([]string{"init"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("init: %v\nstderr: %s", err, stderr.String())
+	var out bytes.Buffer
+	if err := doInit(&out, initOptions{Dir: dir}); err != nil {
+		t.Fatalf("doInit: %v", err)
 	}
 
 	if !fileExists(filepath.Join(dir, "monorel.toml")) {
@@ -193,51 +214,163 @@ func TestInitCmd_EndToEnd(t *testing.T) {
 		t.Fatal(".changeset/README.md not created")
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
-	for _, want := range []string{`name  = "github"`, `owner = "acme"`, `repo  = "widget"`, `[packages."github.com/acme/widget"]`} {
+	for _, want := range []string{
+		`name  = "github"`,
+		`owner = "acme"`,
+		`repo  = "widget"`,
+		`[packages."github.com/acme/widget"]`,
+	} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("monorel.toml missing %q", want)
 		}
 	}
+}
 
-	// Re-run without --force should refuse.
-	root2 := newRootCmd()
-	var stderr2 bytes.Buffer
-	root2.SetOut(&bytes.Buffer{})
-	root2.SetErr(&stderr2)
-	root2.SetArgs([]string{"init"})
-	if err := root2.Execute(); err == nil {
-		t.Fatal("expected error on rerun without --force")
+func TestDoInit_RefusesWithoutForce(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte("# stub\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
-	// With --force, allowed.
-	root3 := newRootCmd()
-	root3.SetOut(&bytes.Buffer{})
-	root3.SetErr(&bytes.Buffer{})
-	root3.SetArgs([]string{"init", "--force"})
-	if err := root3.Execute(); err != nil {
-		t.Errorf("init --force should succeed: %v", err)
+	err := doInit(&bytes.Buffer{}, initOptions{Dir: dir, Owner: "a", Repo: "b"})
+	if err == nil {
+		t.Fatal("expected error when monorel.toml exists without --force")
 	}
 }
 
-func TestInitCmd_OwnerRepoOverride(t *testing.T) {
+func TestDoInit_ForcePreservesExistingProvider(t *testing.T) {
+	requireGit(t)
 	dir := t.TempDir()
-	runGit(t, dir, "init", "-q")
-	// No origin remote configured. --owner/--repo flags must be honored.
-	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+	// Existing monorel.toml with hand-edited provider/owner/repo. Uses
+	// "github" because Validate() rejects unknown provider names; the
+	// preserve path requires a loadable existing config.
+	original := `[provider]
+name  = "github"
+owner = "preserved-team"
+repo  = "preserved-name"
 
-	prevWd, _ := os.Getwd()
-	if err := os.Chdir(dir); err != nil {
+[packages."example.com/foo"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+`
+	if err := os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte(original), 0644); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chdir(prevWd) })
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+	// Origin remote points somewhere else; init must NOT overwrite the
+	// owner/repo with the auto-detected values when --force reloads the
+	// existing config.
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "remote", "add", "origin", "https://github.com/wrong/wrong.git")
 
-	root := newRootCmd()
-	var stderr bytes.Buffer
-	root.SetOut(&bytes.Buffer{})
-	root.SetErr(&stderr)
-	root.SetArgs([]string{"init", "--owner", "acme", "--repo", "widget", "--provider", "gitlab"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("init: %v\nstderr: %s", err, stderr.String())
+	if err := doInit(&bytes.Buffer{}, initOptions{Dir: dir, Force: true}); err != nil {
+		t.Fatalf("doInit --force: %v", err)
+	}
+
+	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
+	for _, want := range []string{
+		`name  = "github"`,
+		`owner = "preserved-team"`,
+		`repo  = "preserved-name"`,
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("preserved field missing: want %q\nfull:\n%s", want, body)
+		}
+	}
+	// Sanity: the wrong values from origin must NOT appear.
+	if strings.Contains(string(body), `owner = "wrong"`) {
+		t.Error("origin auto-detect leaked into preserved provider block")
+	}
+}
+
+func TestDoInit_ForceFlagsOverrideExisting(t *testing.T) {
+	dir := t.TempDir()
+	original := `[provider]
+name  = "github"
+owner = "old-team"
+repo  = "old-name"
+
+[packages."example.com/foo"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+`
+	if err := os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte(original), 0644); err != nil {
+		t.Fatal(err)
+	}
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+
+	if err := doInit(&bytes.Buffer{}, initOptions{
+		Dir:   dir,
+		Force: true,
+		Owner: "new-team",
+		Repo:  "new-name",
+	}); err != nil {
+		t.Fatalf("doInit: %v", err)
+	}
+
+	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
+	for _, want := range []string{
+		`owner = "new-team"`,
+		`repo  = "new-name"`,
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("flag override missing: %q\nfull:\n%s", want, body)
+		}
+	}
+	if strings.Contains(string(body), `"old-team"`) || strings.Contains(string(body), `"old-name"`) {
+		t.Errorf("override should drop old values\nfull:\n%s", body)
+	}
+}
+
+func TestDoInit_ForcePreservesExistingReadme(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".changeset"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	customReadme := "# My custom changeset readme\n"
+	readmePath := filepath.Join(dir, ".changeset", "README.md")
+	if err := os.WriteFile(readmePath, []byte(customReadme), 0644); err != nil {
+		t.Fatal(err)
+	}
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+
+	if err := doInit(&bytes.Buffer{}, initOptions{
+		Dir:   dir,
+		Owner: "acme",
+		Repo:  "widget",
+	}); err != nil {
+		t.Fatalf("doInit: %v", err)
+	}
+	got, _ := os.ReadFile(readmePath)
+	if string(got) != customReadme {
+		t.Errorf("README.md was overwritten: got %q, want %q", got, customReadme)
+	}
+}
+
+func TestDoInit_NoGoMod(t *testing.T) {
+	requireGit(t)
+	dir := t.TempDir()
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "remote", "add", "origin", "https://github.com/acme/widget.git")
+	if err := doInit(&bytes.Buffer{}, initOptions{Dir: dir}); err == nil {
+		t.Fatal("expected error when no go.mod files are present")
+	}
+}
+
+func TestDoInit_OwnerRepoOverrideNoRemote(t *testing.T) {
+	dir := t.TempDir()
+	// No git init at all. Must rely on flag-supplied values.
+	writeMod(t, dir, "go.mod", "module example.com/foo\n")
+	if err := doInit(&bytes.Buffer{}, initOptions{
+		Dir:      dir,
+		Provider: "gitlab",
+		Owner:    "acme",
+		Repo:     "widget",
+	}); err != nil {
+		t.Fatalf("doInit: %v", err)
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
 	for _, want := range []string{`name  = "gitlab"`, `owner = "acme"`, `repo  = "widget"`} {
@@ -253,6 +386,13 @@ func runGit(t *testing.T, dir string, args ...string) {
 	c.Dir = dir
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+}
+
+func requireGit(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git not on PATH: %v", err)
 	}
 }
 

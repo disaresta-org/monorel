@@ -3,7 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/modfile"
+
+	"monorel.disaresta.com/config"
 )
 
 func newInitCmd() *cobra.Command {
@@ -24,14 +28,27 @@ owner/repo from the git origin remote, and writes:
     monorel.toml  - one [packages] block per detected Go module
     .changeset/   - directory with a README explaining the format
 
-Refuses to overwrite an existing monorel.toml unless --force is given.`,
+Refuses to overwrite an existing monorel.toml unless --force is given.
+With --force, the existing provider/owner/repo are preserved as
+defaults (CLI flags still override).`,
 		RunE: runInit,
 	}
-	cmd.Flags().String("provider", "github", "Version-control host (github, gitlab, gitea, etc.).")
-	cmd.Flags().String("owner", "", "Repo owner. Auto-detected from git origin if empty.")
-	cmd.Flags().String("repo", "", "Repo name. Auto-detected from git origin if empty.")
+	cmd.Flags().String("provider", "", "Version-control host. Defaults to `github`, or to the existing monorel.toml's provider on --force.")
+	cmd.Flags().String("owner", "", "Repo owner. Auto-detected from git origin (or preserved from existing monorel.toml on --force).")
+	cmd.Flags().String("repo", "", "Repo name. Auto-detected from git origin (or preserved from existing monorel.toml on --force).")
 	cmd.Flags().Bool("force", false, "Overwrite an existing monorel.toml.")
 	return cmd
+}
+
+// initOptions are the resolved inputs to doInit. All fields are
+// optional: empty strings get filled in from the existing
+// monorel.toml (when --force) or from `git config remote.origin.url`.
+type initOptions struct {
+	Dir      string // working directory; defaults to os.Getwd().
+	Provider string // empty -> existing/github fallback.
+	Owner    string // empty -> existing/git-origin fallback.
+	Repo     string // empty -> existing/git-origin fallback.
+	Force    bool
 }
 
 func runInit(cmd *cobra.Command, _ []string) error {
@@ -39,20 +56,57 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	opts := initOptions{Dir: cwd}
+	opts.Provider, _ = cmd.Flags().GetString("provider")
+	opts.Owner, _ = cmd.Flags().GetString("owner")
+	opts.Repo, _ = cmd.Flags().GetString("repo")
+	opts.Force, _ = cmd.Flags().GetBool("force")
+	return doInit(cmd.OutOrStdout(), opts)
+}
 
-	configPath := filepath.Join(cwd, "monorel.toml")
-	force, _ := cmd.Flags().GetBool("force")
-	if !force {
+// doInit is the body of `monorel init`, factored out of runInit so
+// tests can drive it without process-global os.Chdir.
+func doInit(out io.Writer, opts initOptions) error {
+	configPath := filepath.Join(opts.Dir, "monorel.toml")
+
+	if !opts.Force {
 		if _, err := os.Stat(configPath); err == nil {
 			return errors.New("monorel.toml already exists; rerun with --force to overwrite")
 		}
 	}
 
-	provider, _ := cmd.Flags().GetString("provider")
-	owner, _ := cmd.Flags().GetString("owner")
-	repo, _ := cmd.Flags().GetString("repo")
+	// On --force, reload the existing config so we can preserve
+	// provider/owner/repo edits the user made by hand. A parse
+	// failure means the file is broken anyway; init is going to
+	// overwrite it, so we just fall through to auto-detection.
+	var existing *config.Config
+	if opts.Force {
+		if cfg, err := config.Load(configPath); err == nil {
+			existing = cfg
+		}
+	}
+
+	provider := opts.Provider
+	if provider == "" {
+		if existing != nil && existing.Provider.Name != "" {
+			provider = existing.Provider.Name
+		} else {
+			provider = "github"
+		}
+	}
+
+	owner := opts.Owner
+	repo := opts.Repo
+	if existing != nil {
+		if owner == "" {
+			owner = existing.Provider.Owner
+		}
+		if repo == "" {
+			repo = existing.Provider.Repo
+		}
+	}
 	if owner == "" || repo == "" {
-		detectedOwner, detectedRepo, err := detectGitRemote(cwd)
+		detectedOwner, detectedRepo, err := detectGitRemote(opts.Dir)
 		if err != nil {
 			return fmt.Errorf("could not auto-detect owner/repo from git origin: %w (pass --owner/--repo)", err)
 		}
@@ -64,7 +118,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	pkgs, err := detectPackages(cwd)
+	pkgs, err := detectPackages(opts.Dir)
 	if err != nil {
 		return err
 	}
@@ -76,18 +130,21 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("write monorel.toml: %w", err)
 	}
 
-	changesetDir := filepath.Join(cwd, ".changeset")
+	changesetDir := filepath.Join(opts.Dir, ".changeset")
 	if err := os.MkdirAll(changesetDir, 0755); err != nil {
 		return fmt.Errorf("create .changeset/: %w", err)
 	}
 	readmePath := filepath.Join(changesetDir, "README.md")
-	if _, err := os.Stat(readmePath); errors.Is(err, fs.ErrNotExist) {
+	switch _, err := os.Stat(readmePath); {
+	case errors.Is(err, fs.ErrNotExist):
 		if err := os.WriteFile(readmePath, []byte(changesetReadme), 0644); err != nil {
 			return fmt.Errorf("write .changeset/README.md: %w", err)
 		}
+	case err != nil:
+		return fmt.Errorf("stat .changeset/README.md: %w", err)
+		// else: file present, leave it alone.
 	}
 
-	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "Wrote monorel.toml with %d package(s):\n", len(pkgs))
 	for _, p := range pkgs {
 		fmt.Fprintf(out, "  %s (path: %s, tag prefix: %q)\n", p.Name, p.Path, p.TagPrefix)
@@ -111,14 +168,7 @@ type initPkg struct {
 }
 
 // detectGitRemote runs `git config --get remote.origin.url` in dir
-// and parses the result. Supports the two URL shapes git emits:
-//
-//	https://github.com/<owner>/<repo>(.git)
-//	git@github.com:<owner>/<repo>(.git)
-//
-// Other hosts (gitlab.com, gitea.example.com) work the same way; we
-// don't validate the host part because monorel itself doesn't care
-// which host is named, only what owner/repo to put in monorel.toml.
+// and parses the result. See parseGitRemote for supported URL shapes.
 func detectGitRemote(dir string) (owner, repo string, err error) {
 	c := exec.Command("git", "config", "--get", "remote.origin.url")
 	c.Dir = dir
@@ -126,25 +176,48 @@ func detectGitRemote(dir string) (owner, repo string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("read git origin: %w", err)
 	}
-	url := strings.TrimSpace(string(raw))
-	url = strings.TrimSuffix(url, ".git")
+	return parseGitRemote(strings.TrimSpace(string(raw)))
+}
 
-	// SSH form: git@<host>:<owner>/<repo>
-	if at := strings.Index(url, "@"); at >= 0 && strings.Contains(url, ":") && !strings.HasPrefix(url, "http") {
-		colon := strings.Index(url, ":")
-		path := url[colon+1:]
-		return splitOwnerRepo(path)
-	}
-	// HTTPS form: https://<host>/<owner>/<repo>
-	if i := strings.Index(url, "://"); i >= 0 {
-		path := url[i+3:]
-		// drop host
-		if slash := strings.Index(path, "/"); slash >= 0 {
-			path = path[slash+1:]
+// parseGitRemote covers the URL shapes git emits in the wild:
+//
+//   - HTTPS / HTTP: https://<host>/<owner>/<repo>(.git)
+//   - SSH (with scheme): ssh://git@<host>/<owner>/<repo>(.git)
+//   - SSH (scp-like, no scheme): git@<host>:<owner>/<repo>(.git)
+//   - git: git://<host>/<owner>/<repo>(.git)
+//
+// Schemed URLs are parsed via net/url, which handles credentials,
+// custom ports, IPv6 hosts, and percent-encoding for free. file://
+// URLs are explicitly rejected since they have no owner/repo concept.
+//
+// monorel doesn't validate the host part because it doesn't care
+// which host is named, only what owner/repo to put in monorel.toml.
+func parseGitRemote(raw string) (owner, repo string, err error) {
+	raw = strings.TrimSuffix(raw, ".git")
+
+	// Schemed URLs (https://, ssh://, git://, file://, etc.).
+	if strings.Contains(raw, "://") {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", "", fmt.Errorf("parse remote URL %q: %w", raw, err)
 		}
+		if u.Scheme == "file" {
+			return "", "", fmt.Errorf("remote URL is file://; pass --owner/--repo explicitly")
+		}
+		path := strings.TrimPrefix(u.Path, "/")
 		return splitOwnerRepo(path)
 	}
-	return "", "", fmt.Errorf("unrecognized remote URL shape: %q", url)
+
+	// SSH scp-like form: git@<host>:<owner>/<repo>
+	if at := strings.Index(raw, "@"); at >= 0 {
+		// Find the colon AFTER the @ to skip user@ separators.
+		colon := strings.Index(raw[at:], ":")
+		if colon >= 0 {
+			path := raw[at+colon+1:]
+			return splitOwnerRepo(path)
+		}
+	}
+	return "", "", fmt.Errorf("unrecognized remote URL shape: %q (pass --owner/--repo)", raw)
 }
 
 func splitOwnerRepo(path string) (owner, repo string, err error) {
