@@ -13,7 +13,7 @@ If you're not sure, run `monorel add` and follow the prompts.
 
 - [ ] `go test ./...` passes locally.
 - [ ] If touching docs: `cd docs && bun run docs:build` is clean.
-- [ ] If touching the `forge.Client` contract: I added or updated tests against `forge.NewFake`.
+- [ ] If touching the `provider.Client` contract: I added or updated tests against `provider.NewFake`.
 
 ## Notes for reviewers
 

@@ -2,8 +2,8 @@ package config
 
 // Provider names recognized by [IsKnownProvider]. These are the
 // values that `provider.name` in monorel.toml can take. Adding a
-// new provider: append to KnownProviders and wire up a forge
-// implementation under internal/forge/<name>/.
+// new provider: append to KnownProviders and wire up a provider
+// implementation under internal/provider/<name>/.
 const (
 	ProviderGitHub = "github"
 )

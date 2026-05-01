@@ -16,9 +16,9 @@ import (
 func newPublishCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "publish",
-		Short: "Create one forge release per tag pointing at HEAD.",
+		Short: "Create one provider release per tag pointing at HEAD.",
 		Long: `Reads tags pointing at the current HEAD, matches each to a configured
-package, and creates a forge release using the matching CHANGELOG
+package, and creates a provider release using the matching CHANGELOG
 entry as the release notes. Pre-release tags (those carrying a SemVer
 pre-release suffix) are flagged accordingly.
 
@@ -26,10 +26,10 @@ This is the post-push step of a monorel release pipeline:
 
     monorel release       # write CHANGELOGs, delete changesets, commit, tag
     git push --follow-tags
-    monorel publish       # create one forge release per tag
+    monorel publish       # create one provider release per tag
 
 Splitting publish from release ensures tags are on the remote before
-the forge tries to validate them when creating the Release. Requires
+the provider tries to validate them when creating the Release. Requires
 the configured provider's auth token in the environment.`,
 		RunE: runPublish,
 	}
@@ -61,7 +61,7 @@ func runPublish(cmd *cobra.Command, _ []string) error {
 	}
 	client, err := factory.New(ctx, rt.Config.Provider, token)
 	if err != nil {
-		return fmt.Errorf("forge client: %w", err)
+		return fmt.Errorf("provider client: %w", err)
 	}
 
 	res := &release.Result{Releases: infos}

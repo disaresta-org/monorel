@@ -49,8 +49,8 @@ Generated `monorel.toml` mirrors the previous manifest 1:1 in the same order so 
 ```toml
 [provider]
 name = "github"
-owner    = "loglayer"
-repo     = "loglayer-go"
+owner = "loglayer"
+repo = "loglayer-go"
 
 [packages."go.loglayer.dev"]
 tag_prefix = ""

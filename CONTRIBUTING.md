@@ -61,7 +61,7 @@ monorel/
 │   ├── plan/                   pure-function planner (the core)
 │   ├── changelog/              Keep-a-Changelog generator
 │   ├── release/                applies a ReleasePlan; renders preview markdown
-│   ├── forge/                  provider-neutral host API seam
+│   ├── provider/               provider-neutral host API seam
 │   │   ├── factory/            dispatch by config.ForgeConfig.Provider
 │   │   └── github/             go-github implementation
 │   └── orchestrator/           drives the always-open PR pattern
@@ -73,7 +73,7 @@ monorel/
 
 The pure-function planner (`internal/plan`) is the heart. Most logic lives there as `(config, []Changeset, []Tag, *PreState) -> ReleasePlan`; everything else is plumbing around it. Tests for `Plan` cover the version-math matrix exhaustively.
 
-Adding a new forge provider: see [`AGENTS.md`](AGENTS.md) "Adding a New Forge Provider". The interface is `forge.Client` (six methods); each provider lives in `internal/forge/<name>/` and the factory dispatches by config.
+Adding a new provider: see [`AGENTS.md`](AGENTS.md) "Adding a New Provider". The interface is `provider.Client` (six methods); each provider lives in `internal/provider/<name>/` and the factory dispatches by config.
 
 ## License
 

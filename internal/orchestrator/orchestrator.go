@@ -33,8 +33,8 @@ type Options struct {
 	// "close any open release PR".
 	Plan *plan.ReleasePlan
 
-	// Forge is the API client for the configured forge provider.
-	Forge provider.Client
+	// Provider is the API client for the configured provider.
+	Provider provider.Client
 
 	// HeadBranch is the source branch of the release PR (i.e. the
 	// branch the orchestrator pushed CHANGELOG-edit commits to).
@@ -93,8 +93,8 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Plan == nil {
 		return nil, errors.New("orchestrator: nil Plan")
 	}
-	if opts.Forge == nil {
-		return nil, errors.New("orchestrator: nil Forge")
+	if opts.Provider == nil {
+		return nil, errors.New("orchestrator: nil Provider")
 	}
 
 	headBranch := opts.HeadBranch
@@ -102,7 +102,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		headBranch = DefaultHeadBranch
 	}
 
-	existing, err := opts.Forge.FindOpenReleasePR(ctx, headBranch)
+	existing, err := opts.Provider.FindOpenReleasePR(ctx, headBranch)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: find existing PR: %w", err)
 	}
@@ -111,7 +111,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		if existing == nil {
 			return &Result{Action: ActionNoop}, nil
 		}
-		if err := opts.Forge.ClosePR(ctx, existing.Number); err != nil {
+		if err := opts.Provider.ClosePR(ctx, existing.Number); err != nil {
 			return nil, fmt.Errorf("orchestrator: close PR #%d: %w", existing.Number, err)
 		}
 		return &Result{Action: ActionClosed, PR: existing}, nil
@@ -119,7 +119,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 
 	baseBranch := opts.BaseBranch
 	if baseBranch == "" {
-		baseBranch, err = opts.Forge.GetDefaultBranch(ctx)
+		baseBranch, err = opts.Provider.GetDefaultBranch(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("orchestrator: get default branch: %w", err)
 		}
@@ -129,7 +129,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	body := release.RenderPreview(opts.Plan, opts.Today)
 
 	if existing == nil {
-		pr, err := opts.Forge.CreatePR(ctx, provider.CreatePROptions{
+		pr, err := opts.Provider.CreatePR(ctx, provider.CreatePROptions{
 			Title:      title,
 			Body:       body,
 			HeadBranch: headBranch,
@@ -141,7 +141,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return &Result{Action: ActionCreated, PR: pr}, nil
 	}
 
-	pr, err := opts.Forge.UpdatePR(ctx, existing.Number, provider.UpdatePROptions{
+	pr, err := opts.Provider.UpdatePR(ctx, existing.Number, provider.UpdatePROptions{
 		Title: &title,
 		Body:  &body,
 	})

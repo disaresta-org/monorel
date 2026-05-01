@@ -1,7 +1,7 @@
 // Package factory constructs a [provider.Client] from [config.ProviderConfig].
 //
 // Adding a new provider:
-//  1. implement [provider.Client] in internal/forge/<name>.
+//  1. implement [provider.Client] in internal/provider/<name>.
 //  2. add a case to [New].
 //  3. add the provider name to config.KnownProviders.
 package factory
@@ -28,6 +28,6 @@ func New(ctx context.Context, cfg config.ProviderConfig, token string) (provider
 			Token: token,
 		})
 	default:
-		return nil, fmt.Errorf("forge: unknown provider %q", cfg.Name)
+		return nil, fmt.Errorf("provider: unknown provider %q", cfg.Name)
 	}
 }

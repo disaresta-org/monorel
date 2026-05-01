@@ -31,7 +31,7 @@ monorel/
 │   ├── plan/                     Pure-function planner: (config, changesets, tags, pre) -> ReleasePlan
 │   ├── changelog/                Keep-a-Changelog writer (insert above first H2)
 │   ├── release/                  Apply ReleasePlan: write changelogs, tag, commit, publish
-│   ├── forge/                    Provider-neutral host API seam (PR upsert + release create)
+│   ├── provider/                 Provider-neutral host API seam (PR upsert + release create)
 │   │   ├── factory/              Dispatch by config.ProviderConfig.Name
 │   │   └── github/               go-github implementation
 │   └── action/                   (Phase 9, not yet built) bot orchestrator
@@ -68,7 +68,7 @@ monorel/
   `.changeset/pre.json`; subsequent releases append `-<channel>.N` to
   versions and increment per-package counters. `pre exit` returns to
   stable, applying accumulated changesets cumulatively.
-- **Provider-neutral forge seam**: `internal/forge.Client` abstracts
+- **Provider-neutral host seam**: `internal/provider.Client` abstracts
   GitHub today, GitLab/Gitea/Bitbucket/Forgejo by adding a subpackage
   + factory case + KnownProviders entry.
 - **Pure-function planner**: `plan.Plan` takes static inputs and
@@ -76,7 +76,7 @@ monorel/
   v0.2.0 it lives at `monorel.disaresta.com/plan` (public API)
   alongside `config`, `changeset`, `semver`, `validate`, and
   `changelog`. Side-effect-bearing packages (`release`,
-  `orchestrator`, `forge`, `git`, `cli`) stay in `internal/`.
+  `orchestrator`, `provider`, `git`, `cli`) stay in `internal/`.
 
 ## Verification
 
@@ -147,21 +147,19 @@ To cut a release:
 
 ## Adding a New Provider
 
-The provider seam is `internal/forge.Client` (the package name stays
-"forge" internally even though the user-visible vocabulary is
-"provider" — `forge.Client` is the abstract host interface). To add
-`<name>`:
+The provider seam is `internal/provider.Client`, the abstract host
+interface monorel uses for PR / Release operations. To add `<name>`:
 
-1. Create `internal/forge/<name>/<name>.go` implementing the six
-   methods on `forge.Client`. Return `forge.Client` from `New(opts)`,
-   keep the concrete type unexported.
-2. Add a case to `internal/forge/factory.New` that constructs your
+1. Create `internal/provider/<name>/<name>.go` implementing the six
+   methods on `provider.Client`. Return `provider.Client` from
+   `New(opts)`, keep the concrete type unexported.
+2. Add a case to `internal/provider/factory.New` that constructs your
    provider from `config.ProviderConfig`.
 3. Append your provider name to `config.KnownProviders` (public) and
-   add a case to `forge.TokenEnvVars` (internal) if the provider uses
-   an env-var token.
-4. Add tests against `forge.NewFake` for any orchestration that uses
-   provider-specific behavior. The provider's own impl typically
+   add a case to `provider.TokenEnvVars` (internal) if the provider
+   uses an env-var token.
+4. Add tests against `provider.NewFake` for any orchestration that
+   uses provider-specific behavior. The provider's own impl typically
    doesn't need unit tests beyond constructor validation; live-API
    tests are out of scope for the main test suite.
 
@@ -189,7 +187,7 @@ GitHub Release per tag.
 
 - **Pure-function planner**: `plan.Plan` is concurrency-safe (no
   shared state).
-- **`forge.Fake`**: protected by an internal mutex; safe for parallel
+- **`provider.Fake`**: protected by an internal mutex; safe for parallel
   test runs.
 - **`git.Exec`**: NOT designed for concurrent use against the same
   working tree. Each test/CLI invocation owns its own working tree.

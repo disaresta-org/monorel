@@ -38,8 +38,8 @@ These packages stay in `internal/` deliberately and are not part of the SemVer c
 | Internal package | Why it stays private |
 |------------------|----------------------|
 | `release` | Writes files, creates commits, creates tags. Promoting locks side-effect ordering. |
-| `orchestrator` | Provider-coupled (calls `forge.Client`); not useful without it. |
-| `forge` | Host-abstraction interface; promoting locks every interface change as breaking. (Package name stays "forge" internally for terseness; the user-visible config term is "provider".) |
+| `orchestrator` | Provider-coupled (calls `provider.Client`); not useful without it. |
+| `provider` | Host-abstraction interface; promoting locks every interface change as breaking. |
 | `git` | Shell-out implementation detail. |
 | `cli` | Cobra wiring. The library is the API; the CLI is one consumer. |
 

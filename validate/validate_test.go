@@ -85,7 +85,7 @@ changelog = "transports/zerolog/CHANGELOG.md"
 	}
 }
 
-func TestRun_ConfigInvalid_NoForgeOwner(t *testing.T) {
+func TestRun_ConfigInvalid_NoProviderOwner(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
 [provider]
@@ -101,7 +101,7 @@ changelog = "CHANGELOG.md"
 
 	got := validate.Run(validate.Inputs{ConfigPath: cfgPath})
 	if !validate.HasErrors(got) {
-		t.Fatalf("want HasErrors=true for missing forge.owner; got: %+v", got)
+		t.Fatalf("want HasErrors=true for missing provider.owner; got: %+v", got)
 	}
 	// config.Load wraps schema violations; we don't pin the exact
 	// error string but it must surface as config_invalid.

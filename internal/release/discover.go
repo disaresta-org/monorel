@@ -15,7 +15,7 @@ import (
 // DiscoverPublishables walks the tags pointing at the repo's HEAD,
 // matches each one to a configured package by tag prefix, and reads
 // the matching CHANGELOG entry to build [ReleaseInfo] entries the
-// forge publisher can consume.
+// provider publisher can consume.
 //
 // Used by `monorel publish`: after `monorel release` has created
 // tags locally and `git push --follow-tags` has pushed them, the

@@ -42,8 +42,8 @@ func TokenFromEnv(provider string) string {
 	return ""
 }
 
-// Client is the slice of forge operations monorel needs. The methods
-// are intentionally narrow: a forge implementation only has to model
+// Client is the slice of provider operations monorel needs. The methods
+// are intentionally narrow: a provider implementation only has to model
 // PR lifecycle for the always-open release-PR pattern, plus per-tag
 // release creation, plus default-branch lookup.
 type Client interface {
@@ -123,7 +123,7 @@ type CreateReleaseOptions struct {
 	// CHANGELOG entry for this version).
 	Body string
 
-	// Prerelease toggles the forge's "Pre-release" flag. monorel
+	// Prerelease toggles the provider's "Pre-release" flag. monorel
 	// sets it to true for tags carrying a SemVer pre-release suffix
 	// (-rc.N, -beta.N, etc.).
 	Prerelease bool

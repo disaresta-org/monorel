@@ -7,7 +7,7 @@ branding:
 
 inputs:
   command:
-    description: "Either 'pr' (upsert / close the always-open release PR) or 'release' (cut a release on the current commit, push tags, publish forge releases)."
+    description: "Either 'pr' (upsert / close the always-open release PR) or 'release' (cut a release on the current commit, push tags, publish provider releases)."
     required: true
   version:
     description: "monorel version to run, e.g. v1.2.3. Defaults to 'latest'."
@@ -18,7 +18,7 @@ inputs:
     required: false
     default: monorel.toml
   token:
-    description: "Token used for forge API calls. Needs contents:write and pull-requests:write permissions on the workflow."
+    description: "Token used for provider API calls. Needs contents:write and pull-requests:write permissions on the workflow."
     required: false
     default: ${{ github.token }}
 
@@ -148,10 +148,10 @@ runs:
             #   1. release: write CHANGELOGs, delete changesets,
             #      commit, create tags locally.
             #   2. push: send commits + tags to the remote.
-            #   3. publish: create one forge release per tag, with
+            #   3. publish: create one provider release per tag, with
             #      the body sourced from each tag's CHANGELOG entry.
             # Splitting (1) and (3) ensures tags exist on the remote
-            # before the forge tries to validate them.
+            # before the provider tries to validate them.
             monorel release --config "$CONFIG"
             git push --follow-tags
             monorel publish --config "$CONFIG"

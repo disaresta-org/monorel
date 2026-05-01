@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -116,23 +115,12 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		// Catch the v0.2 → v0.3 migration explicitly so users get a
-		// targeted message instead of a generic "unknown keys" error.
-		// monorel renamed the [forge] section to [provider] and the
-		// inner `provider` field to `name`.
-		var legacyForge bool
+		// Fail loudly on unknown keys so config typos don't silently
+		// degrade behavior. Future config additions go through proper
+		// schema evolution rather than tolerating drift.
 		keys := make([]string, len(undecoded))
 		for i, k := range undecoded {
 			keys[i] = k.String()
-			if keys[i] == "forge" || strings.HasPrefix(keys[i], "forge.") {
-				legacyForge = true
-			}
-		}
-		if legacyForge {
-			return nil, fmt.Errorf(
-				"parse %s: legacy [forge] section detected. monorel v0.3+ uses [provider]; rename the section and rename the inner `provider = \"github\"` field to `name = \"github\"`. See https://monorel.disaresta.com/configuration#provider",
-				path,
-			)
 		}
 		return nil, fmt.Errorf("parse %s: unknown keys: %v", path, keys)
 	}

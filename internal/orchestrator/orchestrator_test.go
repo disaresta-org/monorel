@@ -34,8 +34,8 @@ func nonEmptyPlan() *plan.ReleasePlan {
 func TestRun_EmptyPlan_NoExistingPR_Noop(t *testing.T) {
 	f := provider.NewFake()
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  &plan.ReleasePlan{},
-		Forge: f,
+		Plan:     &plan.ReleasePlan{},
+		Provider: f,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -60,8 +60,8 @@ func TestRun_EmptyPlan_ExistingPR_Closed(t *testing.T) {
 	}
 
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  &plan.ReleasePlan{},
-		Forge: f,
+		Plan:     &plan.ReleasePlan{},
+		Provider: f,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,9 +77,9 @@ func TestRun_EmptyPlan_ExistingPR_Closed(t *testing.T) {
 func TestRun_NonEmptyPlan_NoExistingPR_Created(t *testing.T) {
 	f := provider.NewFake()
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  nonEmptyPlan(),
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     nonEmptyPlan(),
+		Provider: f,
+		Today:    "2026-04-30",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -114,9 +114,9 @@ func TestRun_NonEmptyPlan_ExistingPR_Updated(t *testing.T) {
 	}
 
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  nonEmptyPlan(),
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     nonEmptyPlan(),
+		Provider: f,
+		Today:    "2026-04-30",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -132,14 +132,14 @@ func TestRun_NonEmptyPlan_ExistingPR_Updated(t *testing.T) {
 	}
 }
 
-func TestRun_BaseBranchLookedUpFromForge(t *testing.T) {
+func TestRun_BaseBranchLookedUpFromProvider(t *testing.T) {
 	f := provider.NewFake()
 	f.DefaultBranch = "develop"
 
 	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  nonEmptyPlan(),
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     nonEmptyPlan(),
+		Provider: f,
+		Today:    "2026-04-30",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -157,11 +157,11 @@ func TestRun_BaseBranchLookedUpFromForge(t *testing.T) {
 }
 
 func TestRun_NilArgs(t *testing.T) {
-	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{Forge: provider.NewFake()}); err == nil {
+	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{Provider: provider.NewFake()}); err == nil {
 		t.Error("expected error for nil Plan")
 	}
 	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{Plan: &plan.ReleasePlan{}}); err == nil {
-		t.Error("expected error for nil Forge")
+		t.Error("expected error for nil Provider")
 	}
 }
 
@@ -173,9 +173,9 @@ func TestRun_MultiPackageTitle(t *testing.T) {
 	})
 
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  p,
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     p,
+		Provider: f,
+		Today:    "2026-04-30",
 	})
 	if err != nil {
 		t.Fatal(err)

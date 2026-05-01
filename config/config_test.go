@@ -40,7 +40,7 @@ changelog = "transports/foo/CHANGELOG.md"
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.Provider.Name != "github" || cfg.Provider.Owner != "acme" || cfg.Provider.Repo != "widget" {
-		t.Errorf("forge: %+v", cfg.Provider)
+		t.Errorf("provider: %+v", cfg.Provider)
 	}
 	if len(cfg.Packages) != 2 {
 		t.Errorf("packages: %d, want 2", len(cfg.Packages))
@@ -126,7 +126,7 @@ func TestLoad_RejectsMissingFields(t *testing.T) {
 		wantSub string
 	}{
 		{
-			name: "no forge owner",
+			name: "no provider owner",
 			content: `
 [provider]
 repo = "x"
@@ -138,7 +138,7 @@ changelog = "foo/CHANGELOG.md"
 			wantSub: "provider.owner is required",
 		},
 		{
-			name: "no forge repo",
+			name: "no provider repo",
 			content: `
 [provider]
 owner = "acme"
@@ -150,7 +150,7 @@ changelog = "foo/CHANGELOG.md"
 			wantSub: "provider.repo is required",
 		},
 		{
-			name: "unknown forge provider",
+			name: "unknown provider name",
 			content: `
 [provider]
 name = "unicorn"

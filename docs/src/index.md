@@ -43,8 +43,8 @@ features:
 # monorel.toml
 [provider]
 name = "github"
-owner    = "acme"
-repo     = "widget"
+owner = "acme"
+repo = "widget"
 
 [packages."github.com/acme/widget"]
 tag_prefix = ""

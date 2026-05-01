@@ -31,7 +31,7 @@ the CI wrapper or the local pipeline:
 
     monorel release
     git push --follow-tags
-    monorel publish    # creates one forge release per tag`,
+    monorel publish    # creates one provider release per tag`,
 		RunE: runRelease,
 	}
 }

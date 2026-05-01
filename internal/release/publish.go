@@ -7,7 +7,7 @@ import (
 	"monorel.disaresta.com/internal/provider"
 )
 
-// PublishReleases creates one forge release per entry in res.Releases,
+// PublishReleases creates one provider release per entry in res.Releases,
 // using each entry's rendered body as the release notes and its
 // Prerelease flag to mark pre-release tags. Releases are created in
 // res.Releases order (which matches plan order).
@@ -16,9 +16,9 @@ import (
 // the partial slice is returned alongside the error so the caller can
 // surface "created N/M before failing" output. Tags must already have
 // been pushed to the remote before calling PublishReleases — most
-// forges validate the tag exists.
+// providers validate the tag exists.
 //
-// A forge that doesn't model first-class releases (e.g. plain
+// A provider that doesn't model first-class releases (e.g. plain
 // Bitbucket) may have its [provider.Client.CreateRelease] return an
 // "unsupported" error; callers can detect that and treat it as
 // advisory rather than fatal.

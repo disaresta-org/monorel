@@ -66,7 +66,7 @@ type Result struct {
 	CommitSHA string
 
 	// Releases is one entry per created tag, in plan order (sorted by
-	// package name). The downstream forge publisher iterates this.
+	// package name). The downstream provider publisher iterates this.
 	Releases []ReleaseInfo
 }
 
@@ -83,7 +83,7 @@ type ReleaseInfo struct {
 	Body string
 
 	// Prerelease mirrors [plan.PackageRelease.Prerelease]: true for
-	// pre-release-mode tags. The forge publisher uses this to set
+	// pre-release-mode tags. The provider publisher uses this to set
 	// each provider's "pre-release" flag on the created release.
 	Prerelease bool
 }

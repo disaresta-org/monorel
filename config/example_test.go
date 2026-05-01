@@ -38,13 +38,13 @@ changelog = "transports/zerolog/CHANGELOG.md"
 		fmt.Println("error:", err)
 		return
 	}
-	fmt.Println("forge:", cfg.Provider.Name, cfg.Provider.Owner+"/"+cfg.Provider.Repo)
+	fmt.Println("provider:", cfg.Provider.Name, cfg.Provider.Owner+"/"+cfg.Provider.Repo)
 	for _, name := range cfg.PackageNames() {
 		pkg := cfg.Packages[name]
 		fmt.Printf("- %s → tag %sv1.2.3\n", name, pkg.FullTagPrefix())
 	}
 	// Output:
-	// forge: github acme/widget
+	// provider: github acme/widget
 	// - github.com/acme/widget → tag v1.2.3
 	// - transports/zerolog → tag transports/zerolog/v1.2.3
 }

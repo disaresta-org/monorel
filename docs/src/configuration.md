@@ -117,17 +117,3 @@ repo  = "widget"
 
 The provider implementation maps `host` to its host-specific URL shape (GitHub Enterprise uses `https://<host>/api/v3/`).
 
-## Migration from v0.2 to v0.3
-
-The section name changed from `[forge]` to `[provider]`, and the inner `provider = "github"` field was renamed to `name = "github"`. monorel v0.3+ rejects the old shape with a targeted migration error pointing at this page. To migrate:
-
-```diff
--[forge]
--provider = "github"
-+[provider]
-+name = "github"
- owner = "acme"
- repo  = "widget"
-```
-
-The `provider`, `owner`, `repo`, and `host` semantics are unchanged.
