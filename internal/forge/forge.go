@@ -6,58 +6,26 @@
 //   - read repository metadata (default branch)
 //
 // Implementations live in subpackages under internal/forge.
+//
+// The provider name catalog (ProviderGitHub, KnownProviders,
+// IsKnownProvider, ResolveProvider) lives in the public config
+// package — those values are part of monorel.toml's schema and
+// external consumers may want to reference them.
 package forge
 
 import (
 	"context"
 	"os"
+
+	"monorel.disaresta.com/config"
 )
-
-// Provider names recognized by [IsKnownProvider] and [TokenEnvVars].
-// Adding a new provider: append to KnownProviders, add a case to
-// TokenEnvVars (if the provider uses an env-var token), and add a
-// case to internal/forge/factory.New.
-const (
-	ProviderGitHub = "github"
-)
-
-// DefaultProvider is the value [ResolveProvider] returns for an
-// empty input. Callers reading config should pass through
-// ResolveProvider so the empty-string default is applied uniformly.
-const DefaultProvider = ProviderGitHub
-
-// KnownProviders is every provider name supported in this build,
-// in alphabetical order. Used by config validation.
-var KnownProviders = []string{
-	ProviderGitHub,
-}
-
-// ResolveProvider returns name, or [DefaultProvider] if name is empty.
-func ResolveProvider(name string) string {
-	if name == "" {
-		return DefaultProvider
-	}
-	return name
-}
-
-// IsKnownProvider reports whether name is a recognized provider.
-// Empty name is rejected; resolve to the default first if you mean
-// "accept empty as github."
-func IsKnownProvider(name string) bool {
-	for _, p := range KnownProviders {
-		if p == name {
-			return true
-		}
-	}
-	return false
-}
 
 // TokenEnvVars returns the environment variable names to consult for
 // a given provider's auth token, in priority order. Unknown providers
 // (or providers that don't use a static env-var token) yield nil.
 func TokenEnvVars(provider string) []string {
-	switch ResolveProvider(provider) {
-	case ProviderGitHub:
+	switch config.ResolveProvider(provider) {
+	case config.ProviderGitHub:
 		return []string{"GITHUB_TOKEN", "GH_TOKEN"}
 	}
 	return nil

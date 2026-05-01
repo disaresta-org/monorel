@@ -7,8 +7,9 @@ import (
 )
 
 // ExampleApply demonstrates the basic version-bump operation: take
-// a current version string and a bump level, return the next version.
-// The leading "v" is preserved on output; inputs may omit it.
+// a current version string (with the leading "v") and a bump level,
+// return the next version (also with the "v"). Inputs without the
+// "v" are rejected — Go module tags always carry it.
 func ExampleApply() {
 	for _, level := range []semver.BumpLevel{semver.Patch, semver.Minor, semver.Major} {
 		next, _ := semver.Apply("v1.6.2", level)

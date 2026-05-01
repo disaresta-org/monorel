@@ -127,12 +127,20 @@ func writeBullet(b *strings.Builder, body string) {
 }
 
 // Insert places entry's rendered text into existing, returning the
-// updated content. Insertion point: above the first "## " heading.
-// If no such heading exists, entry is appended at the end of
-// existing.
+// updated content. Three cases:
 //
-// existing is treated as opaque: it is preserved verbatim except for
-// the inserted block. This is the "hard cut" guarantee.
+//   - existing has a "## " heading: the entry is inserted above the
+//     first one, so the new release is the topmost entry.
+//   - existing has no "## " heading (e.g., a preamble-only file): the
+//     entry is appended at the end of existing.
+//   - existing is empty: a default Keep-a-Changelog preamble is
+//     prepended and the entry is appended below it.
+//
+// In all three cases, existing is treated as opaque and preserved
+// verbatim except for the inserted block. This is the "hard cut"
+// guarantee that makes migrating from another tool's CHANGELOG
+// format safe: monorel's new entries land in Keep-a-Changelog shape
+// alongside whatever shape the existing entries were written in.
 func Insert(existing string, entry *Entry) string {
 	if entry == nil || entry.IsEmpty() {
 		return existing

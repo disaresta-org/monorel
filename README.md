@@ -1,3 +1,17 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of contents
+
+- [monorel](#monorel)
+  - [Why monorel?](#why-monorel)
+  - [Quickstart](#quickstart)
+  - [Documentation](#documentation)
+  - [GitHub Action](#github-action)
+  - [Development](#development)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # monorel
 
 <p align="center">
@@ -6,6 +20,7 @@
 
 <p align="center">
   <a href="https://github.com/disaresta-org/monorel/releases"><img src="https://img.shields.io/github/v/tag/disaresta-org/monorel?filter=v*&sort=date&label=version&color=blue" alt="Latest version" /></a>
+  <a href="https://pkg.go.dev/monorel.disaresta.com"><img src="https://pkg.go.dev/badge/monorel.disaresta.com.svg" alt="Go Reference" /></a>
   <a href="https://github.com/disaresta-org/monorel/actions/workflows/ci.yml"><img src="https://github.com/disaresta-org/monorel/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
 </p>

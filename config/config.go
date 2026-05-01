@@ -14,8 +14,6 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
-
-	"monorel.disaresta.com/internal/forge"
 )
 
 // Config is the parsed contents of monorel.toml.
@@ -146,9 +144,9 @@ func (c *Config) Validate() error {
 	if c.Forge.Repo == "" {
 		return errors.New("forge.repo is required")
 	}
-	if c.Forge.Provider != "" && !forge.IsKnownProvider(c.Forge.Provider) {
+	if c.Forge.Provider != "" && !IsKnownProvider(c.Forge.Provider) {
 		return fmt.Errorf("forge.provider %q is not recognized (use one of: %v)",
-			c.Forge.Provider, forge.KnownProviders)
+			c.Forge.Provider, KnownProviders)
 	}
 	if len(c.Packages) == 0 {
 		return ErrNoPackages

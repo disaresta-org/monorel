@@ -133,7 +133,7 @@ func Parse(r io.Reader, name string) (*Changeset, error) {
 	raw = bytes.TrimPrefix(raw, []byte("\ufeff"))
 
 	// adrg/frontmatter silently treats "no opening fence" and "no
-	// closing fence" the same as "empty frontmatter" \u2014 they all
+	// closing fence" the same as "empty frontmatter": they all
 	// surface as zero bumps. Pre-check the fences so the user gets
 	// a precise error pointing at the actual problem.
 	if err := checkFrontmatterShape(raw); err != nil {

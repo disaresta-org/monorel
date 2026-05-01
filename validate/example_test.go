@@ -51,3 +51,30 @@ Typo: widget vs widgett.
 	// error [changeset_unknown_package] widgett
 	// has errors: true
 }
+
+// ExampleRun_clean shows the success case: a well-formed monorel.toml
+// with no pending changesets returns no findings.
+func ExampleRun_clean() {
+	dir, _ := os.MkdirTemp("", "monorel-validate-clean")
+	defer os.RemoveAll(dir)
+
+	_ = os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte(`
+[forge]
+owner = "acme"
+repo = "widget"
+
+[packages."widget"]
+tag_prefix = ""
+path = "."
+changelog = "CHANGELOG.md"
+`), 0o644)
+
+	findings := validate.Run(validate.Inputs{
+		ConfigPath: filepath.Join(dir, "monorel.toml"),
+	})
+	fmt.Println("findings:", len(findings))
+	fmt.Println("has errors:", validate.HasErrors(findings))
+	// Output:
+	// findings: 0
+	// has errors: false
+}

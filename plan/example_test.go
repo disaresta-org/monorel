@@ -41,8 +41,53 @@ Adds Lazy() helper.
 		return
 	}
 	for _, r := range p.Releases {
-		fmt.Printf("%s: %s → %s (tag %s)\n", r.Name, r.From, r.To, r.Tag)
+		fmt.Printf("%s: %s -> %s (tag %s)\n", r.Name, r.From, r.To, r.Tag)
 	}
 	// Output:
-	// transports/zerolog: v1.6.1 → v1.7.0 (tag transports/zerolog/v1.7.0)
+	// transports/zerolog: v1.6.1 -> v1.7.0 (tag transports/zerolog/v1.7.0)
+}
+
+// ExamplePlan_preRelease shows the planner under pre-release mode.
+// When a [changeset.PreState] is supplied, the planner appends a
+// channel suffix and increments the per-package counter rather than
+// producing the next stable version. Counters are read-only here;
+// the release applier writes them back. This is the path that
+// powers `monorel pre enter rc` -> `monorel release` cycles.
+func ExamplePlan_preRelease() {
+	cfg := &config.Config{
+		Forge: config.ForgeConfig{Provider: "github", Owner: "acme", Repo: "widget"},
+		Packages: map[string]config.PackageConfig{
+			"transports/zerolog": {
+				TagPrefix: "transports/zerolog",
+				Path:      "transports/zerolog",
+				Changelog: "transports/zerolog/CHANGELOG.md",
+			},
+		},
+	}
+
+	cs, _ := changeset.Parse(strings.NewReader(`---
+"transports/zerolog": minor
+---
+
+Adds Lazy() helper.
+`), "quick-otter")
+
+	tags := []string{"transports/zerolog/v1.6.1"}
+
+	pre := &changeset.PreState{
+		Mode:     "pre",
+		Channel:  "rc",
+		Counters: map[string]int{"transports/zerolog": 0},
+	}
+
+	p, err := plan.Plan(cfg, []*changeset.Changeset{cs}, tags, pre)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	for _, r := range p.Releases {
+		fmt.Printf("%s: -> %s (tag %s)\n", r.Name, r.To, r.Tag)
+	}
+	// Output:
+	// transports/zerolog: -> v1.7.0-rc.0 (tag transports/zerolog/v1.7.0-rc.0)
 }

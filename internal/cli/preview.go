@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"monorel.disaresta.com/changelog"
+	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/forge"
 	"monorel.disaresta.com/internal/forge/factory"
 	"monorel.disaresta.com/internal/orchestrator"
@@ -62,7 +63,7 @@ func runPreview(cmd *cobra.Command, _ []string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	provider := forge.ResolveProvider(rt.Config.Forge.Provider)
+	provider := config.ResolveProvider(rt.Config.Forge.Provider)
 	token := forge.TokenFromEnv(provider)
 	if token == "" {
 		envVars := strings.Join(forge.TokenEnvVars(provider), " or ")

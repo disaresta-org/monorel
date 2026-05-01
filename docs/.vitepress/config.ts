@@ -76,6 +76,11 @@ export default defineConfig({
       { text: 'Get Started', link: '/getting-started' },
       { text: 'Configuration', link: '/configuration' },
       { text: 'CLI', link: '/cli-reference' },
+      { text: 'API', link: '/api' },
+      {
+        text: '<img alt="Go Reference" src="https://pkg.go.dev/badge/monorel.disaresta.com.svg" />',
+        link: 'https://pkg.go.dev/monorel.disaresta.com',
+      },
       {
         text: '<img alt="Latest version" src="https://img.shields.io/github/v/tag/disaresta-org/monorel?filter=v*&amp;sort=date&amp;label=version&amp;style=flat-square&color=blue" />',
         link: 'https://github.com/disaresta-org/monorel/releases',
@@ -95,6 +100,7 @@ export default defineConfig({
         items: [
           { text: 'Configuration', link: '/configuration' },
           { text: 'CLI', link: '/cli-reference' },
+          { text: 'Library API', link: '/api' },
           { text: 'Changesets', link: '/changesets' },
           { text: 'GitHub Action', link: '/github-action' },
         ],

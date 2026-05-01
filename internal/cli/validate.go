@@ -191,7 +191,7 @@ func countSeverity(findings []validate.Finding, s validate.Severity) int {
 type ErrExit int
 
 // Error returns a stable string form. Satisfies the error interface;
-// main() doesn't print this — see ExitCode and IsSilentExit.
+// main() doesn't print this. See ExitCode and IsSilentExit.
 func (e ErrExit) Error() string { return fmt.Sprintf("exit %d", int(e)) }
 
 // ExitCode reports the exit code an error should map to. Returns 0

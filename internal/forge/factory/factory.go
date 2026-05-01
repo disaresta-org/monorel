@@ -3,7 +3,7 @@
 // Adding a new provider:
 //  1. implement [forge.Client] in internal/forge/<name>.
 //  2. add a case to [New].
-//  3. add the provider name to forge.KnownProviders.
+//  3. add the provider name to config.KnownProviders.
 package factory
 
 import (
@@ -19,8 +19,8 @@ import (
 // empty token to build an unauthenticated client (read-only on public
 // repos; useful in tests).
 func New(ctx context.Context, cfg config.ForgeConfig, token string) (forge.Client, error) {
-	switch forge.ResolveProvider(cfg.Provider) {
-	case forge.ProviderGitHub:
+	switch config.ResolveProvider(cfg.Provider) {
+	case config.ProviderGitHub:
 		return github.New(ctx, github.Options{
 			Owner: cfg.Owner,
 			Repo:  cfg.Repo,
