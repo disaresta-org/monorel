@@ -1,0 +1,25 @@
+```yaml
+name: release-pr
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-pr:
+    # Skip on the release PR's own merge commit (subject begins with
+    # "chore(release):" by monorel convention) so the workflow doesn't
+    # churn the just-merged PR.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
+        with:
+          command: pr
+```

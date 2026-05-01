@@ -77,7 +77,7 @@ The state when `.changeset/pre.json` exists. In this mode, `monorel release` pro
 
 ## Provider
 
-The version-control host (GitHub, GitLab, Gitea, Bitbucket, Forgejo). monorel's `internal/provider` interface abstracts the host-specific operations (find PR, create PR, create release, etc.). Selected by `provider.name` in `monorel.toml`. As of v0.4, only `github` is wired up; the seam exists for others.
+The version-control host (GitHub, GitLab, Gitea, Bitbucket, Forgejo). monorel's `internal/provider` interface abstracts the host-specific operations (find PR, create PR, create release, etc.). Selected by `provider.name` in `monorel.toml`. As of v0.6, `github` and `gitea` are wired up; the `gitea` implementation also covers Forgejo via API compatibility. The seam is ready for `gitlab` and `bitbucket`.
 
 ## Release PR
 
@@ -117,4 +117,12 @@ Multi-package commits emit one `monorel-Release:` per package in plan order. The
 
 ## Validate
 
-The static-check pass `monorel validate` runs against `monorel.toml` and `.changeset/*.md`. Surfaces every issue in one pass (loadable config, declared paths exist, changeset frontmatter parses, no shared tag prefixes, no unknown TOML keys). Uses no network, no git mutation; safe to run in a pre-commit hook.
+The static-check pass `monorel validate` runs against `monorel.toml` and `.changeset/*.md`. Surfaces every issue in one pass:
+
+- Config loads cleanly.
+- Every declared package path exists.
+- Every `.changeset/*.md` frontmatter parses.
+- No two packages share a `tag_prefix`.
+- No unknown TOML keys.
+
+Uses no network and no git mutation; safe to run in a pre-commit hook.

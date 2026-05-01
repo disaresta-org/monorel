@@ -98,7 +98,7 @@ Re-run it. `CreateRelease` is idempotent on the tag name: each tag the prior run
 
 ### A release PR merged without `monorel-Release:` body trailers, and `monorel tag` returned `ErrNoReleaseCommit`. What now?
 
-The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/github-action#branch-protection)). Recovery: manually create the tags pointing at the merge commit:
+The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/integrations/github#branch-protection)). Recovery: manually create the tags pointing at the merge commit:
 
 ```sh
 git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m "Release <prefix> v<X.Y.Z>"
@@ -133,7 +133,7 @@ No. The planner reads tags from git history to determine the current version per
 
 ### Does monorel require GitHub?
 
-Today, yes. monorel rejects `provider.name = "gitlab"` (or any non-`github` value) at validation time. The provider seam exists for GitLab / Gitea / Bitbucket / Forgejo but only the GitHub implementation is wired up.
+No. As of v0.6, `provider.name` accepts `"github"` and `"gitea"`. The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). GitLab and Bitbucket aren't implemented yet but the provider seam is ready; the path is documented in `internal/provider/factory/factory.go`.
 
 ### Can monorel coordinate releases across multiple repos?
 

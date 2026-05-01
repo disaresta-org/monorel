@@ -6,6 +6,7 @@ package config
 // implementation under internal/provider/<name>/.
 const (
 	ProviderGitHub = "github"
+	ProviderGitea  = "gitea"
 )
 
 // DefaultProvider is the value [ResolveProvider] returns for an
@@ -17,6 +18,7 @@ const DefaultProvider = ProviderGitHub
 // in alphabetical order. The slice is shared and read-only; callers
 // should not mutate it.
 var KnownProviders = []string{
+	ProviderGitea,
 	ProviderGitHub,
 }
 

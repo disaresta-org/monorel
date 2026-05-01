@@ -156,5 +156,5 @@ Switching channels (e.g. `rc` → `beta`) requires `monorel pre exit` first; ent
 ## See also
 
 - [Changesets](/changesets) for the `.changeset/<name>.md` file format.
-- [GitHub Action](/github-action) for the workflow YAML and token setup.
+- [GitHub Action](/integrations/github) for the workflow YAML and token setup.
 - [FAQ](/faq) for the questions that come up after the first release.

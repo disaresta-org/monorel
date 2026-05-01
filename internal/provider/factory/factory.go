@@ -12,6 +12,7 @@ import (
 
 	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/provider"
+	"monorel.disaresta.com/internal/provider/gitea"
 	"monorel.disaresta.com/internal/provider/github"
 )
 
@@ -22,6 +23,13 @@ func New(ctx context.Context, cfg config.ProviderConfig, token string) (provider
 	switch config.ResolveProvider(cfg.Name) {
 	case config.ProviderGitHub:
 		return github.New(ctx, github.Options{
+			Owner: cfg.Owner,
+			Repo:  cfg.Repo,
+			Host:  cfg.Host,
+			Token: token,
+		})
+	case config.ProviderGitea:
+		return gitea.New(ctx, gitea.Options{
 			Owner: cfg.Owner,
 			Repo:  cfg.Repo,
 			Host:  cfg.Host,

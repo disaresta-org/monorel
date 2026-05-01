@@ -1,38 +1,67 @@
 ---
-title: GitHub Action
-description: "Wire up the monorel GitHub Action for the always-open release PR pattern."
+title: GitHub
+description: "Wire up monorel against a GitHub repository: action wrapper, workflows, branch protection, tokens."
 ---
 
-# GitHub Action
+# GitHub
 
-The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary for use in GitHub Actions. It downloads the right binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
+The canonical monorel-on-GitHub setup: a composite action wrapper plus two workflow files that drive the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
 
-## Installation
+## Configuration
 
-Add the action to a workflow:
+`monorel.toml`:
 
-```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.1
-  with:
-    command: release
+```toml
+[provider]
+name  = "github"  # optional; default
+owner = "acme"
+repo  = "widget"
+host  = ""        # optional; set for GitHub Enterprise
 ```
 
+| Field | Notes |
+|-------|-------|
+| `name` | `"github"` (the default; can be omitted). |
+| `owner`, `repo` | The user / org that owns the repo and the repository name. |
+| `host` | API host for GitHub Enterprise (e.g. `github.example.com`). Empty for github.com. |
+
+## Token
+
+The action wrapper passes the workflow's auto-generated `GITHUB_TOKEN` to the binary by default. Required workflow permissions: `contents: write`, `pull-requests: write`. Override with the `token` input when you need a personal access token or GitHub App token; see [Tokens and required status checks](#tokens-and-required-status-checks) below for the escalation path.
+
+## Workflows
+
+The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged. Both rely on the `disaresta-org/monorel/ci/github` composite action wrapper, which:
+
+- Downloads the monorel binary for the runner OS + arch.
+- Configures the git author for any commits the wrapper makes.
+- Stages the `monorel/release` branch (for the `pr` command's speculative apply).
+- Invokes monorel with the configured command (`pr` or `release`).
+
 ::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.1` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.6.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
-## Inputs
+### `release-pr.yml`: maintain the always-open release PR
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
-| `version` | `latest` | Pin a specific monorel version, e.g. `v0.4.0`. |
-| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. |
-| `config` | `monorel.toml` | Path to the config file. |
+<!--@include: ../_partials/github-release-pr-yml.md-->
 
-::: tip Token override
-If you need a different token (e.g. a personal access token to bypass branch protection), pass it via the `token` input using GitHub Actions context syntax. The action uses the workflow's default token when the input is unset.
-:::
+The `pr` command implements **speculative apply**:
+
+1. Stages a fresh `monorel/release` branch off the default branch.
+2. Runs `monorel apply` on it. `apply` writes per-package CHANGELOG entries (or `pre.json` increments in pre-release mode), deletes consumed `.changeset/*.md` files, and creates one `chore(release): ...` commit.
+3. Force-pushes the result.
+4. Opens or updates the always-open release PR with the rendered plan in its body (via `monorel preview --upsert`).
+
+The release PR's diff IS the file changes the release will produce.
+
+If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
+
+### `release.yml`: publish on release-PR merge
+
+The minimal shape (release-only) is:
+
+<!--@include: ../_partials/github-release-yml.md-->
 
 The `release` command runs three monorel invocations in order on the merge commit:
 
@@ -42,73 +71,16 @@ The `release` command runs three monorel invocations in order on the merge commi
 
 The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
-The `pr` command implements **speculative apply**: it stages a fresh `monorel/release` branch off the default branch, runs `monorel apply` on it (writes per-package CHANGELOG entries / `pre.json` increments, deletes consumed `.changeset/*.md` files, creates one `chore(release): ...` commit), and force-pushes. The release PR's diff IS the file changes the release will produce. The orchestrator (`monorel preview --upsert`) then opens or updates the always-open release PR with the rendered plan in its body.
-
-If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
-
-## Workflows
-
-### `release-pr.yml`: maintain the always-open release PR
-
-```yaml
-name: release-pr
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  pull-requests: write
-
-jobs:
-  release-pr:
-    # Skip on the release PR's own merge commit (subject begins with
-    # "chore(release):" by monorel convention) so the workflow doesn't
-    # churn the just-merged PR.
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
-        with:
-          command: pr
-```
-
-On every push to `main` (except the release-PR merge), the action stages the release PR's diff via speculative apply, then either:
-
-- Creates / updates the release PR if there are pending changesets (the PR's diff is the actual CHANGELOG entries + changeset deletions).
-- Closes the release PR if there are no pending changesets.
-
-### `release.yml`: publish on release-PR merge
-
-The minimal shape — release-only — is:
-
-```yaml
-name: release
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
-        with:
-          command: release
-```
-
 The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
+
+### Action wrapper inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
+| `version` | `latest` | Pin a specific monorel version, e.g. `v0.6.0`. |
+| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. Override with a PAT or App token via `secrets.<name>` syntax. |
+| `config` | `monorel.toml` | Path to the config file. |
 
 ### Chaining downstream workflows (deploy-docs, build-binaries, etc.)
 
@@ -117,7 +89,7 @@ GitHub's anti-recursion rule suppresses `release: published` and `push: tags` ev
 The supported sidestep is to chain those workflows from `release.yml` via `workflow_call`. The pattern:
 
 ```yaml
-# release.yml — extended with chained downstream workflows
+# release.yml: extended with chained downstream workflows
 jobs:
   release:
     # … same as above, but expose the released root tag as an output …
@@ -126,7 +98,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: release
       - name: Capture root tag
@@ -166,7 +138,7 @@ jobs:
 
 The chained workflows must declare `workflow_call` in their `on:` block and accept whatever inputs they need (e.g. a `tag` input for build workflows). The natural `push: tags` and `release: published` triggers can stay alongside `workflow_call` so manual tag pushes and externally-created Releases still fire the downstream chain.
 
-The `root_tag` capture is what lets `build-binaries` and `build-image` skip themselves when the release was sub-module-only (no `vX.Y.Z` root tag created). For docs deploy this isn't needed — every release should redeploy the docs.
+The `root_tag` capture is what lets `build-binaries` and `build-image` skip themselves when the release was sub-module-only (no `vX.Y.Z` root tag created). For docs deploy this isn't needed; every release should redeploy the docs.
 
 ## Branch protection
 
@@ -217,7 +189,7 @@ Simplest path. Create a fine-grained PAT scoped to the target repo with these pe
 Add it as a repo secret (e.g. `MONOREL_PR_TOKEN`) and pass it to the action's `token` input:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.1
+- uses: disaresta-org/monorel/ci/github@v0.6.0
   with:
     command: pr
     token: ${{ secrets.MONOREL_PR_TOKEN }}
@@ -254,7 +226,7 @@ jobs:
         with:
           app-id: ${{ vars.MONOREL_APP_ID }}
           private-key: ${{ secrets.MONOREL_APP_PRIVATE_KEY }}
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: pr
           token: ${{ steps.app-token.outputs.token }}

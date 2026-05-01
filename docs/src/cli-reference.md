@@ -138,7 +138,7 @@ monorel-Release: transports/zerolog v1.7.0
 monorel-PreRelease: false
 ```
 
-`apply` is the speculative-apply primitive used by the GitHub Action wrapper's `pr` command. See [GitHub Action](/github-action) for how it's wired.
+`apply` is the speculative-apply primitive used by the GitHub Action wrapper's `pr` command. See [GitHub Action](/integrations/github) for how it's wired.
 
 In pre-release mode (`.changeset/pre.json` present), `apply` increments per-package counters in `pre.json` instead of writing CHANGELOGs and keeps the `.changeset/*.md` files. Tags carry the channel suffix (e.g. `v1.7.0-rc.0`).
 

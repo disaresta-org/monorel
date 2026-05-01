@@ -68,6 +68,31 @@ If a section is a bulleted list where each bullet is its own multi-sentence conc
 
 Single-sentence bullets are fine and don't need this treatment.
 
+### Long enumerative paragraphs: split into bullets
+
+If a paragraph is structurally an enumeration (a list of distinct items strung together with commas / semicolons / "then" clauses), break it into a bulleted list. Bullets give each item its own line and let the reader skim instead of parse.
+
+Heuristics:
+
+- 3+ comma-separated noun phrases that could each stand alone (e.g. "the orchestrator finds an existing PR by head ref, opens one if missing, updates the title, updates the body, closes it on empty plans").
+- 3+ "then X, then Y" clauses describing a sequence of steps.
+- A paragraph that's wider than ~80 words and carries no narrative connective tissue between items.
+
+The complement of the rule above this one: dense bullets become sub-sections; dense prose enumerations become bullets.
+
+```markdown
+❌ The `pr` command stages a fresh `monorel/release` branch off the default branch, runs the speculative apply, force-pushes the result, opens or updates the always-open release PR with the rendered plan in its body, and closes any open release PR if the planner has nothing to apply.
+
+✅ The `pr` command:
+   - Stages a fresh `monorel/release` branch off the default branch.
+   - Runs `monorel apply` (writes CHANGELOG entries, deletes consumed changesets, makes one commit).
+   - Force-pushes the result.
+   - Opens or updates the always-open release PR with the rendered plan in its body.
+   - Closes any open release PR if the planner has nothing to apply.
+```
+
+A short list of two items in prose is fine ("CHANGELOG entries and changeset deletions"). The trigger is when the comma list is doing the work a list ought to do.
+
 ### Casual users vs implementers
 
 Pages aimed at *callers* (getting-started, configuration, cli-reference, changesets) should not bleed implementation details that only a provider author needs. That includes:

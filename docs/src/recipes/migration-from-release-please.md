@@ -64,11 +64,11 @@ Delete:
 - `.release-please-config.json`.
 - `.release-please-manifest.json`.
 
-The workflow will be replaced by `release-pr.yml` + `release.yml` (see [GitHub Action](/github-action)).
+The workflow will be replaced by `release-pr.yml` + `release.yml` (see [GitHub Action](/integrations/github)).
 
 ### 4. Add monorel workflows
 
-Create `.github/workflows/release-pr.yml` and `release.yml` per the [GitHub Action](/github-action) page.
+Create `.github/workflows/release-pr.yml` and `release.yml` per the [GitHub Action](/integrations/github) page.
 
 ### 5. Initialize `.changeset/`
 
