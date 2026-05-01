@@ -1,27 +1,85 @@
 package cli
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/disaresta-org/monorel/internal/plan"
+	"github.com/disaresta-org/monorel/internal/release"
 )
 
 func newReleaseCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "release",
-		Short: "Apply pending changesets: bump versions, write changelogs, tag, push.",
-		Long: `Consumes every .changeset/*.md file in the working tree, writes per-package
-CHANGELOG.md entries, deletes the consumed files, makes a single commit,
-creates per-package git tags, and pushes commits + tags.
+		Short: "Apply pending changesets: bump versions, write changelogs, tag, commit.",
+		Long: `Computes the release plan, writes per-package CHANGELOG.md entries,
+deletes the consumed .changeset/*.md files, makes a single commit, and
+creates per-package git tags at HEAD.
 
-Optionally creates GitHub Releases when GITHUB_TOKEN is set or --github
-is passed (one Release per tag, body sourced from the package's changelog
-entry).
+In pre-release mode (when .changeset/pre.json exists), the CHANGELOGs
+are NOT written and the changeset files are NOT deleted; instead, the
+per-package counters in pre.json are incremented and a suffixed tag
+(e.g. transports/foo/v1.6.0-rc.0) is created. The accumulated changes
+are emitted to CHANGELOGs at the next stable release after pre exit.
 
-Idempotency: if a planned tag already exists, the command aborts with a
-clear error rather than re-tagging.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return errors.New("not implemented yet (Phase 7)")
-		},
+Idempotency: if a planned tag already exists, the command aborts with
+a clear error rather than re-tagging. Push is the caller's
+responsibility — this command does not push commits or tags. Use the
+GitHub Action wrapper or run "git push --follow-tags" yourself.`,
+		RunE: runRelease,
 	}
+	return cmd
+}
+
+func runRelease(cmd *cobra.Command, _ []string) error {
+	rt, err := loadRuntime(cmd)
+	if err != nil {
+		return err
+	}
+
+	clean, err := rt.Repo.IsClean()
+	if err != nil {
+		return fmt.Errorf("check working tree: %w", err)
+	}
+	if !clean {
+		return fmt.Errorf("working tree has uncommitted changes; commit or stash first")
+	}
+
+	p, err := plan.Plan(rt.Config, rt.Changesets, rt.Tags, rt.PreState)
+	if err != nil {
+		return err
+	}
+	if p.IsEmpty() {
+		fmt.Fprintln(cmd.OutOrStdout(), "No pending changesets. Nothing to release.")
+		return nil
+	}
+
+	res, err := release.Apply(release.Options{
+		Plan:         p,
+		Repo:         rt.Repo,
+		RepoDir:      rt.RepoDir,
+		ChangesetDir: rt.ChangesetDir,
+		PreState:     rt.PreState,
+	})
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Released %d package(s) at %s:\n", len(res.Tags), short(res.CommitSHA))
+	for _, tag := range res.Tags {
+		fmt.Fprintf(out, "  %s\n", tag)
+	}
+	fmt.Fprintln(out, "Run `git push --follow-tags` to publish.")
+	return nil
+}
+
+// short returns the first 7 characters of a SHA, or the whole string
+// if it's shorter. Cosmetic only.
+func short(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }
