@@ -111,12 +111,12 @@ func TestParse_Errors(t *testing.T) {
 		{
 			name:    "missing frontmatter",
 			input:   "no frontmatter here",
-			wantSub: "frontmatter",
+			wantSub: "missing frontmatter",
 		},
 		{
 			name:    "missing closing fence",
 			input:   "---\n\"a\": minor\n",
-			wantSub: "frontmatter",
+			wantSub: "missing closing",
 		},
 		{
 			name:    "empty bumps",

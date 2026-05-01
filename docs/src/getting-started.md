@@ -21,6 +21,10 @@ Or in CI via the GitHub Action wrapper (see [GitHub Action](/github-action)):
     command: release
 ```
 
+::: tip On macOS or Windows?
+The pre-built binaries are unsigned (paid signing certificates aren't worth it for a small open-source project), so Gatekeeper / SmartScreen will pop a warning the first time you run one. If that's friction, run monorel via the official container image instead — same binary, just inside Linux. See [Running in Docker](/docker).
+:::
+
 ## Initialize the repo
 
 Pick a `monorel.toml` shape that matches your repo. The minimal single-package config:

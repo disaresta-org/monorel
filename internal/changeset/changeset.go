@@ -125,6 +125,14 @@ func Parse(r io.Reader, name string) (*Changeset, error) {
 	// authors editing in BOM-prone editors aren't punished.
 	raw = bytes.TrimPrefix(raw, []byte("\ufeff"))
 
+	// adrg/frontmatter silently treats "no opening fence" and "no
+	// closing fence" the same as "empty frontmatter" \u2014 they all
+	// surface as zero bumps. Pre-check the fences so the user gets
+	// a precise error pointing at the actual problem.
+	if err := checkFrontmatterShape(raw); err != nil {
+		return nil, err
+	}
+
 	rawBumps := make(map[string]string)
 	body, err := frontmatter.Parse(bytes.NewReader(raw), &rawBumps)
 	if err != nil {
@@ -180,6 +188,27 @@ func (c *Changeset) Write(w io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+// checkFrontmatterShape detects the two structural failure modes
+// adrg/frontmatter is silent about: an opening "---" fence missing
+// entirely, or an opening fence with no matching closing fence on
+// its own line. Caller-friendly errors here let users fix typos
+// without bouncing through the generic "no packages declared."
+func checkFrontmatterShape(raw []byte) error {
+	content := strings.TrimLeft(string(raw), " \t\r\n")
+	if !strings.HasPrefix(content, "---") {
+		return errors.New("missing frontmatter (file must start with '---')")
+	}
+	rest := content[3:]
+	rest = strings.TrimPrefix(rest, "\r")
+	rest = strings.TrimPrefix(rest, "\n")
+	for _, line := range strings.Split(rest, "\n") {
+		if strings.TrimRight(line, "\r") == "---" {
+			return nil
+		}
+	}
+	return errors.New("missing closing '---' for frontmatter")
 }
 
 // WriteFile is a convenience wrapper that writes the changeset to

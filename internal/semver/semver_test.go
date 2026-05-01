@@ -5,6 +5,39 @@ import (
 	"testing"
 )
 
+// TestApply_LenientInputs documents (and locks in) that Apply
+// accepts looser inputs than strict Go module tags would: short-form
+// versions like "v1" and "v1.2", and zero-padded forms like
+// "v01.02.03", all normalize to canonical "vX.Y.Z" output.
+//
+// Behavior comes from Masterminds/semver/v3, which normalizes during
+// parse. The previous library (golang.org/x/mod/semver) rejected
+// these. The planner only feeds Apply tags it pulled from `git tag`,
+// which are well-formed in practice; this test exists so a future
+// contributor doesn't tighten the input-validation pre-check
+// without realizing they'd be breaking documented behavior.
+func TestApply_LenientInputs(t *testing.T) {
+	cases := []struct {
+		in   string
+		bump BumpLevel
+		want string
+	}{
+		{"v1", Patch, "v1.0.1"},        // short-form normalizes to v1.0.0 first
+		{"v1.2", Minor, "v1.3.0"},      // ditto
+		{"v01.02.03", Patch, "v1.2.4"}, // zero-padded normalizes
+	}
+	for _, tc := range cases {
+		got, err := Apply(tc.in, tc.bump)
+		if err != nil {
+			t.Errorf("Apply(%q, %s) = err %v, want %s", tc.in, tc.bump, err, tc.want)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("Apply(%q, %s) = %s, want %s", tc.in, tc.bump, got, tc.want)
+		}
+	}
+}
+
 func TestBumpLevel_String(t *testing.T) {
 	cases := []struct {
 		in   BumpLevel
