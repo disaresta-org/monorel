@@ -89,6 +89,7 @@ export default defineConfig({
         items: [
           { text: 'Why monorel?', link: '/introduction' },
           { text: 'Getting Started', link: '/getting-started' },
+          { text: 'Workflows', link: '/workflows' },
           { text: 'Design', link: '/design' },
         ],
       },
