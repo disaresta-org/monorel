@@ -98,7 +98,7 @@ Re-run it. `CreateRelease` is idempotent on the tag name: each tag the prior run
 
 ### A release PR merged without `monorel-Release:` body trailers, and `monorel tag` returned `ErrNoReleaseCommit`. What now?
 
-The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/github-action#branch-protection)). Recovery: manually create the tags pointing at the merge commit:
+The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/integrations/github#branch-protection)). Recovery: manually create the tags pointing at the merge commit:
 
 ```sh
 git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m "Release <prefix> v<X.Y.Z>"

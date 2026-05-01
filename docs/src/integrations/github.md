@@ -1,9 +1,13 @@
 ---
-title: GitHub Action
-description: "Wire up the monorel GitHub Action for the always-open release PR pattern."
+title: GitHub
+description: "Wire up monorel against a GitHub repository: action wrapper, workflows, branch protection, tokens."
 ---
 
-# GitHub Action
+# GitHub
+
+The canonical monorel-on-GitHub setup: a composite action wrapper plus two workflow files that drive the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
+
+## The action wrapper
 
 The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary for use in GitHub Actions. It downloads the right binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
 

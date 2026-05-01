@@ -100,8 +100,14 @@ export default defineConfig({
           { text: 'CLI', link: '/cli-reference' },
           { text: 'Library API', link: '/api' },
           { text: 'Changesets', link: '/changesets' },
-          { text: 'GitHub Action', link: '/github-action' },
           { text: 'Glossary', link: '/glossary' },
+        ],
+      },
+      {
+        text: 'Integrations',
+        items: [
+          { text: 'GitHub', link: '/integrations/github' },
+          { text: 'Gitea / Forgejo', link: '/integrations/gitea' },
         ],
       },
       {

@@ -106,7 +106,7 @@ jobs:
 Commit both files. The `release-pr` workflow will fire on the next push to `main`; the release PR opens once there's a changeset to release.
 
 ::: warning Branch protection with required status checks
-If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/github-action#tokens-and-required-status-checks) for the wiring.
+If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the wiring.
 :::
 
 ## How releases work
@@ -177,7 +177,7 @@ Merge the release PR. The `release` workflow fires on the merge commit and:
 4. Creates one GitHub Release per tag, body sourced from each package's CHANGELOG entry.
 
 ::: warning Squash-merge subject inheritance
-The release PR's commit body carries machine-readable trailers that `monorel tag` reads post-merge. The squash-merge setting must preserve the body. See [Branch protection](/github-action#branch-protection) for which settings work.
+The release PR's commit body carries machine-readable trailers that `monorel tag` reads post-merge. The squash-merge setting must preserve the body. See [Branch protection](/integrations/github#branch-protection) for which settings work.
 :::
 
 ## Verify
@@ -225,5 +225,5 @@ This flow is fine for solo projects or bootstrap. Most real consumers will use t
 
 - [Changesets](/changesets): file format, multi-package shape, pre-release mode interaction.
 - [Configuration](/configuration): every `monorel.toml` field with examples.
-- [GitHub Action](/github-action): every wrapper input, branch protection setup, troubleshooting.
+- [GitHub Action](/integrations/github): every wrapper input, branch protection setup, troubleshooting.
 - [CLI Reference](/cli-reference): per-command flags and output schemas.
