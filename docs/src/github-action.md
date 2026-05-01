@@ -177,12 +177,13 @@ Recommended settings for the default branch:
 The release PR is special: monorel's `chore(release):` commit subject must reach `main` for `release.yml` to trigger. Squash-merging the release PR produces a single `chore(release): ...` commit; rebase-merging produces the same. Both work; just don't squash-merge into a different subject.
 
 ::: warning Squash-merge subject inheritance
-By default, the marker commit on the staged head branch carries the subject `chore(release): always-open release PR marker`. When you squash-merge the release PR, GitHub picks the squash subject from one of two sources depending on repo settings:
+By default, the marker commit on the staged head branch carries the subject `chore(release): always-open release PR marker`. When you squash-merge the release PR, GitHub picks the squash subject from one of four options under repo Settings → "Default commit message for squash merging":
 
-- **"Default to pull request title"**: the squash subject is the orchestrator-set PR title (e.g. `chore(release): transports/blank v1.6.2`). This is the cleaner outcome.
-- **"Default commit message"** (legacy): the squash subject is the marker commit's subject (e.g. `chore(release): always-open release PR marker`). Functionally equivalent — both start with `chore(release):` so `release.yml` fires either way — but visually less informative.
+- **`Default message`** (the legacy setting): the squash subject is the marker commit's subject when the PR has a single commit, e.g. `chore(release): always-open release PR marker`. Functionally fine, visually less informative.
+- **`Pull request title`** (recommended): the squash subject is the orchestrator-set PR title, e.g. `chore(release): transports/blank v1.6.2`. Cleaner.
+- **`Pull request title and commit details`** / **`Pull request title and description`**: the subject is the PR title (same as above); the body of the squash commit pulls in either the commits or the PR description. Either of these is fine for monorel.
 
-Set the repo's squash-merge default to "pull request title" to get the better-named merge commits. Either setting works for the release pipeline itself.
+The release pipeline works with any of the four — both the marker subject and the orchestrator-set PR title start with `chore(release):`, which is what `release.yml` filters on. Pick `Pull request title` (or one of the variants that uses it) so the merged commit carries the version-specific name instead of the generic marker text.
 :::
 
 ## Troubleshooting
