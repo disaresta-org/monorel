@@ -3,19 +3,18 @@ import { defineConfig, type HeadConfig } from 'vitepress'
 const defaultTitle = 'monorel'
 const defaultDescription =
   'A changesets-style release tool for multi-module Go monorepos.'
-const baseUrl = 'https://disaresta-org.github.io/monorel'
+const baseUrl = 'https://monorel.disaresta.com'
 
 export default defineConfig({
   lang: 'en-US',
   title: 'monorel',
   description: defaultDescription,
   srcDir: 'src',
-  base: '/monorel/',
   appearance: 'force-dark',
   sitemap: { hostname: baseUrl },
   async transformHead({ pageData }) {
     const head: HeadConfig[] = [
-      ['link', { rel: 'icon', href: '/monorel/favicon.ico' }],
+      ['link', { rel: 'icon', href: '/favicon.ico' }],
       ['meta', {
         name: 'keywords',
         content: 'monorel, go, golang, monorepo, release, changesets, semver',

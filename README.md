@@ -17,7 +17,7 @@ The Go ecosystem has a real gap: no battle-tested release tool fits "main module
 - **Knope** doesn't support per-package tag-prefix overrides, so it can't do bare-tag root + prefixed sub-modules.
 - **changesets** is JS-native and needs synthetic `package.json` files in every Go module.
 
-`monorel` fills that gap. Read [the introduction](https://disaresta-org.github.io/monorel/introduction) for the full comparison.
+`monorel` fills that gap. Read [the introduction](https://monorel.disaresta.com/introduction) for the full comparison.
 
 ## Quickstart
 
@@ -37,17 +37,17 @@ monorel release
 git push --follow-tags
 ```
 
-For a `monorel.toml` example and full walkthrough, see [Getting Started](https://disaresta-org.github.io/monorel/getting-started).
+For a `monorel.toml` example and full walkthrough, see [Getting Started](https://monorel.disaresta.com/getting-started).
 
 ## Documentation
 
-- [Introduction](https://disaresta-org.github.io/monorel/introduction): why monorel, design tradeoffs.
-- [Getting Started](https://disaresta-org.github.io/monorel/getting-started): install, init, first release.
-- [Configuration](https://disaresta-org.github.io/monorel/configuration): `monorel.toml` reference.
-- [CLI](https://disaresta-org.github.io/monorel/cli-reference): every command and flag.
-- [Changesets](https://disaresta-org.github.io/monorel/changesets): file format, conventions.
-- [GitHub Action](https://disaresta-org.github.io/monorel/github-action): always-open PR setup.
-- [Bootstrapping](https://disaresta-org.github.io/monorel/bootstrap): one-time procedure for the first release.
+- [Introduction](https://monorel.disaresta.com/introduction): why monorel, design tradeoffs.
+- [Getting Started](https://monorel.disaresta.com/getting-started): install, init, first release.
+- [Configuration](https://monorel.disaresta.com/configuration): `monorel.toml` reference.
+- [CLI](https://monorel.disaresta.com/cli-reference): every command and flag.
+- [Changesets](https://monorel.disaresta.com/changesets): file format, conventions.
+- [GitHub Action](https://monorel.disaresta.com/github-action): always-open PR setup.
+- [Bootstrapping](https://monorel.disaresta.com/bootstrap): one-time procedure for the first release.
 
 ## GitHub Action
 
@@ -57,7 +57,7 @@ For a `monorel.toml` example and full walkthrough, see [Getting Started](https:/
     command: pr      # or 'release' on the release-PR merge / dispatch
 ```
 
-Full setup in the [GitHub Action docs](https://disaresta-org.github.io/monorel/github-action).
+Full setup in the [GitHub Action docs](https://monorel.disaresta.com/github-action).
 
 ## Development
 
