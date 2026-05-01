@@ -17,6 +17,7 @@
 package changeset
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ import (
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/adrg/frontmatter"
 
 	"github.com/disaresta-org/monorel/internal/semver"
 )
@@ -120,17 +121,14 @@ func Parse(r io.Reader, name string) (*Changeset, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read: %w", err)
 	}
-	frontmatter, body, err := splitFrontmatter(string(raw))
-	if err != nil {
-		return nil, err
-	}
+	// adrg/frontmatter doesn't strip a UTF-8 BOM; do it ourselves so
+	// authors editing in BOM-prone editors aren't punished.
+	raw = bytes.TrimPrefix(raw, []byte("\ufeff"))
 
-	// YAML decodes "key: value" pairs into a map preserving order
-	// only via yaml.Node; for our purposes we just need the unordered
-	// map.
 	rawBumps := make(map[string]string)
-	if err := yaml.Unmarshal([]byte(frontmatter), &rawBumps); err != nil {
-		return nil, fmt.Errorf("frontmatter yaml: %w", err)
+	body, err := frontmatter.Parse(bytes.NewReader(raw), &rawBumps)
+	if err != nil {
+		return nil, fmt.Errorf("frontmatter: %w", err)
 	}
 	if len(rawBumps) == 0 {
 		return nil, errors.New("frontmatter declares no packages")
@@ -148,7 +146,7 @@ func Parse(r io.Reader, name string) (*Changeset, error) {
 	return &Changeset{
 		Name:  name,
 		Bumps: bumps,
-		Body:  strings.TrimSpace(body),
+		Body:  strings.TrimSpace(string(body)),
 	}, nil
 }
 
@@ -202,78 +200,3 @@ func (c *Changeset) WriteFile(dir string) error {
 	return nil
 }
 
-// splitFrontmatter separates "---\n<yaml>\n---\n<body>" into its two
-// parts. Returns ("", "", error) if the document doesn't start with
-// "---" on its own line.
-func splitFrontmatter(content string) (frontmatter, body string, err error) {
-	// Tolerate UTF-8 BOM and leading whitespace before the first ---.
-	trimmed := strings.TrimLeft(content, " \t\n\r\ufeff")
-	if !strings.HasPrefix(trimmed, "---\n") && trimmed != "---" && !strings.HasPrefix(trimmed, "---\r\n") {
-		return "", "", errors.New("missing frontmatter (file must start with '---')")
-	}
-	// Strip the opening fence.
-	rest := strings.TrimPrefix(trimmed, "---\n")
-	rest = strings.TrimPrefix(rest, "---\r\n")
-	// Find the closing fence: a line that is exactly "---".
-	closeIdx := -1
-	scanner := newLineScanner(rest)
-	for scanner.next() {
-		line := scanner.line()
-		if line == "---" {
-			closeIdx = scanner.start()
-			break
-		}
-	}
-	if closeIdx == -1 {
-		return "", "", errors.New("missing closing '---' for frontmatter")
-	}
-	frontmatter = rest[:closeIdx]
-	bodyStart := closeIdx + len("---")
-	if bodyStart < len(rest) && rest[bodyStart] == '\n' {
-		bodyStart++
-	} else if bodyStart+1 < len(rest) && rest[bodyStart] == '\r' && rest[bodyStart+1] == '\n' {
-		bodyStart += 2
-	}
-	body = rest[bodyStart:]
-	return frontmatter, body, nil
-}
-
-// lineScanner is a tiny line iterator over a string that records the
-// byte offset where each line begins. We can't use bufio.Scanner here
-// because we need byte offsets to slice the original string.
-type lineScanner struct {
-	s     string
-	pos   int
-	begin int
-	end   int
-}
-
-func newLineScanner(s string) *lineScanner { return &lineScanner{s: s} }
-
-func (l *lineScanner) next() bool {
-	if l.pos >= len(l.s) {
-		return false
-	}
-	l.begin = l.pos
-	for l.pos < len(l.s) && l.s[l.pos] != '\n' {
-		l.pos++
-	}
-	l.end = l.pos
-	if l.pos < len(l.s) {
-		l.pos++ // consume the newline
-	}
-	return true
-}
-
-func (l *lineScanner) line() string {
-	end := l.end
-	// Trim a trailing \r so "\r\n" line endings normalize.
-	if end > l.begin && l.s[end-1] == '\r' {
-		end--
-	}
-	return l.s[l.begin:end]
-}
-
-// start returns the byte offset of the current line's first byte
-// in the original string.
-func (l *lineScanner) start() int { return l.begin }

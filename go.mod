@@ -12,7 +12,10 @@ require (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

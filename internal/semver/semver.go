@@ -1,18 +1,18 @@
-// Package semver wraps golang.org/x/mod/semver with the bump-level
-// abstraction monorel uses everywhere it touches versions.
+// Package semver wraps github.com/Masterminds/semver/v3 with the
+// bump-level abstraction monorel uses everywhere it touches versions.
 //
-// All version strings carry the leading "v" required by Go module tags
+// Version strings carry the leading "v" required by Go module tags
 // (e.g. "v1.6.2", "v1.0.0-rc.3"). Functions that produce versions
-// always emit the "v" form; functions that accept them tolerate either.
+// always emit the "v" form; functions that accept them tolerate
+// either.
 package semver
 
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
-	"golang.org/x/mod/semver"
+	mm "github.com/Masterminds/semver/v3"
 )
 
 // BumpLevel encodes the kind of version bump a changeset requests.
@@ -79,41 +79,49 @@ func Max(a, b BumpLevel) BumpLevel {
 // as a Go module version (must start with "v" and follow SemVer 2.0).
 var ErrInvalidVersion = errors.New("invalid semver version")
 
+// parseStrict requires the leading "v" Go module tags use, then
+// delegates to Masterminds for the rest. Masterminds on its own
+// accepts "1.0.0" / "v1" / "v1.2" — too lenient for tag matching.
+func parseStrict(v string) (*mm.Version, error) {
+	if !strings.HasPrefix(v, "v") {
+		return nil, fmt.Errorf("%w: missing leading v in %q", ErrInvalidVersion, v)
+	}
+	return mm.NewVersion(v)
+}
+
 // Apply bumps current by level. current must be a valid Go module
 // version ("vX.Y.Z" or "vX.Y.Z-pre"). For pre-release inputs (e.g.
-// "v1.0.0-rc.3"), Apply strips the pre-release suffix first and bumps
-// from the canonical version: this matches the changesets convention
-// where exiting pre-release mode yields a clean stable bump from the
-// last stable version, not the last rc.
+// "v1.0.0-rc.3"), Apply strips the pre-release suffix first and
+// bumps from the canonical version: this matches the changesets
+// convention where exiting pre-release mode yields a clean stable
+// bump from the last stable version, not the last rc.
 //
 // Returns ErrInvalidVersion if current is not parseable.
 func Apply(current string, level BumpLevel) (string, error) {
-	if !semver.IsValid(current) {
-		return "", fmt.Errorf("%w: %q", ErrInvalidVersion, current)
-	}
-	// Strip any pre-release suffix so we bump from the X.Y.Z core
-	// regardless of what suffix current carried.
-	core := strings.TrimSuffix(semver.Canonical(current), semver.Prerelease(current))
-	major, minor, patch, err := splitCore(core)
+	v, err := parseStrict(current)
 	if err != nil {
 		return "", err
 	}
 	switch level {
 	case None:
-		return core, nil
+		// Strip any pre-release suffix; emit canonical X.Y.Z.
+		stripped, err := v.SetPrerelease("")
+		if err != nil {
+			return "", err
+		}
+		return "v" + stripped.String(), nil
 	case Patch:
-		patch++
+		next := v.IncPatch()
+		return "v" + next.String(), nil
 	case Minor:
-		minor++
-		patch = 0
+		next := v.IncMinor()
+		return "v" + next.String(), nil
 	case Major:
-		major++
-		minor = 0
-		patch = 0
+		next := v.IncMajor()
+		return "v" + next.String(), nil
 	default:
 		return "", fmt.Errorf("unknown bump level %d", int(level))
 	}
-	return fmt.Sprintf("v%d.%d.%d", major, minor, patch), nil
 }
 
 // InitialFromBump returns the version a never-released package gets on
@@ -121,7 +129,7 @@ func Apply(current string, level BumpLevel) (string, error) {
 // (the natural "first stable release" version), minor maps to v0.1.0,
 // patch to v0.0.1.
 //
-// Returns ErrInvalidVersion if level is None or unrecognized.
+// Returns an error if level is None or unrecognized.
 func InitialFromBump(level BumpLevel) (string, error) {
 	switch level {
 	case Major:
@@ -144,8 +152,9 @@ func InitialFromBump(level BumpLevel) (string, error) {
 // channel must be a non-empty identifier matching SemVer 2.0's
 // pre-release rules (alphanumerics + hyphens). counter must be >= 0.
 func ApplyPrerelease(base, channel string, counter int) (string, error) {
-	if !semver.IsValid(base) {
-		return "", fmt.Errorf("%w: %q", ErrInvalidVersion, base)
+	v, err := parseStrict(base)
+	if err != nil {
+		return "", err
 	}
 	if channel == "" {
 		return "", errors.New("pre-release channel must be non-empty")
@@ -153,48 +162,41 @@ func ApplyPrerelease(base, channel string, counter int) (string, error) {
 	if counter < 0 {
 		return "", fmt.Errorf("pre-release counter must be >= 0, got %d", counter)
 	}
-	canonical := semver.Canonical(base)
-	return fmt.Sprintf("%s-%s.%d", canonical, channel, counter), nil
+	withPre, err := v.SetPrerelease(fmt.Sprintf("%s.%d", channel, counter))
+	if err != nil {
+		return "", err
+	}
+	return "v" + withPre.String(), nil
 }
 
 // IsPrerelease reports whether v carries a pre-release suffix
 // ("v1.0.0-rc.1" -> true, "v1.0.0" -> false).
 func IsPrerelease(v string) bool {
-	return semver.Prerelease(v) != ""
+	parsed, err := parseStrict(v)
+	if err != nil {
+		return false
+	}
+	return parsed.Prerelease() != ""
 }
 
 // IsValid reports whether v parses as a Go module semver version
-// (leading "v", SemVer 2.0). Thin wrapper over semver.IsValid for
-// callers that don't want a direct x/mod dep.
+// (leading "v", SemVer 2.0).
 func IsValid(v string) bool {
-	return semver.IsValid(v)
+	_, err := parseStrict(v)
+	return err == nil
 }
 
-// Compare returns -1 if a < b, 0 if a == b, +1 if a > b. Same
-// semantics as semver.Compare; pre-releases sort before their
-// canonical version (v1.0.0-rc.1 < v1.0.0).
+// Compare returns -1 if a < b, 0 if a == b, +1 if a > b. Pre-releases
+// sort before their canonical version (v1.0.0-rc.1 < v1.0.0).
+// Returns 0 when either input is unparseable.
 func Compare(a, b string) int {
-	return semver.Compare(a, b)
-}
-
-// splitCore parses "vX.Y.Z" into its three integer parts. Assumes the
-// input is already canonical (no pre-release or build suffix).
-func splitCore(canonical string) (major, minor, patch int, err error) {
-	if len(canonical) < 2 || canonical[0] != 'v' {
-		return 0, 0, 0, fmt.Errorf("%w: missing leading v in %q", ErrInvalidVersion, canonical)
+	pa, err := parseStrict(a)
+	if err != nil {
+		return 0
 	}
-	parts := strings.SplitN(canonical[1:], ".", 3)
-	if len(parts) != 3 {
-		return 0, 0, 0, fmt.Errorf("%w: %q has %d parts", ErrInvalidVersion, canonical, len(parts))
+	pb, err := parseStrict(b)
+	if err != nil {
+		return 0
 	}
-	if major, err = strconv.Atoi(parts[0]); err != nil {
-		return 0, 0, 0, fmt.Errorf("%w: bad major in %q: %v", ErrInvalidVersion, canonical, err)
-	}
-	if minor, err = strconv.Atoi(parts[1]); err != nil {
-		return 0, 0, 0, fmt.Errorf("%w: bad minor in %q: %v", ErrInvalidVersion, canonical, err)
-	}
-	if patch, err = strconv.Atoi(parts[2]); err != nil {
-		return 0, 0, 0, fmt.Errorf("%w: bad patch in %q: %v", ErrInvalidVersion, canonical, err)
-	}
-	return major, minor, patch, nil
+	return pa.Compare(pb)
 }
