@@ -7,22 +7,20 @@ description: "Wire up monorel against a GitHub repository: action wrapper, workf
 
 The canonical monorel-on-GitHub setup: a composite action wrapper plus two workflow files that drive the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
 
-## The action wrapper
-
-The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary for use in GitHub Actions. It downloads the right binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
+The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary for use in GitHub Actions: it downloads the right binary for the runner OS+arch, sets up git, stages the release branch (for the `pr` command), and invokes monorel with the requested command.
 
 ## Installation
 
 Add the action to a workflow:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.1
+- uses: disaresta-org/monorel/ci/github@v0.6.0
   with:
     command: release
 ```
 
 ::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.4.1` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.6.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
 ## Inputs
@@ -30,7 +28,7 @@ monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin
 | Input | Default | Description |
 |-------|---------|-------------|
 | `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
-| `version` | `latest` | Pin a specific monorel version, e.g. `v0.4.0`. |
+| `version` | `latest` | Pin a specific monorel version, e.g. `v0.6.0`. |
 | `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. |
 | `config` | `monorel.toml` | Path to the config file. |
 
@@ -65,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: pr
 ```
@@ -76,7 +74,7 @@ If the planner has nothing to apply (no pending changesets), `monorel apply` exi
 
 ### `release.yml`: publish on release-PR merge
 
-The minimal shape — release-only — is:
+The minimal shape (release-only) is:
 
 ```yaml
 name: release
@@ -96,7 +94,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: release
 ```
@@ -118,7 +116,7 @@ GitHub's anti-recursion rule suppresses `release: published` and `push: tags` ev
 The supported sidestep is to chain those workflows from `release.yml` via `workflow_call`. The pattern:
 
 ```yaml
-# release.yml — extended with chained downstream workflows
+# release.yml: extended with chained downstream workflows
 jobs:
   release:
     # … same as above, but expose the released root tag as an output …
@@ -127,7 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: release
       - name: Capture root tag
@@ -167,7 +165,7 @@ jobs:
 
 The chained workflows must declare `workflow_call` in their `on:` block and accept whatever inputs they need (e.g. a `tag` input for build workflows). The natural `push: tags` and `release: published` triggers can stay alongside `workflow_call` so manual tag pushes and externally-created Releases still fire the downstream chain.
 
-The `root_tag` capture is what lets `build-binaries` and `build-image` skip themselves when the release was sub-module-only (no `vX.Y.Z` root tag created). For docs deploy this isn't needed — every release should redeploy the docs.
+The `root_tag` capture is what lets `build-binaries` and `build-image` skip themselves when the release was sub-module-only (no `vX.Y.Z` root tag created). For docs deploy this isn't needed; every release should redeploy the docs.
 
 ## Branch protection
 
@@ -218,7 +216,7 @@ Simplest path. Create a fine-grained PAT scoped to the target repo with these pe
 Add it as a repo secret (e.g. `MONOREL_PR_TOKEN`) and pass it to the action's `token` input:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.4.1
+- uses: disaresta-org/monorel/ci/github@v0.6.0
   with:
     command: pr
     token: ${{ secrets.MONOREL_PR_TOKEN }}
@@ -255,7 +253,7 @@ jobs:
         with:
           app-id: ${{ vars.MONOREL_APP_ID }}
           private-key: ${{ secrets.MONOREL_APP_PRIVATE_KEY }}
-      - uses: disaresta-org/monorel/ci/github@v0.4.1
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: pr
           token: ${{ steps.app-token.outputs.token }}

@@ -46,12 +46,12 @@ monorel doesn't ship a Gitea-specific CI wrapper today. Three viable approaches:
 
 ### Gitea Actions (recommended)
 
-Gitea Actions (since Gitea 1.21, Forgejo 1.21) implements GitHub Actions' workflow YAML format. The same workflow shape that drives the GitHub flow works here, with two adjustments:
+Gitea Actions (since Gitea 1.21, Forgejo 1.21) implements GitHub Actions' workflow YAML format. Two things to know before reusing the GitHub workflow shape:
 
-1. The `disaresta-org/monorel/ci/github` action wrapper passes `secrets.GITHUB_TOKEN` as `GITHUB_TOKEN` to the binary by default. monorel reads `GITEA_TOKEN`. Set `GITEA_TOKEN` explicitly in the step's `env`.
-2. The `host` field in `monorel.toml` must be set to your Gitea instance.
+1. **Token env var.** monorel reads `GITEA_TOKEN`, not `GITHUB_TOKEN`. Gitea Actions keeps the auto-injected token under `secrets.GITHUB_TOKEN` for compatibility with GitHub Actions' YAML; map it to the env var monorel reads.
+2. **`provider.host` must be set** in `monorel.toml` to your Gitea instance.
 
-Example `.gitea/workflows/release-pr.yml`:
+`.gitea/workflows/release-pr.yml`:
 
 ```yaml
 name: release-pr
@@ -72,12 +72,34 @@ jobs:
         with:
           command: pr
         env:
-          GITEA_TOKEN: ${{ secrets.MONOREL_GITEA_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The `MONOREL_GITEA_TOKEN` secret is one you create explicitly in your repo's secrets; the auto-injected `GITEA_TOKEN` in Gitea Actions is restricted to the running workflow's repo, which is enough for the speculative-apply push and PR upsert.
+`.gitea/workflows/release.yml`:
 
-`release.yml` mirrors the GitHub setup, gated on the `chore(release):` commit subject. The same `command: release` step does `monorel tag` + `git push --follow-tags` + `monorel publish`.
+```yaml
+name: release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: disaresta-org/monorel/ci/github@v0.6.0
+        with:
+          command: release
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+The auto-injected `GITHUB_TOKEN` is enough for the basic case (open / update / close the release PR; create tags; create Releases). Same anti-recursion limit as on GitHub: PRs created with this token won't trigger downstream workflows on Gitea Actions either. If you have required status checks on the default branch, swap to a personal access token by replacing `secrets.GITHUB_TOKEN` with a `secrets.MONOREL_GITEA_TOKEN` you generate at `/-/user/settings/applications` and add as a repo secret. Mirrors the [GitHub page's Tokens and required status checks section](/integrations/github#tokens-and-required-status-checks).
 
 ### Local CLI (no CI)
 
@@ -107,9 +129,11 @@ If you hit an API call that behaves differently between Gitea and Forgejo, file 
 
 ## Troubleshooting
 
-### `provider.name "gitea" is not recognized`
+### `provider: unknown provider "gitea"`
 
-monorel binary is older than v0.6.0. Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v0.6.0` or later.
+monorel binary is older than v0.6.0 (when the Gitea provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v0.6.0` or later.
+
+The error surfaces from the validator (`config.Validate`) when reading `monorel.toml`, so it'll fire on every command, not just network-touching ones.
 
 ### `gitea: connect <host>: ...`
 
@@ -117,7 +141,7 @@ The `New` constructor performs a server-version handshake against the configured
 
 ### Per-call deadlines don't fire
 
-The Gitea SDK anchors every request on the context passed to `NewClient`, not per-method ctx arguments. monorel's call sites use `context.Background()` for construction; per-call deadlines passed via `ctx` are silently ignored. This differs from the GitHub provider (which threads ctx through every call). Practical impact: the `--timeout` flag (when added) won't behave identically across providers. File an issue if this matters for your setup.
+The Gitea SDK anchors every request on the context passed to `NewClient`, not per-method ctx arguments. monorel's call sites use `context.Background()` for construction; per-call deadlines passed via `ctx` are silently ignored. This differs from the GitHub provider (which threads ctx through every call). Invisible to current users (monorel doesn't expose per-call deadlines today), but worth noting if a future flag would have you assuming consistent timeout behavior across providers.
 
 ### Force-push rejected on `monorel/release`
 
