@@ -100,6 +100,13 @@ export default defineConfig({
           { text: 'Library API', link: '/api' },
           { text: 'Changesets', link: '/changesets' },
           { text: 'GitHub Action', link: '/github-action' },
+          { text: 'Glossary', link: '/glossary' },
+        ],
+      },
+      {
+        text: 'Help',
+        items: [
+          { text: 'FAQ', link: '/faq' },
         ],
       },
       {
@@ -107,7 +114,7 @@ export default defineConfig({
         items: [
           { text: 'Running in Docker', link: '/docker' },
           { text: 'Migrating from release-please', link: '/recipes/migration-from-release-please' },
-          { text: 'Bootstrapping monorel', link: '/bootstrap' },
+          { text: 'Bootstrapping monorel itself', link: '/recipes/bootstrapping-monorel' },
         ],
       },
     ],
