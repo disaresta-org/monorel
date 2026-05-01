@@ -62,7 +62,7 @@ monorel/
 │   ├── changelog/              Keep-a-Changelog generator
 │   ├── release/                applies a ReleasePlan; renders preview markdown
 │   ├── provider/               provider-neutral host API seam
-│   │   ├── factory/            dispatch by config.ForgeConfig.Provider
+│   │   ├── factory/            dispatch by config.ProviderConfig.Name
 │   │   └── github/             go-github implementation
 │   └── orchestrator/           drives the always-open PR pattern
 ├── ci/                         per-CI-system action wrappers

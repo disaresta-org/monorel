@@ -24,9 +24,10 @@ on "provider" everywhere user-visible removes the duplication and the
 ```
 
 Section name: `[forge]` → `[provider]`. Inner field: `provider` →
-`name`. The `owner`, `repo`, and `host` fields are unchanged. monorel
-v0.3+ rejects the legacy `[forge]` section with a targeted error
-pointing at the config docs; existing configs won't silently misbehave.
+`name`. The `owner`, `repo`, and `host` fields are unchanged. v0.3
+rejects legacy `[forge]` configs via the existing unknown-keys parse
+error: existing configs surface as a clear "unknown keys: [forge ...]"
+on the next run. Pre-1.0 hard break, no migration helper.
 
 ### Public Go API migration
 
@@ -58,7 +59,6 @@ moved correspondingly.
 ### Docs
 
 Configuration, getting-started, design, api, github-action, docker,
-cli-reference, recipes, AGENTS.md all swept. The recipes' "[forge]"
-example blocks now use "[provider]"; the `[forge]` migration is called
-out explicitly under `configuration.md` so anyone landing there from a
-search engine sees the rename plainly.
+cli-reference, recipes, AGENTS.md, README.md, CONTRIBUTING.md, and
+the `.claude/rules/*.md` agent guides all swept. The recipes'
+`[forge]` example blocks now use `[provider]`.

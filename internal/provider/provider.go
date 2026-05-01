@@ -74,7 +74,7 @@ type Client interface {
 	// git tag. monorel pushes tags first, then calls this once per
 	// tag with the matching CHANGELOG entry as the body.
 	//
-	// Forges without a first-class "release" concept (e.g. plain
+	// Providers without a first-class "release" concept (e.g. plain
 	// Bitbucket) may return an "unsupported" error; callers should
 	// treat that as advisory, not fatal.
 	CreateRelease(ctx context.Context, opts CreateReleaseOptions) (*Release, error)
