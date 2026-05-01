@@ -1,0 +1,179 @@
+package github
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+)
+
+// Fake is an in-memory [Client] for unit tests of the action
+// orchestrator and the release CLI's GitHub-Releases extension.
+type Fake struct {
+	mu sync.Mutex
+
+	// DefaultBranch is what GetDefaultBranch returns. Default "main".
+	DefaultBranch string
+
+	// PRs is every PR ever created on this fake, keyed by number.
+	// Numbers are auto-assigned starting at 1.
+	PRs map[int]*PullRequest
+
+	// Releases is every Release ever created, keyed by ID. IDs are
+	// auto-assigned starting at 1.
+	Releases map[int64]*Release
+
+	// FailNext, when non-nil, is returned by the next API call
+	// regardless of which one. Single-shot.
+	FailNext error
+}
+
+// NewFake returns an empty Fake with DefaultBranch="main".
+func NewFake() *Fake {
+	return &Fake{
+		DefaultBranch: "main",
+		PRs:           map[int]*PullRequest{},
+		Releases:      map[int64]*Release{},
+	}
+}
+
+func (f *Fake) take() error {
+	if f.FailNext != nil {
+		err := f.FailNext
+		f.FailNext = nil
+		return err
+	}
+	return nil
+}
+
+// nextPRNumber returns the next available PR number. Caller must hold
+// f.mu. Numbers are 1-based and monotonic across the fake's lifetime.
+func (f *Fake) nextPRNumber() int {
+	max := 0
+	for n := range f.PRs {
+		if n > max {
+			max = n
+		}
+	}
+	return max + 1
+}
+
+func (f *Fake) nextReleaseID() int64 {
+	var max int64
+	for id := range f.Releases {
+		if id > max {
+			max = id
+		}
+	}
+	return max + 1
+}
+
+// GetDefaultBranch implements [Client.GetDefaultBranch].
+func (f *Fake) GetDefaultBranch(_ context.Context) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return "", err
+	}
+	return f.DefaultBranch, nil
+}
+
+// FindOpenReleasePR implements [Client.FindOpenReleasePR].
+func (f *Fake) FindOpenReleasePR(_ context.Context, headBranch string) (*PullRequest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	for _, pr := range f.PRs {
+		if pr.State == "open" && pr.HeadRef == headBranch {
+			cp := *pr
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
+// CreatePR implements [Client.CreatePR].
+func (f *Fake) CreatePR(_ context.Context, opts CreatePROptions) (*PullRequest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	if opts.Title == "" {
+		return nil, errors.New("github fake: CreatePR title is empty")
+	}
+	if opts.HeadBranch == "" || opts.BaseBranch == "" {
+		return nil, errors.New("github fake: CreatePR HeadBranch/BaseBranch required")
+	}
+	num := f.nextPRNumber()
+	pr := &PullRequest{
+		Number:  num,
+		State:   "open",
+		Title:   opts.Title,
+		Body:    opts.Body,
+		HeadRef: opts.HeadBranch,
+		HTMLURL: fmt.Sprintf("https://github.com/fake/fake/pull/%d", num),
+	}
+	f.PRs[num] = pr
+	cp := *pr
+	return &cp, nil
+}
+
+// UpdatePR implements [Client.UpdatePR].
+func (f *Fake) UpdatePR(_ context.Context, number int, opts UpdatePROptions) (*PullRequest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	pr, ok := f.PRs[number]
+	if !ok {
+		return nil, fmt.Errorf("github fake: PR #%d not found", number)
+	}
+	if opts.Title != nil {
+		pr.Title = *opts.Title
+	}
+	if opts.Body != nil {
+		pr.Body = *opts.Body
+	}
+	cp := *pr
+	return &cp, nil
+}
+
+// ClosePR implements [Client.ClosePR].
+func (f *Fake) ClosePR(_ context.Context, number int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return err
+	}
+	pr, ok := f.PRs[number]
+	if !ok {
+		return fmt.Errorf("github fake: PR #%d not found", number)
+	}
+	pr.State = "closed"
+	return nil
+}
+
+// CreateRelease implements [Client.CreateRelease].
+func (f *Fake) CreateRelease(_ context.Context, opts CreateReleaseOptions) (*Release, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	if opts.Tag == "" {
+		return nil, errors.New("github fake: CreateRelease Tag is empty")
+	}
+	id := f.nextReleaseID()
+	rel := &Release{
+		ID:      id,
+		Tag:     opts.Tag,
+		HTMLURL: fmt.Sprintf("https://github.com/fake/fake/releases/tag/%s", opts.Tag),
+	}
+	f.Releases[id] = rel
+	cp := *rel
+	return &cp, nil
+}

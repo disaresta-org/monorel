@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
+	gh "github.com/disaresta-org/monorel/internal/github"
 	"github.com/disaresta-org/monorel/internal/plan"
 	"github.com/disaresta-org/monorel/internal/release"
 )
@@ -29,6 +32,9 @@ responsibility — this command does not push commits or tags. Use the
 GitHub Action wrapper or run "git push --follow-tags" yourself.`,
 		RunE: runRelease,
 	}
+	cmd.Flags().Bool("github", false,
+		"Also create one GitHub Release per tag. "+
+			"Requires GITHUB_TOKEN (or GH_TOKEN) and that tags have been pushed.")
 	return cmd
 }
 
@@ -71,8 +77,45 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 	for _, tag := range res.Tags {
 		fmt.Fprintf(out, "  %s\n", tag)
 	}
+
+	if doGitHub, _ := cmd.Flags().GetBool("github"); doGitHub {
+		token := firstNonEmpty(os.Getenv("GITHUB_TOKEN"), os.Getenv("GH_TOKEN"))
+		if token == "" {
+			return fmt.Errorf("--github requires GITHUB_TOKEN or GH_TOKEN in the environment")
+		}
+		client, err := gh.New(cmd.Context(), gh.Options{
+			Owner: rt.Config.GitHub.Owner,
+			Repo:  rt.Config.GitHub.Repo,
+			Token: token,
+		})
+		if err != nil {
+			return fmt.Errorf("github client: %w", err)
+		}
+		ctx := cmd.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		published, err := gh.PublishReleases(ctx, client, res, p)
+		if err != nil {
+			fmt.Fprintf(out, "Created %d/%d GitHub Releases before failing.\n", len(published), len(res.Tags))
+			return err
+		}
+		fmt.Fprintf(out, "Published %d GitHub Release(s).\n", len(published))
+		return nil
+	}
+
 	fmt.Fprintln(out, "Run `git push --follow-tags` to publish.")
 	return nil
+}
+
+// firstNonEmpty returns the first non-empty argument, or "".
+func firstNonEmpty(s ...string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // short returns the first 7 characters of a SHA, or the whole string

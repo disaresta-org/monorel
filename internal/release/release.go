@@ -63,6 +63,12 @@ type Result struct {
 	// Tags is every tag created, in plan order (sorted by package
 	// name). Same shape as the corresponding PackageRelease.Tag.
 	Tags []string
+
+	// Bodies is the rendered Keep-a-Changelog body for each tag,
+	// keyed by tag name. Always populated (in pre mode too) so a
+	// downstream GitHub-Releases publisher can use it as the
+	// release notes.
+	Bodies map[string]string
 }
 
 // ErrPlanEmpty is returned by [Apply] when the plan has no releases.
@@ -116,6 +122,12 @@ func Apply(opts Options) (*Result, error) {
 		today = changelog.Today()
 	}
 
+	bodies := make(map[string]string, len(opts.Plan.Releases))
+	for _, r := range opts.Plan.Releases {
+		entry := buildEntry(r, today)
+		bodies[r.Tag] = entry.Render()
+	}
+
 	if opts.PreState == nil {
 		if err := applyStable(opts, today); err != nil {
 			return nil, err
@@ -143,7 +155,7 @@ func Apply(opts Options) (*Result, error) {
 		tags = append(tags, r.Tag)
 	}
 
-	return &Result{CommitSHA: commitSHA, Tags: tags}, nil
+	return &Result{CommitSHA: commitSHA, Tags: tags, Bodies: bodies}, nil
 }
 
 // preflightTags errors if any planned tag already exists. Run before
