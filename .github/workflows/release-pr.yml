@@ -50,7 +50,13 @@ jobs:
           if echo "$apply_out" | grep -qF "Nothing to apply."; then
             git checkout -q -
           else
-            git push --force-with-lease origin monorel/release
+            # Plain -f: we just built monorel/release from origin/main
+            # without fetching the remote's monorel/release first, so
+            # --force-with-lease has no expected value to compare and
+            # rejects with "stale info". The branch is bot-exclusive
+            # (no humans push here), so blind force-push is the
+            # intended behavior.
+            git push -f origin monorel/release
             git checkout -q -
           fi
 
