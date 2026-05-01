@@ -61,6 +61,20 @@ type client struct {
 
 // New returns a [provider.Client] backed by code.gitea.io/sdk/gitea,
 // authenticated by opts.Token.
+//
+// Performs an initial server-version handshake against the
+// configured host (the SDK does this in NewClient), so an
+// unreachable instance returns an error here rather than on the
+// first method call.
+//
+// The Gitea SDK anchors every request on the context passed to
+// NewClient (here, the ctx argument), not on per-method ctx
+// arguments. Per-call ctx values from provider.Client method
+// invocations are accepted by the interface but are not propagated
+// to the underlying HTTP requests. Callers that need per-call
+// deadlines should construct a fresh client with the appropriate
+// context. This differs from the GitHub provider, which does
+// per-call ctx propagation via go-github.
 func New(ctx context.Context, opts Options) (provider.Client, error) {
 	if opts.Owner == "" || opts.Repo == "" {
 		return nil, ErrMissingOwnerRepo
@@ -97,25 +111,29 @@ func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*pro
 	// open PRs and match on Head.Ref ourselves. The release PR's
 	// head is bot-managed (default monorel/release), so the list
 	// is short in practice.
-	for page := 1; ; page++ {
-		prs, _, err := c.gt.ListRepoPullRequests(c.owner, c.repo, gtsdk.ListPullRequestsOptions{
+	//
+	// Pagination uses the SDK's Response.NextPage (parsed from the
+	// Link header) rather than "stop when len(prs) < pageSize",
+	// which would mis-handle Gitea instances configured with
+	// MAX_RESPONSE_ITEMS below the requested page size.
+	page := 1
+	for {
+		prs, resp, err := c.gt.ListRepoPullRequests(c.owner, c.repo, gtsdk.ListPullRequestsOptions{
 			ListOptions: gtsdk.ListOptions{Page: page, PageSize: 50},
 			State:       gtsdk.StateOpen,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("gitea: list PRs %s/%s: %w", c.owner, c.repo, err)
 		}
-		if len(prs) == 0 {
-			return nil, nil
-		}
 		for _, pr := range prs {
 			if pr.Head != nil && pr.Head.Ref == headBranch {
 				return convertPR(pr), nil
 			}
 		}
-		if len(prs) < 50 {
+		if resp == nil || resp.NextPage == 0 {
 			return nil, nil
 		}
+		page = resp.NextPage
 	}
 }
 
@@ -197,10 +215,12 @@ func convertPR(src *gtsdk.PullRequest) *provider.PullRequest {
 // normalizeHost turns Options.Host into the base URL the SDK
 // expects. Accepts a bare hostname (defaults to https://) or a
 // fully-qualified http(s):// URL. Trailing slash is stripped
-// either way.
+// either way. Scheme detection is case-insensitive so common
+// copy-paste shapes like "HTTPS://example.com" still work.
 func normalizeHost(host string) string {
 	host = strings.TrimSuffix(host, "/")
-	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+	lower := strings.ToLower(host)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
 		return host
 	}
 	return "https://" + host

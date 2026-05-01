@@ -35,7 +35,7 @@ A `//go:build livetest` test suite at
 implementation against a real Gitea instance. Run locally with:
 
 ```sh
-docker run -d --name monorel-gitea-test -p 3000:3000 gitea/gitea:1.21
+docker run -d --name monorel-gitea-test -p 3000:3000 gitea/gitea:1.23
 # ...complete install wizard, create user, generate token, create repo...
 export MONOREL_GITEA_HOST=localhost:3000
 export MONOREL_GITEA_TOKEN=<token>

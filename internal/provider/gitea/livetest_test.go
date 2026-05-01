@@ -34,7 +34,7 @@ import (
 //
 //   docker run -d --name monorel-gitea-test \
 //     -p 3000:3000 -p 222:22 \
-//     gitea/gitea:1.21
+//     gitea/gitea:1.23
 //
 //   # Browse to http://localhost:3000 to complete the install wizard.
 //   # Create a user, generate an access token at /user/settings/applications,
@@ -150,7 +150,7 @@ func TestLive_PRLifecycle(t *testing.T) {
 	// Provision a branch via the raw SDK so the PR has somewhere to
 	// open against.
 	raw := liveClientGitea(t, host, token)
-	headBranch := "monorel-livetest/" + time.Now().UTC().Format("20060102-150405")
+	headBranch := "monorel-livetest/" + time.Now().UTC().Format("20060102-150405.000000000")
 	defaultBranch, err := c.GetDefaultBranch(ctx)
 	if err != nil {
 		t.Fatalf("GetDefaultBranch: %v", err)
@@ -255,7 +255,7 @@ func TestLive_CreateRelease(t *testing.T) {
 
 	// Create a unique tag against the default branch's HEAD via the
 	// raw SDK so CreateRelease has something to point at.
-	tagName := "monorel-livetest-" + time.Now().UTC().Format("20060102-150405")
+	tagName := "monorel-livetest-" + time.Now().UTC().Format("20060102-150405.000000000")
 	commit, _, err := raw.GetSingleCommit(owner, repo, defaultBranch)
 	if err != nil {
 		t.Fatalf("GetSingleCommit: %v", err)
