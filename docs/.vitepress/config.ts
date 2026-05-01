@@ -14,7 +14,7 @@ export default defineConfig({
   sitemap: { hostname: baseUrl },
   async transformHead({ pageData }) {
     const head: HeadConfig[] = [
-      ['link', { rel: 'icon', href: '/favicon.ico' }],
+      ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
       ['meta', {
         name: 'keywords',
         content: 'monorel, go, golang, monorepo, release, changesets, semver',
@@ -53,6 +53,7 @@ export default defineConfig({
     return head
   },
   themeConfig: {
+    logo: { src: '/favicon.svg', alt: 'monorel' },
     editLink: {
       pattern: 'https://github.com/disaresta-org/monorel/edit/main/docs/src/:path',
       text: 'Edit this page on GitHub',
