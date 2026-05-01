@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/disaresta-org/monorel/releases"><img src="https://img.shields.io/github/v/tag/disaresta-org/monorel?filter=v*&sort=date&label=version&color=blue" alt="Latest version" /></a>
   <a href="https://github.com/disaresta-org/monorel/actions/workflows/ci.yml"><img src="https://github.com/disaresta-org/monorel/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
