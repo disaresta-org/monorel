@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/config"
@@ -53,6 +56,15 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 	var bumps map[string]semver.BumpLevel
 	if len(pkgFlags) > 0 {
 		bumps, err = parsePackageFlags(pkgFlags, rt.Config)
+		if err != nil {
+			return err
+		}
+	} else if isTTY(cmd.InOrStdin()) && isTTY(cmd.OutOrStdout()) {
+		// Real human at a terminal: drive a huh form (multi-select +
+		// per-package bump select + multi-line text). Falls through
+		// to the bufio path on piped/redirected stdio so scripted use
+		// (echo "1\nminor\n..." | monorel add) keeps working.
+		bumps, message, err = promptHuh(rt.Config)
 		if err != nil {
 			return err
 		}
@@ -198,6 +210,89 @@ func promptBump(rd *bufio.Reader, out io.Writer, name string) (semver.BumpLevel,
 		return semver.None, fmt.Errorf("%s: %w", name, err)
 	}
 	return level, nil
+}
+
+// isTTY reports whether r is an *os.File pointing at an interactive
+// terminal. Used to decide between the huh-driven TUI path and the
+// bufio-driven scripted path. Anything that isn't an *os.File (e.g.
+// strings.NewReader in tests, bytes.Buffer) is non-TTY by definition.
+func isTTY(r any) bool {
+	f, ok := r.(*os.File)
+	if !ok {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
+}
+
+// promptHuh runs the huh-driven form for `monorel add`: a multi-select
+// over package names, then a Select per chosen package for the bump
+// level, then a Text field for the changelog body. Each form is run
+// independently so the bump-level questions can be generated from the
+// multi-select's result.
+func promptHuh(cfg *config.Config) (map[string]semver.BumpLevel, string, error) {
+	names := cfg.PackageNames()
+	if len(names) == 0 {
+		return nil, "", errors.New("monorel.toml declares no packages")
+	}
+
+	options := make([]huh.Option[string], 0, len(names))
+	for _, n := range names {
+		options = append(options, huh.NewOption(n, n))
+	}
+
+	var picked []string
+	pickForm := huh.NewForm(huh.NewGroup(
+		huh.NewMultiSelect[string]().
+			Title("Which packages does this changeset affect?").
+			Description("Space toggles, enter confirms.").
+			Options(options...).
+			Validate(func(s []string) error {
+				if len(s) == 0 {
+					return errors.New("pick at least one package")
+				}
+				return nil
+			}).
+			Value(&picked),
+	))
+	if err := pickForm.Run(); err != nil {
+		return nil, "", err
+	}
+
+	bumps := make(map[string]semver.BumpLevel, len(picked))
+	for _, name := range picked {
+		var level string
+		bumpForm := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title(fmt.Sprintf("Bump level for %s", name)).
+				Options(
+					huh.NewOption("patch — bug fix, no API change", "patch"),
+					huh.NewOption("minor — new feature, backward-compatible", "minor"),
+					huh.NewOption("major — breaking change", "major"),
+				).
+				Value(&level),
+		))
+		if err := bumpForm.Run(); err != nil {
+			return nil, "", err
+		}
+		l, err := semver.ParseBumpLevel(level)
+		if err != nil {
+			return nil, "", fmt.Errorf("%s: %w", name, err)
+		}
+		bumps[name] = l
+	}
+
+	var body string
+	bodyForm := huh.NewForm(huh.NewGroup(
+		huh.NewText().
+			Title("Changelog body").
+			Description("Markdown. This becomes the entry under the bump-level heading.").
+			CharLimit(0).
+			Value(&body),
+	))
+	if err := bodyForm.Run(); err != nil {
+		return nil, "", err
+	}
+	return bumps, strings.TrimSpace(body), nil
 }
 
 // readMultiline reads lines from rd until a single blank line, then
