@@ -1,10 +1,15 @@
 name: release
 
-# Cuts the release after the always-open release PR is merged.
+# Cuts monorel's own release after the always-open release PR is merged.
+# Self-hosted: this workflow is monorel-specific. Other consumers go
+# through the disaresta-org/monorel/ci/github composite action, which
+# does call `monorel publish` (since they don't run goreleaser
+# themselves; their releases need monorel publish to set bodies and
+# create the GitHub Release in the first place).
 #
 # Triggers:
 #   push (main, "chore(release):") — the release PR's merge commit
-#     subject by monorel convention. The non-chore-release pushes are
+#     subject by monorel convention. Non-chore-release pushes are
 #     filtered out via the if guard on the `release` job.
 #   workflow_dispatch — manual escape hatch (the v0.1.0 bootstrap path).
 #
@@ -12,15 +17,28 @@ name: release
 #   1. monorel release       — write CHANGELOGs, delete consumed
 #                              .changeset/*.md, create the release
 #                              commit, create per-package tags locally.
-#   2. git push --follow-tags — push commit + tags to the remote so
-#                              the forge can validate them.
-#   3. monorel publish       — create one GitHub Release per tag,
-#                              body sourced from each tag's CHANGELOG
-#                              entry.
+#   2. git push --follow-tags — push commit + tags to the remote.
 #
-# Then build-binaries and build-image fire as workflow_call jobs
-# gated on the release job having cut a root-module (`vX.Y.Z`) tag.
-# Both are called inline rather than via the natural tag-push event:
+# Notice the absence of `monorel publish`: monorel's own pipeline lets
+# goreleaser (in build-binaries) create the GitHub Release in one step
+# along with uploading binaries. v0.2.0 surfaced a fatal interaction
+# between `monorel publish` and goreleaser's recent versions — once
+# monorel publish creates the release, goreleaser's PATCH to attach
+# binaries flips it to GitHub's new immutable-release state, and the
+# upload then fails 422 ("Cannot upload assets to an immutable release").
+# Even deleting the immutable release doesn't free the tag-name
+# (GitHub permanently retains it). Letting goreleaser own release
+# creation avoids the conflict entirely.
+#
+# Trade-off: monorel's own GitHub Release bodies are goreleaser's
+# auto-generated commit list, not the curated CHANGELOG entry.
+# CHANGELOG.md still gets the curated entry via `monorel release`.
+# Other consumers (loglayer-go) keep getting curated bodies because
+# they call the action wrapper, which runs `monorel publish`.
+#
+# build-binaries and build-image fire as workflow_call jobs gated on
+# the release job having cut a root-module (`vX.Y.Z`) tag. Both are
+# called inline rather than via the natural tag-push event:
 # secrets.GITHUB_TOKEN-driven tag pushes are subject to GitHub's
 # anti-recursion rule and don't propagate to push-triggered workflows.
 # The workflow_call path is the supported sidestep.
@@ -63,14 +81,14 @@ jobs:
       - name: monorel release pipeline
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Order matters: tags must exist on the remote before the
-        # forge can validate them when creating the Release. See
-        # ci/github/README.md "Inputs" for the rationale.
+        # Note the absence of `monorel publish` (see workflow header
+        # comment for why). build-binaries chains downstream and lets
+        # goreleaser create the GitHub Release with its assets in one
+        # step.
         run: |
           set -euo pipefail
           go run ./cmd/monorel release
           git push --follow-tags
-          go run ./cmd/monorel publish
 
       - name: Capture root tag
         id: root_tag
