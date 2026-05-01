@@ -16,7 +16,7 @@ go install github.com/disaresta-org/monorel/cmd/monorel@latest
 Or in CI via the GitHub Action wrapper (see [GitHub Action](/github-action)):
 
 ```yaml
-- uses: disaresta-org/monorel-action@v1
+- uses: disaresta-org/monorel/ci/github@v1
   with:
     command: release
 ```

@@ -25,6 +25,12 @@ type Repo interface {
 	// that need semver order sort with semver.Compare.
 	ListTags(prefix string) ([]string, error)
 
+	// TagsAtHead returns every tag pointing at the current HEAD
+	// commit (i.e. `git tag --points-at HEAD`). Used by `monorel
+	// publish` to find which tags to create forge Releases for.
+	// Order is unspecified.
+	TagsAtHead() ([]string, error)
+
 	// CurrentSHA returns the SHA at HEAD.
 	CurrentSHA() (string, error)
 

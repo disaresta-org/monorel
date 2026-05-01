@@ -103,6 +103,22 @@ func (f *Fake) ListTags(prefix string) ([]string, error) {
 	return out, nil
 }
 
+// TagsAtHead implements [Repo.TagsAtHead]. The fake doesn't track
+// per-tag SHAs; it returns every tag created via CreateTag since the
+// last call to clear (which the fake doesn't have). Tests that need
+// fine-grained "tags pointing at this specific commit" should
+// override this with a custom impl.
+func (f *Fake) TagsAtHead() ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	out := make([]string, len(f.Tags))
+	copy(out, f.Tags)
+	return out, nil
+}
+
 // CurrentSHA implements [Repo.CurrentSHA].
 func (f *Fake) CurrentSHA() (string, error) {
 	f.mu.Lock()

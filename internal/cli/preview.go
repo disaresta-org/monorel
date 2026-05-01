@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -64,8 +65,8 @@ func runPreview(cmd *cobra.Command, _ []string) error {
 	provider := forge.ResolveProvider(rt.Config.Forge.Provider)
 	token := forge.TokenFromEnv(provider)
 	if token == "" {
-		envVars := forge.TokenEnvVars(provider)
-		return fmt.Errorf("--upsert: provider %q requires %v in the environment", provider, envVars)
+		envVars := strings.Join(forge.TokenEnvVars(provider), " or ")
+		return fmt.Errorf("--upsert: provider %q requires %s in the environment", provider, envVars)
 	}
 	client, err := factory.New(ctx, rt.Config.Forge, token)
 	if err != nil {
@@ -87,14 +88,16 @@ func runPreview(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	switch res.Action {
-	case "noop":
+	case orchestrator.ActionNoop:
 		fmt.Fprintln(out, "Plan is empty and no release PR is open. Nothing to do.")
-	case "closed":
+	case orchestrator.ActionClosed:
 		fmt.Fprintf(out, "Plan is empty; closed release PR #%d.\n", res.PR.Number)
-	case "created":
+	case orchestrator.ActionCreated:
 		fmt.Fprintf(out, "Created release PR #%d: %s\n", res.PR.Number, res.PR.HTMLURL)
-	case "updated":
+	case orchestrator.ActionUpdated:
 		fmt.Fprintf(out, "Updated release PR #%d: %s\n", res.PR.Number, res.PR.HTMLURL)
+	default:
+		return fmt.Errorf("orchestrator returned unknown action %q", res.Action)
 	}
 	return nil
 }

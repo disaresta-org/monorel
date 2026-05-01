@@ -5,18 +5,14 @@ description: "Wire up the monorel GitHub Action for the always-open release PR p
 
 # GitHub Action
 
-The `disaresta-org/monorel-action` composite action wraps the monorel binary for use in GitHub Actions. It downloads the right binary for the runner OS+arch, sets up git, and invokes monorel with the requested command.
-
-::: warning Phase 10
-The action ships in Phase 10 of monorel's own development. Until then, you can run monorel directly in a workflow via `go install` or by downloading a binary from a Release.
-:::
+The `disaresta-org/monorel/ci/github` composite action wraps the monorel binary for use in GitHub Actions. It downloads the right binary for the runner OS+arch, sets up git, and invokes monorel with the requested command.
 
 ## Installation
 
 Add the action to a workflow:
 
 ```yaml
-- uses: disaresta-org/monorel-action@v1
+- uses: disaresta-org/monorel/ci/github@v1
   with:
     command: release
 ```
@@ -25,14 +21,22 @@ Add the action to a workflow:
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `command` | required | `pr` (run `monorel preview` and upsert the release PR) or `release` (run `monorel release --publish`). |
+| `command` | required | `pr` (run `monorel preview --upsert` to maintain the release PR) or `release` (run the local→push→publish pipeline). |
 | `version` | `latest` | Pin a specific monorel version, e.g. `v1.2.3`. |
-| `token` | the workflow's auto-generated `GITHUB_TOKEN` | The token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. |
+| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. |
 | `config` | `monorel.toml` | Path to the config file. |
 
 ::: tip Token override
 If you need a different token (e.g. a personal access token to bypass branch protection), pass it via the `token` input using GitHub Actions context syntax. The action uses the workflow's default token when the input is unset.
 :::
+
+The `release` command runs three monorel invocations in order:
+
+1. `monorel release` — local file mutations + commit + tag.
+2. `git push --follow-tags` — publish commits and tags to the remote.
+3. `monorel publish` — create one GitHub Release per tag at HEAD; body sourced from each package's CHANGELOG entry.
+
+The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
 ## Workflows
 
@@ -55,7 +59,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel-action@v1
+      - uses: disaresta-org/monorel/ci/github@v1
         with:
           command: pr
 ```
@@ -84,14 +88,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel-action@v1
+      - uses: disaresta-org/monorel/ci/github@v1
         with:
           command: release
 ```
 
 The `if:` filter triggers only on commits whose message starts with `chore(release):` (the message monorel produces for release commits). The release PR's merge commit matches this; regular commits don't.
-
-The action runs `monorel release --publish`, pushes the resulting tags, and creates one GitHub Release per tag.
 
 ## Branch protection
 
@@ -117,6 +119,10 @@ Check the `release-pr.yml` run on the latest push to `main`. Common causes:
 - The `token` input doesn't have access to PRs.
 - A path filter (if you added one) excluded the change.
 
-### `--publish` fails partway through
+### `monorel publish` fails partway through
 
-monorel reports `Created N/M releases before failing.` Re-running creates the remaining releases (each `CreateRelease` is idempotent on the tag name; GitHub returns an error for duplicates, which the partial-success path will surface). The tags themselves are already in place from the prior `release` run.
+monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags (each `CreateRelease` is idempotent on the tag name; the forge returns an error for duplicates, which the partial-success path surfaces). Tags from the prior `release` step are already in place.
+
+## Notes
+
+- The `pr` command currently runs `monorel preview --upsert` only. It does not yet stage CHANGELOG edits on a release branch; the upserted PR body shows the rendered plan but does not include file diffs. The action will gain branch staging in a follow-up release.

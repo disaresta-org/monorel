@@ -67,6 +67,15 @@ func (e *Exec) ListTags(prefix string) ([]string, error) {
 	return tags, nil
 }
 
+// TagsAtHead implements [Repo.TagsAtHead].
+func (e *Exec) TagsAtHead() ([]string, error) {
+	out, err := e.run("tag", "--points-at", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	return splitLines(out), nil
+}
+
 // CurrentSHA implements [Repo.CurrentSHA].
 func (e *Exec) CurrentSHA() (string, error) {
 	out, err := e.run("rev-parse", "HEAD")

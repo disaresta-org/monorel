@@ -51,29 +51,44 @@ type Options struct {
 	Today string
 }
 
+// Action is the orchestrator's decision for a single Run invocation.
+// Stringly-typed at the wire level (JSON, logs) but constants allow
+// callers to switch exhaustively.
+type Action string
+
+const (
+	ActionNoop    Action = "noop"
+	ActionClosed  Action = "closed"
+	ActionCreated Action = "created"
+	ActionUpdated Action = "updated"
+)
+
 // Result reports what [Run] did.
 type Result struct {
-	// Action describes the orchestrator's decision in one word:
-	// "created", "updated", "closed", or "noop".
-	Action string
+	// Action describes the orchestrator's decision.
+	Action Action
 
 	// PR is the upserted (or closed) PR, when applicable. nil for
-	// "noop".
+	// [ActionNoop].
 	PR *forge.PullRequest
 }
 
 // Run drives one orchestration tick:
 //
-//   - Empty plan + open release PR: close the PR. Action = "closed".
-//   - Empty plan + no open release PR: do nothing. Action = "noop".
-//   - Non-empty plan + no open release PR: create one. Action = "created".
+//   - Empty plan + open release PR: close the PR. Action = ActionClosed.
+//   - Empty plan + no open release PR: do nothing. Action = ActionNoop.
+//   - Non-empty plan + no open release PR: create one. Action = ActionCreated.
 //   - Non-empty plan + existing open release PR: update title/body.
-//     Action = "updated".
+//     Action = ActionUpdated.
 //
-// Run does NOT push commits to the head branch; the CI wrapper
-// orchestrates that. By the time Run is called, the head branch
-// should already be at the speculative-version state the PR will
-// describe.
+// Run does NOT push commits to the head branch. In a "fully
+// orchestrated" world the CI wrapper would force-push speculative-
+// version commits (CHANGELOG edits, deleted changesets) to the head
+// branch before invoking Run, so the upserted PR shows the merged-
+// release diff. The v1 wrapper does NOT yet do this staging — the
+// PR body shows the rendered plan but the branch's diff is empty.
+// See ci/github/README.md and the "Notes" section of
+// docs/src/github-action.md.
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Plan == nil {
 		return nil, errors.New("orchestrator: nil Plan")
@@ -94,12 +109,12 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 
 	if opts.Plan.IsEmpty() {
 		if existing == nil {
-			return &Result{Action: "noop"}, nil
+			return &Result{Action: ActionNoop}, nil
 		}
 		if err := opts.Forge.ClosePR(ctx, existing.Number); err != nil {
 			return nil, fmt.Errorf("orchestrator: close PR #%d: %w", existing.Number, err)
 		}
-		return &Result{Action: "closed", PR: existing}, nil
+		return &Result{Action: ActionClosed, PR: existing}, nil
 	}
 
 	baseBranch := opts.BaseBranch
@@ -123,7 +138,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		if err != nil {
 			return nil, fmt.Errorf("orchestrator: create PR: %w", err)
 		}
-		return &Result{Action: "created", PR: pr}, nil
+		return &Result{Action: ActionCreated, PR: pr}, nil
 	}
 
 	pr, err := opts.Forge.UpdatePR(ctx, existing.Number, forge.UpdatePROptions{
@@ -133,7 +148,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: update PR #%d: %w", existing.Number, err)
 	}
-	return &Result{Action: "updated", PR: pr}, nil
+	return &Result{Action: ActionUpdated, PR: pr}, nil
 }
 
 // titleFor builds the PR title from the plan. Single-package plans

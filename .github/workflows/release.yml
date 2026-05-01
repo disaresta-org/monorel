@@ -27,12 +27,18 @@ jobs:
 
       - name: Configure git author
         run: |
+          set -euo pipefail
           git config user.name  "monorel-bot[automation]"
           git config user.email "monorel-bot@users.noreply.github.com"
 
-      - name: monorel release --publish
+      - name: monorel release pipeline
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Order matters: tags must exist on the remote before the
+        # forge can validate them when creating the Release. See
+        # ci/github/README.md "Inputs" for the rationale.
         run: |
-          go run ./cmd/monorel release --publish
+          set -euo pipefail
+          go run ./cmd/monorel release
           git push --follow-tags
+          go run ./cmd/monorel publish

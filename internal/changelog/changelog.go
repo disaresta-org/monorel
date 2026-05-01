@@ -194,6 +194,50 @@ func defaultPreamble() string {
 		"and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n"
 }
 
+// ParseTopEntry returns the version string and rendered body of the
+// first `## [VERSION] - DATE` section in content. ok is false when
+// there is no such section.
+//
+// The body is everything from the next line after the heading up to
+// the next `## ` heading (or end of file), trimmed.
+func ParseTopEntry(content string) (version, body string, ok bool) {
+	idx := findFirstH2(content)
+	if idx < 0 {
+		return "", "", false
+	}
+	rest := content[idx:]
+	// Read the heading line.
+	nl := strings.Index(rest, "\n")
+	if nl < 0 {
+		return parseVersionFromHeading(rest), "", true
+	}
+	heading := rest[:nl]
+	version = parseVersionFromHeading(heading)
+	rest = rest[nl+1:]
+	// Body extends to the next H2 or EOF.
+	nextH2 := findFirstH2(rest)
+	if nextH2 < 0 {
+		body = strings.TrimSpace(rest)
+	} else {
+		body = strings.TrimSpace(rest[:nextH2])
+	}
+	return version, body, true
+}
+
+// parseVersionFromHeading extracts the version from a "## [X.Y.Z] -
+// DATE" line. Returns "" when the bracket can't be found.
+func parseVersionFromHeading(line string) string {
+	open := strings.Index(line, "[")
+	if open < 0 {
+		return ""
+	}
+	close := strings.Index(line[open+1:], "]")
+	if close < 0 {
+		return ""
+	}
+	return line[open+1 : open+1+close]
+}
+
 // WriteFile inserts entry into the file at path. Creates the file
 // (and parent directories) if it doesn't exist.
 //

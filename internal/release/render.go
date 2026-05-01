@@ -64,9 +64,6 @@ func RenderPreview(p *plan.ReleasePlan, today string) string {
 		}
 		body = strings.ReplaceAll(body, "\n### ", "\n#### ")
 		body = strings.TrimSpace(body)
-		if strings.HasPrefix(body, "### ") {
-			body = "#" + body
-		}
 		if body != "" {
 			fmt.Fprintln(&b, body)
 		}

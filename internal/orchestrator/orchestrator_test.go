@@ -40,7 +40,7 @@ func TestRun_EmptyPlan_NoExistingPR_Noop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Action != "noop" {
+	if res.Action != orchestrator.ActionNoop {
 		t.Errorf("Action = %q, want noop", res.Action)
 	}
 	if len(f.PRs) != 0 {
@@ -66,7 +66,7 @@ func TestRun_EmptyPlan_ExistingPR_Closed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Action != "closed" {
+	if res.Action != orchestrator.ActionClosed {
 		t.Errorf("Action = %q, want closed", res.Action)
 	}
 	if got := f.PRs[pr.Number].State; got != "closed" {
@@ -84,7 +84,7 @@ func TestRun_NonEmptyPlan_NoExistingPR_Created(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Action != "created" {
+	if res.Action != orchestrator.ActionCreated {
 		t.Errorf("Action = %q, want created", res.Action)
 	}
 	if res.PR == nil {
@@ -121,7 +121,7 @@ func TestRun_NonEmptyPlan_ExistingPR_Updated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Action != "updated" {
+	if res.Action != orchestrator.ActionUpdated {
 		t.Errorf("Action = %q, want updated", res.Action)
 	}
 	if got := f.PRs[created.Number].Title; !strings.Contains(got, "foo v1.7.0") {
