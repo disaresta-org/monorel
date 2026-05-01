@@ -1,6 +1,6 @@
-name: New forge provider
-description: Request a new forge provider (GitLab, Gitea, Bitbucket, Forgejo, …).
-labels: [enhancement, forge-provider]
+name: New provider
+description: Request a new provider (GitLab, Gitea, Bitbucket, Forgejo, …).
+labels: [enhancement, provider]
 body:
   - type: input
     id: provider
@@ -21,7 +21,7 @@ body:
     attributes:
       label: API mapping
       description: |
-        How does this provider model the six forge.Client methods?
+        How does this provider model the six provider.Client methods?
           - GetDefaultBranch
           - FindOpenReleasePR
           - CreatePR

@@ -21,7 +21,7 @@ func ExampleRun() {
 	defer os.RemoveAll(dir)
 
 	_ = os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte(`
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -59,7 +59,7 @@ func ExampleRun_clean() {
 	defer os.RemoveAll(dir)
 
 	_ = os.WriteFile(filepath.Join(dir, "monorel.toml"), []byte(`
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 

@@ -22,10 +22,10 @@ Audit your current release-please setup:
 For each entry under `release-please`'s `packages`, create a `[packages."<name>"]` block with the same `tag_prefix` and `path`. Pick a `changelog` path:
 
 ```toml
-[forge]
-provider = "github"
-owner    = "acme"
-repo     = "widget"
+[provider]
+name = "github"
+owner = "acme"
+repo = "widget"
 
 [packages."github.com/acme/widget"]
 tag_prefix = ""

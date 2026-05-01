@@ -8,7 +8,7 @@
 //
 // Checks fall into four buckets:
 //
-//   - Schema: forge fields, package fields, no duplicate tag prefixes.
+//   - Schema: provider fields, package fields, no duplicate tag prefixes.
 //     Delegated to config.Config.Validate().
 //   - Filesystem: every package's Path exists, no two packages share a
 //     Path, every Changelog's parent directory exists.

@@ -1,17 +1,17 @@
-// Package forge is the version-control-host seam for monorel.
+// Package provider is the version-control-host seam for monorel.
 //
 // [Client] models the slice of host operations monorel needs:
 //   - upsert an open change request (PR / merge request)
 //   - create a release pointing at a tag with markdown notes
 //   - read repository metadata (default branch)
 //
-// Implementations live in subpackages under internal/forge.
+// Implementations live in subpackages under internal/provider.
 //
 // The provider name catalog (ProviderGitHub, KnownProviders,
 // IsKnownProvider, ResolveProvider) lives in the public config
 // package — those values are part of monorel.toml's schema and
 // external consumers may want to reference them.
-package forge
+package provider
 
 import (
 	"context"
@@ -42,8 +42,8 @@ func TokenFromEnv(provider string) string {
 	return ""
 }
 
-// Client is the slice of forge operations monorel needs. The methods
-// are intentionally narrow: a forge implementation only has to model
+// Client is the slice of provider operations monorel needs. The methods
+// are intentionally narrow: a provider implementation only has to model
 // PR lifecycle for the always-open release-PR pattern, plus per-tag
 // release creation, plus default-branch lookup.
 type Client interface {
@@ -74,7 +74,7 @@ type Client interface {
 	// git tag. monorel pushes tags first, then calls this once per
 	// tag with the matching CHANGELOG entry as the body.
 	//
-	// Forges without a first-class "release" concept (e.g. plain
+	// Providers without a first-class "release" concept (e.g. plain
 	// Bitbucket) may return an "unsupported" error; callers should
 	// treat that as advisory, not fatal.
 	CreateRelease(ctx context.Context, opts CreateReleaseOptions) (*Release, error)
@@ -123,7 +123,7 @@ type CreateReleaseOptions struct {
 	// CHANGELOG entry for this version).
 	Body string
 
-	// Prerelease toggles the forge's "Pre-release" flag. monorel
+	// Prerelease toggles the provider's "Pre-release" flag. monorel
 	// sets it to true for tags carrying a SemVer pre-release suffix
 	// (-rc.N, -beta.N, etc.).
 	Prerelease bool

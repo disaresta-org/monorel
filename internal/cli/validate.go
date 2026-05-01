@@ -20,7 +20,7 @@ func newValidateCmd() *cobra.Command {
 		Long: `Walks the configured packages, the changeset directory, and (optionally)
 the local tag namespace, surfacing every issue in one pass:
 
-  - Schema: forge fields, package fields, no duplicate tag prefixes.
+  - Schema: provider fields, package fields, no duplicate tag prefixes.
   - Filesystem: every package's path exists, no two packages share a
     path, every changelog's parent directory exists.
   - Changesets: every .changeset/*.md parses cleanly and only names

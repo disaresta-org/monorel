@@ -55,7 +55,7 @@ func runCmd(t *testing.T, argv ...string) (string, string, error) {
 }
 
 const singlePackageTOML = `
-[forge]
+[provider]
 owner = "x"
 repo = "y"
 

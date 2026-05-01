@@ -1,4 +1,4 @@
-package forge
+package provider
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 )
 
 // Fake is an in-memory [Client] for unit tests of the orchestrator
-// and any forge-aware higher layer. Provider-neutral: same fake
-// satisfies the contract for every forge implementation.
+// and any provider-aware higher layer. Provider-neutral: same fake
+// satisfies the contract for every provider implementation.
 type Fake struct {
 	mu sync.Mutex
 
@@ -130,10 +130,10 @@ func (f *Fake) CreatePR(_ context.Context, opts CreatePROptions) (*PullRequest, 
 		return nil, err
 	}
 	if opts.Title == "" {
-		return nil, errors.New("forge fake: CreatePR title is empty")
+		return nil, errors.New("provider fake: CreatePR title is empty")
 	}
 	if opts.HeadBranch == "" || opts.BaseBranch == "" {
-		return nil, errors.New("forge fake: CreatePR HeadBranch/BaseBranch required")
+		return nil, errors.New("provider fake: CreatePR HeadBranch/BaseBranch required")
 	}
 	num := f.nextPRNumber()
 	pr := &PullRequest{
@@ -142,7 +142,7 @@ func (f *Fake) CreatePR(_ context.Context, opts CreatePROptions) (*PullRequest, 
 		Title:   opts.Title,
 		Body:    opts.Body,
 		HeadRef: opts.HeadBranch,
-		HTMLURL: fmt.Sprintf("https://forge.fake/fake/pull/%d", num),
+		HTMLURL: fmt.Sprintf("https://provider.fake/fake/pull/%d", num),
 	}
 	f.PRs[num] = pr
 	cp := *pr
@@ -159,11 +159,11 @@ func (f *Fake) UpdatePR(_ context.Context, number int, opts UpdatePROptions) (*P
 		return nil, err
 	}
 	if opts.Title == nil && opts.Body == nil {
-		return nil, errors.New("forge fake: UpdatePR has nothing to change")
+		return nil, errors.New("provider fake: UpdatePR has nothing to change")
 	}
 	pr, ok := f.PRs[number]
 	if !ok {
-		return nil, fmt.Errorf("forge fake: PR #%d not found", number)
+		return nil, fmt.Errorf("provider fake: PR #%d not found", number)
 	}
 	if opts.Title != nil {
 		pr.Title = *opts.Title
@@ -184,7 +184,7 @@ func (f *Fake) ClosePR(_ context.Context, number int) error {
 	}
 	pr, ok := f.PRs[number]
 	if !ok {
-		return fmt.Errorf("forge fake: PR #%d not found", number)
+		return fmt.Errorf("provider fake: PR #%d not found", number)
 	}
 	pr.State = "closed"
 	return nil
@@ -198,13 +198,13 @@ func (f *Fake) CreateRelease(_ context.Context, opts CreateReleaseOptions) (*Rel
 		return nil, err
 	}
 	if opts.Tag == "" {
-		return nil, errors.New("forge fake: CreateRelease Tag is empty")
+		return nil, errors.New("provider fake: CreateRelease Tag is empty")
 	}
 	id := f.nextReleaseID()
 	rel := &Release{
 		ID:      id,
 		Tag:     opts.Tag,
-		HTMLURL: fmt.Sprintf("https://forge.fake/fake/releases/tag/%s", opts.Tag),
+		HTMLURL: fmt.Sprintf("https://provider.fake/fake/releases/tag/%s", opts.Tag),
 	}
 	f.Releases[id] = rel
 	cp := *rel

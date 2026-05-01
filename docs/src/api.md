@@ -38,8 +38,8 @@ These packages stay in `internal/` deliberately and are not part of the SemVer c
 | Internal package | Why it stays private |
 |------------------|----------------------|
 | `release` | Writes files, creates commits, creates tags. Promoting locks side-effect ordering. |
-| `orchestrator` | Forge-coupled (calls `forge.Client`); not useful without it. |
-| `forge` | Provider-specific interface; promoting locks every interface change as breaking. |
+| `orchestrator` | Provider-coupled (calls `provider.Client`); not useful without it. |
+| `provider` | Host-abstraction interface; promoting locks every interface change as breaking. |
 | `git` | Shell-out implementation detail. |
 | `cli` | Cobra wiring. The library is the API; the CLI is one consumer. |
 
@@ -76,7 +76,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// In a real tool, fetch tags from git or your forge. Here we use
+	// In a real tool, fetch tags from git or your provider's API. Here we use
 	// a hardcoded list for illustration.
 	tags := []string{"v1.6.1", "transports/zerolog/v1.6.1"}
 

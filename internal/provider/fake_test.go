@@ -1,4 +1,4 @@
-package forge_test
+package provider_test
 
 import (
 	"context"
@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/provider"
 )
 
 func TestFake_FindOpenReleasePR_None(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	got, err := f.FindOpenReleasePR(context.Background(), "monorel/release")
 	if err != nil {
 		t.Fatal(err)
@@ -21,10 +21,10 @@ func TestFake_FindOpenReleasePR_None(t *testing.T) {
 }
 
 func TestFake_PRLifecycle(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	ctx := context.Background()
 
-	pr, err := f.CreatePR(ctx, forge.CreatePROptions{
+	pr, err := f.CreatePR(ctx, provider.CreatePROptions{
 		Title:      "chore(release): publish",
 		Body:       "first body",
 		HeadBranch: "monorel/release",
@@ -49,7 +49,7 @@ func TestFake_PRLifecycle(t *testing.T) {
 	}
 
 	newBody := "updated body"
-	updated, err := f.UpdatePR(ctx, 1, forge.UpdatePROptions{Body: &newBody})
+	updated, err := f.UpdatePR(ctx, 1, provider.UpdatePROptions{Body: &newBody})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,21 +73,21 @@ func TestFake_PRLifecycle(t *testing.T) {
 }
 
 func TestFake_CreatePR_Validates(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	ctx := context.Background()
 
-	if _, err := f.CreatePR(ctx, forge.CreatePROptions{}); err == nil {
+	if _, err := f.CreatePR(ctx, provider.CreatePROptions{}); err == nil {
 		t.Error("expected error for empty options")
 	}
-	if _, err := f.CreatePR(ctx, forge.CreatePROptions{Title: "ok", HeadBranch: "h"}); err == nil {
+	if _, err := f.CreatePR(ctx, provider.CreatePROptions{Title: "ok", HeadBranch: "h"}); err == nil {
 		t.Error("expected error for missing BaseBranch")
 	}
 }
 
 func TestFake_UpdatePR_NotFound(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	body := "x"
-	_, err := f.UpdatePR(context.Background(), 999, forge.UpdatePROptions{Body: &body})
+	_, err := f.UpdatePR(context.Background(), 999, provider.UpdatePROptions{Body: &body})
 	if err == nil {
 		t.Fatal("expected error for missing PR")
 	}
@@ -97,9 +97,9 @@ func TestFake_UpdatePR_NotFound(t *testing.T) {
 }
 
 func TestFake_CreateRelease(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	ctx := context.Background()
-	r, err := f.CreateRelease(ctx, forge.CreateReleaseOptions{
+	r, err := f.CreateRelease(ctx, provider.CreateReleaseOptions{
 		Tag:        "transports/foo/v1.6.0",
 		Name:       "transports/foo v1.6.0",
 		Body:       "## Minor Changes\n- Feature.",
@@ -120,9 +120,9 @@ func TestFake_CreateRelease(t *testing.T) {
 }
 
 func TestFake_FailOnce(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	want := errors.New("synthetic")
-	f.FailNext = forge.FailOnce(want)
+	f.FailNext = provider.FailOnce(want)
 
 	if _, err := f.GetDefaultBranch(context.Background()); !errors.Is(err, want) {
 		t.Errorf("err = %v, want %v", err, want)
@@ -133,9 +133,9 @@ func TestFake_FailOnce(t *testing.T) {
 }
 
 func TestFake_FailOnNth(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	want := errors.New("synthetic")
-	f.FailNext = forge.FailOnNth(3, want)
+	f.FailNext = provider.FailOnNth(3, want)
 
 	for i := 1; i <= 5; i++ {
 		_, err := f.GetDefaultBranch(context.Background())
@@ -150,16 +150,16 @@ func TestFake_FailOnNth(t *testing.T) {
 }
 
 func TestFake_UpdatePR_NoOpRejected(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	ctx := context.Background()
-	if _, err := f.CreatePR(ctx, forge.CreatePROptions{
+	if _, err := f.CreatePR(ctx, provider.CreatePROptions{
 		Title:      "x",
 		HeadBranch: "h",
 		BaseBranch: "main",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	_, err := f.UpdatePR(ctx, 1, forge.UpdatePROptions{})
+	_, err := f.UpdatePR(ctx, 1, provider.UpdatePROptions{})
 	if err == nil {
 		t.Fatal("expected error for no-op patch")
 	}

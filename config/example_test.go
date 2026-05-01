@@ -17,8 +17,8 @@ func ExampleLoad() {
 	defer os.RemoveAll(dir)
 	path := filepath.Join(dir, "monorel.toml")
 	_ = os.WriteFile(path, []byte(`
-[forge]
-provider = "github"
+[provider]
+name = "github"
 owner = "acme"
 repo = "widget"
 
@@ -38,13 +38,13 @@ changelog = "transports/zerolog/CHANGELOG.md"
 		fmt.Println("error:", err)
 		return
 	}
-	fmt.Println("forge:", cfg.Forge.Provider, cfg.Forge.Owner+"/"+cfg.Forge.Repo)
+	fmt.Println("provider:", cfg.Provider.Name, cfg.Provider.Owner+"/"+cfg.Provider.Repo)
 	for _, name := range cfg.PackageNames() {
 		pkg := cfg.Packages[name]
 		fmt.Printf("- %s → tag %sv1.2.3\n", name, pkg.FullTagPrefix())
 	}
 	// Output:
-	// forge: github acme/widget
+	// provider: github acme/widget
 	// - github.com/acme/widget → tag v1.2.3
 	// - transports/zerolog → tag transports/zerolog/v1.2.3
 }

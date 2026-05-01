@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"monorel.disaresta.com/changeset"
-	"monorel.disaresta.com/internal/forge"
 	"monorel.disaresta.com/internal/orchestrator"
+	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/plan"
 	"monorel.disaresta.com/semver"
 )
@@ -32,10 +32,10 @@ func nonEmptyPlan() *plan.ReleasePlan {
 }
 
 func TestRun_EmptyPlan_NoExistingPR_Noop(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  &plan.ReleasePlan{},
-		Forge: f,
+		Plan:     &plan.ReleasePlan{},
+		Provider: f,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -49,8 +49,8 @@ func TestRun_EmptyPlan_NoExistingPR_Noop(t *testing.T) {
 }
 
 func TestRun_EmptyPlan_ExistingPR_Closed(t *testing.T) {
-	f := forge.NewFake()
-	pr, err := f.CreatePR(context.Background(), forge.CreatePROptions{
+	f := provider.NewFake()
+	pr, err := f.CreatePR(context.Background(), provider.CreatePROptions{
 		Title:      "stale",
 		HeadBranch: orchestrator.DefaultHeadBranch,
 		BaseBranch: "main",
@@ -60,8 +60,8 @@ func TestRun_EmptyPlan_ExistingPR_Closed(t *testing.T) {
 	}
 
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  &plan.ReleasePlan{},
-		Forge: f,
+		Plan:     &plan.ReleasePlan{},
+		Provider: f,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -75,11 +75,11 @@ func TestRun_EmptyPlan_ExistingPR_Closed(t *testing.T) {
 }
 
 func TestRun_NonEmptyPlan_NoExistingPR_Created(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  nonEmptyPlan(),
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     nonEmptyPlan(),
+		Provider: f,
+		Today:    "2026-04-30",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,8 +102,8 @@ func TestRun_NonEmptyPlan_NoExistingPR_Created(t *testing.T) {
 }
 
 func TestRun_NonEmptyPlan_ExistingPR_Updated(t *testing.T) {
-	f := forge.NewFake()
-	created, err := f.CreatePR(context.Background(), forge.CreatePROptions{
+	f := provider.NewFake()
+	created, err := f.CreatePR(context.Background(), provider.CreatePROptions{
 		Title:      "stale title",
 		Body:       "stale body",
 		HeadBranch: orchestrator.DefaultHeadBranch,
@@ -114,9 +114,9 @@ func TestRun_NonEmptyPlan_ExistingPR_Updated(t *testing.T) {
 	}
 
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  nonEmptyPlan(),
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     nonEmptyPlan(),
+		Provider: f,
+		Today:    "2026-04-30",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -132,14 +132,14 @@ func TestRun_NonEmptyPlan_ExistingPR_Updated(t *testing.T) {
 	}
 }
 
-func TestRun_BaseBranchLookedUpFromForge(t *testing.T) {
-	f := forge.NewFake()
+func TestRun_BaseBranchLookedUpFromProvider(t *testing.T) {
+	f := provider.NewFake()
 	f.DefaultBranch = "develop"
 
 	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  nonEmptyPlan(),
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     nonEmptyPlan(),
+		Provider: f,
+		Today:    "2026-04-30",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -157,25 +157,25 @@ func TestRun_BaseBranchLookedUpFromForge(t *testing.T) {
 }
 
 func TestRun_NilArgs(t *testing.T) {
-	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{Forge: forge.NewFake()}); err == nil {
+	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{Provider: provider.NewFake()}); err == nil {
 		t.Error("expected error for nil Plan")
 	}
 	if _, err := orchestrator.Run(context.Background(), orchestrator.Options{Plan: &plan.ReleasePlan{}}); err == nil {
-		t.Error("expected error for nil Forge")
+		t.Error("expected error for nil Provider")
 	}
 }
 
 func TestRun_MultiPackageTitle(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	p := nonEmptyPlan()
 	p.Releases = append(p.Releases, plan.PackageRelease{
 		Name: "bar", From: "v0.5.2", To: "v0.5.3", Bump: semver.Patch, Tag: "transports/bar/v0.5.3",
 	})
 
 	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
-		Plan:  p,
-		Forge: f,
-		Today: "2026-04-30",
+		Plan:     p,
+		Provider: f,
+		Today:    "2026-04-30",
 	})
 	if err != nil {
 		t.Fatal(err)

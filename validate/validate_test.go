@@ -58,8 +58,8 @@ func codes(findings []validate.Finding) []string {
 func TestRun_HappyPath(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
-provider = "github"
+[provider]
+name = "github"
 owner = "acme"
 repo = "widget"
 
@@ -85,10 +85,10 @@ changelog = "transports/zerolog/CHANGELOG.md"
 	}
 }
 
-func TestRun_ConfigInvalid_NoForgeOwner(t *testing.T) {
+func TestRun_ConfigInvalid_NoProviderOwner(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 repo = "widget"
 
 [packages."widget"]
@@ -101,7 +101,7 @@ changelog = "CHANGELOG.md"
 
 	got := validate.Run(validate.Inputs{ConfigPath: cfgPath})
 	if !validate.HasErrors(got) {
-		t.Fatalf("want HasErrors=true for missing forge.owner; got: %+v", got)
+		t.Fatalf("want HasErrors=true for missing provider.owner; got: %+v", got)
 	}
 	// config.Load wraps schema violations; we don't pin the exact
 	// error string but it must surface as config_invalid.
@@ -114,7 +114,7 @@ changelog = "CHANGELOG.md"
 func TestRun_PathMissing(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -141,7 +141,7 @@ changelog = "transports/missing/CHANGELOG.md"
 func TestRun_PathDuplicate(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -167,7 +167,7 @@ changelog = "CHANGELOG-ALIAS.md"
 func TestRun_PathNotDir(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -197,7 +197,7 @@ changelog = "ghost-file/CHANGELOG.md"
 func TestRun_ChangesetUnknownPackage(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -233,7 +233,7 @@ Typo in package name.
 func TestRun_ChangesetParseError(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -257,7 +257,7 @@ changelog = "CHANGELOG.md"
 func TestRun_ChangesetSkipsReservedNames(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -284,7 +284,7 @@ changelog = "CHANGELOG.md"
 func TestRun_ChangesetDirAbsent(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -309,7 +309,7 @@ func TestRun_MultipleFindingsSurfaceTogether(t *testing.T) {
 	// one run. The whole point of the command.
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -353,7 +353,7 @@ bad reference
 func TestRun_CheckTags_NonSemverTagWarns(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -391,7 +391,7 @@ func TestRun_CheckTags_PrefixIsThreaded(t *testing.T) {
 	// trusts the callback's output without re-filtering.
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -436,7 +436,7 @@ changelog = "transports/foo/CHANGELOG.md"
 func TestRun_CheckTags_NilCallback(t *testing.T) {
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 
@@ -470,7 +470,7 @@ func TestRun_FindingHasContext(t *testing.T) {
 	// Path (operators reading the JSON output use these to navigate).
 	cfgPath := setup(t, scenario{
 		configBody: `
-[forge]
+[provider]
 owner = "acme"
 repo = "widget"
 

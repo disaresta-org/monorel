@@ -16,7 +16,7 @@ import (
 // the filesystem or the network.
 func ExamplePlan() {
 	cfg := &config.Config{
-		Forge: config.ForgeConfig{Provider: "github", Owner: "acme", Repo: "widget"},
+		Provider: config.ProviderConfig{Name: "github", Owner: "acme", Repo: "widget"},
 		Packages: map[string]config.PackageConfig{
 			"transports/zerolog": {
 				TagPrefix: "transports/zerolog",
@@ -55,7 +55,7 @@ Adds Lazy() helper.
 // powers `monorel pre enter rc` -> `monorel release` cycles.
 func ExamplePlan_preRelease() {
 	cfg := &config.Config{
-		Forge: config.ForgeConfig{Provider: "github", Owner: "acme", Repo: "widget"},
+		Provider: config.ProviderConfig{Name: "github", Owner: "acme", Repo: "widget"},
 		Packages: map[string]config.PackageConfig{
 			"transports/zerolog": {
 				TagPrefix: "transports/zerolog",

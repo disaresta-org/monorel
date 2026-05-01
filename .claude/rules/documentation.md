@@ -70,9 +70,9 @@ Single-sentence bullets are fine and don't need this treatment.
 
 ### Casual users vs implementers
 
-Pages aimed at *callers* (getting-started, configuration, cli-reference, changesets) should not bleed implementation details that only a forge-provider author needs. That includes:
+Pages aimed at *callers* (getting-started, configuration, cli-reference, changesets) should not bleed implementation details that only a provider author needs. That includes:
 
-- The `forge.Client` interface shape.
+- The `provider.Client` interface shape.
 - The factory dispatch mechanism.
 - Internal package layout.
 
@@ -164,7 +164,7 @@ Update all of these in the same change:
 3. **`CHANGELOG.md`** at repo root: monorel maintains this; the entry lands when you ship the change via a `.changeset/*.md` file. Don't hand-edit `CHANGELOG.md`.
 4. **`AGENTS.md`** "Key Design Decisions" if the change introduces a new concept (rare).
 
-For a brand-new forge provider, also follow `AGENTS.md` "Adding a New Forge Provider".
+For a brand-new provider, also follow `AGENTS.md` "Adding a New Provider".
 
 ## When You Make a CLI Output Change
 

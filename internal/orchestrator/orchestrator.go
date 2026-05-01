@@ -5,7 +5,7 @@
 // invokes Run on every push to the default branch; non-empty plans
 // upsert the release PR, empty plans close it.
 //
-// Provider-neutral by virtue of using forge.Client. The branch
+// Provider-neutral by virtue of using provider.Client. The branch
 // management (creating / updating / pushing the release branch) is
 // delegated to the CI wrapper because it's a thin shell-out to git;
 // orchestrator only owns the plan-dependent decisions and the PR
@@ -17,7 +17,7 @@ import (
 	"errors"
 	"fmt"
 
-	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/internal/release"
 	"monorel.disaresta.com/plan"
 )
@@ -33,8 +33,8 @@ type Options struct {
 	// "close any open release PR".
 	Plan *plan.ReleasePlan
 
-	// Forge is the API client for the configured forge provider.
-	Forge forge.Client
+	// Provider is the API client for the configured provider.
+	Provider provider.Client
 
 	// HeadBranch is the source branch of the release PR (i.e. the
 	// branch the orchestrator pushed CHANGELOG-edit commits to).
@@ -42,7 +42,7 @@ type Options struct {
 	HeadBranch string
 
 	// BaseBranch is the merge target. Empty triggers a lookup via
-	// forge.Client.GetDefaultBranch.
+	// provider.Client.GetDefaultBranch.
 	BaseBranch string
 
 	// Today is the YYYY-MM-DD date used in rendered CHANGELOG
@@ -70,7 +70,7 @@ type Result struct {
 
 	// PR is the upserted (or closed) PR, when applicable. nil for
 	// [ActionNoop].
-	PR *forge.PullRequest
+	PR *provider.PullRequest
 }
 
 // Run drives one orchestration tick:
@@ -93,8 +93,8 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Plan == nil {
 		return nil, errors.New("orchestrator: nil Plan")
 	}
-	if opts.Forge == nil {
-		return nil, errors.New("orchestrator: nil Forge")
+	if opts.Provider == nil {
+		return nil, errors.New("orchestrator: nil Provider")
 	}
 
 	headBranch := opts.HeadBranch
@@ -102,7 +102,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		headBranch = DefaultHeadBranch
 	}
 
-	existing, err := opts.Forge.FindOpenReleasePR(ctx, headBranch)
+	existing, err := opts.Provider.FindOpenReleasePR(ctx, headBranch)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: find existing PR: %w", err)
 	}
@@ -111,7 +111,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		if existing == nil {
 			return &Result{Action: ActionNoop}, nil
 		}
-		if err := opts.Forge.ClosePR(ctx, existing.Number); err != nil {
+		if err := opts.Provider.ClosePR(ctx, existing.Number); err != nil {
 			return nil, fmt.Errorf("orchestrator: close PR #%d: %w", existing.Number, err)
 		}
 		return &Result{Action: ActionClosed, PR: existing}, nil
@@ -119,7 +119,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 
 	baseBranch := opts.BaseBranch
 	if baseBranch == "" {
-		baseBranch, err = opts.Forge.GetDefaultBranch(ctx)
+		baseBranch, err = opts.Provider.GetDefaultBranch(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("orchestrator: get default branch: %w", err)
 		}
@@ -129,7 +129,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	body := release.RenderPreview(opts.Plan, opts.Today)
 
 	if existing == nil {
-		pr, err := opts.Forge.CreatePR(ctx, forge.CreatePROptions{
+		pr, err := opts.Provider.CreatePR(ctx, provider.CreatePROptions{
 			Title:      title,
 			Body:       body,
 			HeadBranch: headBranch,
@@ -141,7 +141,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return &Result{Action: ActionCreated, PR: pr}, nil
 	}
 
-	pr, err := opts.Forge.UpdatePR(ctx, existing.Number, forge.UpdatePROptions{
+	pr, err := opts.Provider.UpdatePR(ctx, existing.Number, provider.UpdatePROptions{
 		Title: &title,
 		Body:  &body,
 	})

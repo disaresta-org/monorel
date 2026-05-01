@@ -8,17 +8,17 @@ import (
 	"github.com/spf13/cobra"
 
 	"monorel.disaresta.com/config"
-	"monorel.disaresta.com/internal/forge"
-	"monorel.disaresta.com/internal/forge/factory"
+	"monorel.disaresta.com/internal/provider"
+	"monorel.disaresta.com/internal/provider/factory"
 	"monorel.disaresta.com/internal/release"
 )
 
 func newPublishCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "publish",
-		Short: "Create one forge release per tag pointing at HEAD.",
+		Short: "Create one provider release per tag pointing at HEAD.",
 		Long: `Reads tags pointing at the current HEAD, matches each to a configured
-package, and creates a forge release using the matching CHANGELOG
+package, and creates a provider release using the matching CHANGELOG
 entry as the release notes. Pre-release tags (those carrying a SemVer
 pre-release suffix) are flagged accordingly.
 
@@ -26,10 +26,10 @@ This is the post-push step of a monorel release pipeline:
 
     monorel release       # write CHANGELOGs, delete changesets, commit, tag
     git push --follow-tags
-    monorel publish       # create one forge release per tag
+    monorel publish       # create one provider release per tag
 
 Splitting publish from release ensures tags are on the remote before
-the forge tries to validate them when creating the Release. Requires
+the provider tries to validate them when creating the Release. Requires
 the configured provider's auth token in the environment.`,
 		RunE: runPublish,
 	}
@@ -53,15 +53,15 @@ func runPublish(cmd *cobra.Command, _ []string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	provider := config.ResolveProvider(rt.Config.Forge.Provider)
-	token := forge.TokenFromEnv(provider)
+	providerName := config.ResolveProvider(rt.Config.Provider.Name)
+	token := provider.TokenFromEnv(providerName)
 	if token == "" {
-		envVars := strings.Join(forge.TokenEnvVars(provider), " or ")
-		return fmt.Errorf("publish: provider %q requires %s in the environment", provider, envVars)
+		envVars := strings.Join(provider.TokenEnvVars(providerName), " or ")
+		return fmt.Errorf("publish: provider %q requires %s in the environment", providerName, envVars)
 	}
-	client, err := factory.New(ctx, rt.Config.Forge, token)
+	client, err := factory.New(ctx, rt.Config.Provider, token)
 	if err != nil {
-		return fmt.Errorf("forge client: %w", err)
+		return fmt.Errorf("provider client: %w", err)
 	}
 
 	res := &release.Result{Releases: infos}

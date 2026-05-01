@@ -27,7 +27,7 @@ type Repo interface {
 
 	// TagsAtHead returns every tag pointing at the current HEAD
 	// commit (i.e. `git tag --points-at HEAD`). Used by `monorel
-	// publish` to find which tags to create forge Releases for.
+	// publish` to find which tags to create provider Releases for.
 	// Order is unspecified.
 	TagsAtHead() ([]string, error)
 

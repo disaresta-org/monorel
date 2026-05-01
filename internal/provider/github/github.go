@@ -1,8 +1,8 @@
-// Package github is the [forge.Client] implementation for GitHub.com
+// Package github is the [provider.Client] implementation for GitHub.com
 // and GitHub Enterprise (via the Host option).
 //
 // Wraps go-github + oauth2. Constructed via [New]; the returned
-// concrete type satisfies [forge.Client] structurally.
+// concrete type satisfies [provider.Client] structurally.
 package github
 
 import (
@@ -15,10 +15,10 @@ import (
 	gogh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
 
-	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/provider"
 )
 
-// Options configures a new GitHub-backed [forge.Client].
+// Options configures a new GitHub-backed [provider.Client].
 type Options struct {
 	// Owner is the GitHub user or org that owns the repo (e.g.
 	// "disaresta-org").
@@ -43,18 +43,18 @@ type Options struct {
 var ErrMissingOwnerRepo = errors.New("github: Owner and Repo are required")
 
 // client is the package-private concrete impl. Callers receive it as
-// [forge.Client] from [New], so the type itself is not exported.
+// [provider.Client] from [New], so the type itself is not exported.
 type client struct {
 	owner string
 	repo  string
 	gh    *gogh.Client
 }
 
-// New returns a [forge.Client] backed by go-github, authenticated by
+// New returns a [provider.Client] backed by go-github, authenticated by
 // opts.Token (empty token yields an unauthenticated client). When
 // opts.Host is non-empty, the client targets a GitHub Enterprise
 // installation.
-func New(ctx context.Context, opts Options) (forge.Client, error) {
+func New(ctx context.Context, opts Options) (provider.Client, error) {
 	if opts.Owner == "" || opts.Repo == "" {
 		return nil, ErrMissingOwnerRepo
 	}
@@ -87,7 +87,7 @@ func (c *client) GetDefaultBranch(ctx context.Context) (string, error) {
 	return *repo.DefaultBranch, nil
 }
 
-func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*forge.PullRequest, error) {
+func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*provider.PullRequest, error) {
 	opts := &gogh.PullRequestListOptions{
 		State:       "open",
 		Head:        fmt.Sprintf("%s:%s", c.owner, headBranch),
@@ -110,7 +110,7 @@ func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*for
 	}
 }
 
-func (c *client) CreatePR(ctx context.Context, opts forge.CreatePROptions) (*forge.PullRequest, error) {
+func (c *client) CreatePR(ctx context.Context, opts provider.CreatePROptions) (*provider.PullRequest, error) {
 	if opts.Title == "" {
 		return nil, errors.New("github: CreatePR title is empty")
 	}
@@ -129,7 +129,7 @@ func (c *client) CreatePR(ctx context.Context, opts forge.CreatePROptions) (*for
 	return convertPR(pr), nil
 }
 
-func (c *client) UpdatePR(ctx context.Context, number int, opts forge.UpdatePROptions) (*forge.PullRequest, error) {
+func (c *client) UpdatePR(ctx context.Context, number int, opts provider.UpdatePROptions) (*provider.PullRequest, error) {
 	patch := &gogh.PullRequest{}
 	dirty := false
 	if opts.Title != nil {
@@ -160,7 +160,7 @@ func (c *client) ClosePR(ctx context.Context, number int) error {
 	return nil
 }
 
-func (c *client) CreateRelease(ctx context.Context, opts forge.CreateReleaseOptions) (*forge.Release, error) {
+func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseOptions) (*provider.Release, error) {
 	if opts.Tag == "" {
 		return nil, errors.New("github: CreateRelease Tag is empty")
 	}
@@ -177,18 +177,18 @@ func (c *client) CreateRelease(ctx context.Context, opts forge.CreateReleaseOpti
 	if err != nil {
 		return nil, fmt.Errorf("create release %q: %w", opts.Tag, err)
 	}
-	return &forge.Release{
+	return &provider.Release{
 		ID:      rel.GetID(),
 		Tag:     rel.GetTagName(),
 		HTMLURL: rel.GetHTMLURL(),
 	}, nil
 }
 
-func convertPR(pr *gogh.PullRequest) *forge.PullRequest {
+func convertPR(pr *gogh.PullRequest) *provider.PullRequest {
 	if pr == nil {
 		return nil
 	}
-	out := &forge.PullRequest{
+	out := &provider.PullRequest{
 		Number:  pr.GetNumber(),
 		State:   strings.ToLower(pr.GetState()),
 		Title:   pr.GetTitle(),
