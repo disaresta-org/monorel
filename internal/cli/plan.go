@@ -33,7 +33,7 @@ func runPlan(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	p, err := plan.Plan(rt.Config, rt.Changesets, rt.Tags)
+	p, err := plan.Plan(rt.Config, rt.Changesets, rt.Tags, rt.PreState)
 	if err != nil {
 		return err
 	}

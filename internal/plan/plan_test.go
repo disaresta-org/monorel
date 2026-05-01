@@ -51,7 +51,7 @@ func TestPlan_SinglePackage_BumpLevels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p, err := plan.Plan(c, []*changeset.Changeset{
 				cs("a", map[string]semver.BumpLevel{"foo": tt.level}),
-			}, tags)
+			}, tags, nil)
 			if err != nil {
 				t.Fatalf("Plan: %v", err)
 			}
@@ -84,7 +84,7 @@ func TestPlan_MultiChangeset_MaxBump(t *testing.T) {
 		cs("c1", map[string]semver.BumpLevel{"foo": semver.Patch}),
 		cs("c2", map[string]semver.BumpLevel{"foo": semver.Minor}),
 		cs("c3", map[string]semver.BumpLevel{"foo": semver.Major}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestPlan_MultiPackageChangeset(t *testing.T) {
 			"foo": semver.Major,
 			"bar": semver.Patch,
 		}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestPlan_InitialRelease(t *testing.T) {
 			// No tags exist for "plugins/new".
 			p, err := plan.Plan(c, []*changeset.Changeset{
 				cs("first", map[string]semver.BumpLevel{"new": tt.level}),
-			}, []string{"unrelated/v1.0.0", "v9.9.9"})
+			}, []string{"unrelated/v1.0.0", "v9.9.9"}, nil)
 			if err != nil {
 				t.Fatalf("Plan: %v", err)
 			}
@@ -191,7 +191,7 @@ func TestPlan_UnknownPackage(t *testing.T) {
 	c := cfg(map[string]string{"foo": "transports/foo"})
 	_, err := plan.Plan(c, []*changeset.Changeset{
 		cs("bad", map[string]semver.BumpLevel{"nonexistent": semver.Patch}),
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for unknown package; got nil")
 	}
@@ -214,7 +214,7 @@ func TestPlan_PackageWithoutChangesetsNotInPlan(t *testing.T) {
 	// Only foo gets a changeset.
 	p, err := plan.Plan(c, []*changeset.Changeset{
 		cs("only-foo", map[string]semver.BumpLevel{"foo": semver.Patch}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestPlan_NonSemverTagsIgnored(t *testing.T) {
 	}
 	p, err := plan.Plan(c, []*changeset.Changeset{
 		cs("c", map[string]semver.BumpLevel{"foo": semver.Patch}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestPlan_PrereleaseTagsIgnored(t *testing.T) {
 	}
 	p, err := plan.Plan(c, []*changeset.Changeset{
 		cs("c", map[string]semver.BumpLevel{"foo": semver.Minor}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestPlan_BareTagRoot(t *testing.T) {
 	tags := []string{"v1.6.0", "v1.6.1", "transports/foo/v9.9.9"}
 	p, err := plan.Plan(c, []*changeset.Changeset{
 		cs("c", map[string]semver.BumpLevel{"core": semver.Minor}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestPlan_BareTagRoot(t *testing.T) {
 
 func TestPlan_EmptyChangesetsYieldsEmptyPlan(t *testing.T) {
 	c := cfg(map[string]string{"foo": "transports/foo"})
-	p, err := plan.Plan(c, nil, []string{"transports/foo/v1.0.0"})
+	p, err := plan.Plan(c, nil, []string{"transports/foo/v1.0.0"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestPlan_EmptyChangesetsYieldsEmptyPlan(t *testing.T) {
 }
 
 func TestPlan_NilConfig(t *testing.T) {
-	_, err := plan.Plan(nil, nil, nil)
+	_, err := plan.Plan(nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for nil config")
 	}
@@ -334,11 +334,11 @@ func TestPlan_DeterministicOrder(t *testing.T) {
 		cs("a-first", map[string]semver.BumpLevel{"baz": semver.Patch, "bar": semver.Patch}),
 		cs("z-last", map[string]semver.BumpLevel{"foo": semver.Patch}),
 	}
-	pa, err := plan.Plan(c, a, tags)
+	pa, err := plan.Plan(c, a, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pb, err := plan.Plan(c, b, tags)
+	pb, err := plan.Plan(c, b, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func TestPlan_SameChangesetCountedOnceInConsumed(t *testing.T) {
 			"foo": semver.Patch,
 			"bar": semver.Patch,
 		}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestPlan_BumpLevelMaxAcrossPackages(t *testing.T) {
 	p, err := plan.Plan(c, []*changeset.Changeset{
 		cs("a", map[string]semver.BumpLevel{"foo": semver.Patch}),
 		cs("b", map[string]semver.BumpLevel{"foo": semver.Major, "bar": semver.Minor}),
-	}, tags)
+	}, tags, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ func TestPlan_ErrorIsHelpful(t *testing.T) {
 	c := cfg(map[string]string{"foo": "transports/foo"})
 	_, err := plan.Plan(c, []*changeset.Changeset{
 		cs("messy", map[string]semver.BumpLevel{"foo": semver.Patch, "ghost": semver.Patch}),
-	}, nil)
+	}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

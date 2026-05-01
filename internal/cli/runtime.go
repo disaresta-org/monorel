@@ -36,6 +36,15 @@ type Runtime struct {
 
 	// Tags is every tag in the repository.
 	Tags []string
+
+	// PreState is the pre-release-mode state loaded from
+	// .changeset/pre.json, or nil when not in pre-release mode.
+	// Read-only; pre subcommands construct their own to write.
+	PreState *changeset.PreState
+
+	// ChangesetDir is the absolute path to .changeset/. The pre and
+	// release commands write/delete files here.
+	ChangesetDir string
 }
 
 // configPathFlag is the persistent --config flag value. Set on the
@@ -82,17 +91,24 @@ func loadRuntime(cmd *cobra.Command) (*Runtime, error) {
 		return nil, fmt.Errorf("load changesets: %w", err)
 	}
 
+	preState, err := changeset.LoadPreState(changesetDir)
+	if err != nil {
+		return nil, fmt.Errorf("load pre-release state: %w", err)
+	}
+
 	tags, err := repo.ListTags("")
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %w", err)
 	}
 
 	return &Runtime{
-		ConfigPath: configPath,
-		RepoDir:    repoDir,
-		Config:     cfg,
-		Repo:       repo,
-		Changesets: changesets,
-		Tags:       tags,
+		ConfigPath:   configPath,
+		RepoDir:      repoDir,
+		Config:       cfg,
+		Repo:         repo,
+		Changesets:   changesets,
+		Tags:         tags,
+		PreState:     preState,
+		ChangesetDir: changesetDir,
 	}, nil
 }

@@ -67,7 +67,9 @@ type PackageRelease struct {
 	// suffix; see [Plan]'s "pre-release tags" note.
 	From string
 
-	// To is the new version this release produces, e.g. "v1.7.0".
+	// To is the new version this release produces. Includes the
+	// pre-release suffix when [PackageRelease.Prerelease] is true,
+	// e.g. "v1.7.0-rc.2".
 	To string
 
 	// Bump is the level computed from the package's affecting
@@ -88,6 +90,16 @@ type PackageRelease struct {
 	// Initial is true when this is the package's first release (no
 	// prior tag exists for its tag_prefix).
 	Initial bool
+
+	// Prerelease is true when this release is part of a pre-release
+	// window (a [changeset.PreState] was passed to [Plan]). The
+	// release applier increments the per-package counter on the
+	// PreState after a successful release.
+	Prerelease bool
+
+	// PrereleaseCounter is the counter value baked into [To] when
+	// Prerelease is true. Zero for a stable release.
+	PrereleaseCounter int
 }
 
 // Plan computes the [ReleasePlan] from the given inputs.
@@ -99,8 +111,14 @@ type PackageRelease struct {
 //   - tags: every git tag in the repository, regardless of prefix.
 //     Tags that aren't valid semver are silently ignored. Pre-release
 //     tags (e.g. "v1.0.0-rc.1") are also ignored when picking the
-//     "current stable version" for a package — pre-release flow lives
-//     in a separate layer that may override From/To after Plan runs.
+//     "current stable version" for a package — pre-release flow uses
+//     pre to override From/To after the stable computation.
+//   - pre: optional pre-release state (nil means stable-mode planning).
+//     When non-nil, To is suffixed with "-<channel>.<counter>" and the
+//     [PackageRelease.Prerelease] / [PackageRelease.PrereleaseCounter]
+//     fields are populated. The counter for each package is read from
+//     pre.Counters; the planner does NOT mutate pre (the release
+//     applier increments after a successful release).
 //
 // Errors:
 //   - A changeset names a package not in cfg.Packages.
@@ -109,7 +127,7 @@ type PackageRelease struct {
 //
 // Determinism: Releases and Consumed are returned in sorted order so
 // repeated calls with the same inputs produce identical output.
-func Plan(cfg *config.Config, changesets []*changeset.Changeset, tags []string) (*ReleasePlan, error) {
+func Plan(cfg *config.Config, changesets []*changeset.Changeset, tags []string, pre *changeset.PreState) (*ReleasePlan, error) {
 	if cfg == nil {
 		return nil, errors.New("plan: nil config")
 	}
@@ -156,32 +174,47 @@ func Plan(cfg *config.Config, changesets []*changeset.Changeset, tags []string) 
 		}
 
 		from, fromOK := latestStableTagVersion(tags, pkgCfg)
-		var to string
+		var stableTo string
 		var initial bool
 		if fromOK {
 			next, err := semver.Apply(from, bump)
 			if err != nil {
 				return nil, fmt.Errorf("package %q: bump %s from %s: %w", pkg, bump, from, err)
 			}
-			to = next
+			stableTo = next
 		} else {
 			next, err := semver.InitialFromBump(bump)
 			if err != nil {
 				return nil, fmt.Errorf("package %q: initial release: %w", pkg, err)
 			}
-			to = next
+			stableTo = next
 			initial = true
 		}
 
+		to := stableTo
+		var preBool bool
+		var counter int
+		if pre != nil {
+			counter = pre.CounterFor(pkg)
+			suffixed, err := semver.ApplyPrerelease(stableTo, pre.Channel, counter)
+			if err != nil {
+				return nil, fmt.Errorf("package %q: pre-release suffix: %w", pkg, err)
+			}
+			to = suffixed
+			preBool = true
+		}
+
 		releases = append(releases, PackageRelease{
-			Name:       pkg,
-			Config:     pkgCfg,
-			From:       from,
-			To:         to,
-			Bump:       bump,
-			Tag:        pkgCfg.TagFor(to),
-			Changesets: css,
-			Initial:    initial,
+			Name:              pkg,
+			Config:            pkgCfg,
+			From:              from,
+			To:                to,
+			Bump:              bump,
+			Tag:               pkgCfg.TagFor(to),
+			Changesets:        css,
+			Initial:           initial,
+			Prerelease:        preBool,
+			PrereleaseCounter: counter,
 		})
 	}
 
