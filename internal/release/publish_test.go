@@ -7,27 +7,19 @@ import (
 	"testing"
 
 	"github.com/disaresta-org/monorel/internal/forge"
-	"github.com/disaresta-org/monorel/internal/plan"
 	"github.com/disaresta-org/monorel/internal/release"
 )
 
 func TestPublishReleases_AllTags(t *testing.T) {
 	f := forge.NewFake()
-	p := &plan.ReleasePlan{
-		Releases: []plan.PackageRelease{
-			{Name: "foo", Tag: "transports/foo/v1.6.0", To: "v1.6.0"},
-			{Name: "bar", Tag: "transports/bar/v0.5.3", To: "v0.5.3"},
-		},
-	}
 	res := &release.Result{
-		Tags: []string{"transports/foo/v1.6.0", "transports/bar/v0.5.3"},
-		Bodies: map[string]string{
-			"transports/foo/v1.6.0": "## [1.6.0]\n### Minor Changes\n- Feature.",
-			"transports/bar/v0.5.3": "## [0.5.3]\n### Patch Changes\n- Fix.",
+		Releases: []release.ReleaseInfo{
+			{Tag: "transports/foo/v1.6.0", Body: "## [1.6.0]\n### Minor Changes\n- Feature."},
+			{Tag: "transports/bar/v0.5.3", Body: "## [0.5.3]\n### Patch Changes\n- Fix."},
 		},
 	}
 
-	out, err := release.PublishReleases(context.Background(), f, res, p)
+	out, err := release.PublishReleases(context.Background(), f, res)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,16 +33,12 @@ func TestPublishReleases_AllTags(t *testing.T) {
 
 func TestPublishReleases_PrereleaseFlag(t *testing.T) {
 	f := forge.NewFake()
-	p := &plan.ReleasePlan{
-		Releases: []plan.PackageRelease{
-			{Name: "foo", Tag: "transports/foo/v1.6.0-rc.0", To: "v1.6.0-rc.0", Prerelease: true},
+	res := &release.Result{
+		Releases: []release.ReleaseInfo{
+			{Tag: "transports/foo/v1.6.0-rc.0", Body: "rc body", Prerelease: true},
 		},
 	}
-	res := &release.Result{
-		Tags:   []string{"transports/foo/v1.6.0-rc.0"},
-		Bodies: map[string]string{"transports/foo/v1.6.0-rc.0": "rc body"},
-	}
-	if _, err := release.PublishReleases(context.Background(), f, res, p); err != nil {
+	if _, err := release.PublishReleases(context.Background(), f, res); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.Releases) != 1 {
@@ -59,40 +47,40 @@ func TestPublishReleases_PrereleaseFlag(t *testing.T) {
 }
 
 func TestPublishReleases_PartialOnError(t *testing.T) {
+	// Three releases; the second CreateRelease call fails. The
+	// returned slice must contain the first (successful) release.
 	f := forge.NewFake()
-	p := &plan.ReleasePlan{
-		Releases: []plan.PackageRelease{
-			{Name: "foo", Tag: "transports/foo/v1.6.0", To: "v1.6.0"},
-			{Name: "bar", Tag: "transports/bar/v0.5.3", To: "v0.5.3"},
-		},
-	}
-	res := &release.Result{
-		Bodies: map[string]string{
-			"transports/foo/v1.6.0": "ok",
-			"transports/bar/v0.5.3": "ok",
-		},
-	}
-
 	wantErr := errors.New("synthetic")
-	f.FailNext = wantErr
+	f.FailNext = forge.FailOnNth(2, wantErr)
 
-	out, err := release.PublishReleases(context.Background(), f, res, p)
+	res := &release.Result{
+		Releases: []release.ReleaseInfo{
+			{Tag: "a", Body: "body a"},
+			{Tag: "b", Body: "body b"},
+			{Tag: "c", Body: "body c"},
+		},
+	}
+
+	out, err := release.PublishReleases(context.Background(), f, res)
 	if err == nil {
-		t.Fatal("expected error")
+		t.Fatal("expected error from second CreateRelease")
 	}
 	if !strings.Contains(err.Error(), "synthetic") {
 		t.Errorf("error %q should contain synthetic", err)
 	}
-	if len(out) != 0 {
-		t.Errorf("partial out len = %d, want 0", len(out))
+	if len(out) != 1 {
+		t.Errorf("partial out len = %d, want 1 (the first release succeeded)", len(out))
+	}
+	if len(out) > 0 && out[0].Tag != "a" {
+		t.Errorf("partial out[0].Tag = %q, want a", out[0].Tag)
+	}
+	if len(f.Releases) != 1 {
+		t.Errorf("fake has %d releases, want 1 (only 'a' was created)", len(f.Releases))
 	}
 }
 
-func TestPublishReleases_NilArgs(t *testing.T) {
-	if _, err := release.PublishReleases(context.Background(), forge.NewFake(), nil, &plan.ReleasePlan{}); err == nil {
+func TestPublishReleases_NilResult(t *testing.T) {
+	if _, err := release.PublishReleases(context.Background(), forge.NewFake(), nil); err == nil {
 		t.Error("expected error for nil result")
-	}
-	if _, err := release.PublishReleases(context.Background(), forge.NewFake(), &release.Result{}, nil); err == nil {
-		t.Error("expected error for nil plan")
 	}
 }

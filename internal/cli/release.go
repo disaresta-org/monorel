@@ -75,9 +75,9 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 	}
 
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "Released %d package(s) at %s:\n", len(res.Tags), short(res.CommitSHA))
-	for _, tag := range res.Tags {
-		fmt.Fprintf(out, "  %s\n", tag)
+	fmt.Fprintf(out, "Released %d package(s) at %s:\n", len(res.Releases), short(res.CommitSHA))
+	for _, r := range res.Releases {
+		fmt.Fprintf(out, "  %s\n", r.Tag)
 	}
 
 	if publish, _ := cmd.Flags().GetBool("publish"); publish {
@@ -95,9 +95,9 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("forge client: %w", err)
 		}
-		published, err := release.PublishReleases(ctx, client, res, p)
+		published, err := release.PublishReleases(ctx, client, res)
 		if err != nil {
-			fmt.Fprintf(out, "Created %d/%d releases before failing.\n", len(published), len(res.Tags))
+			fmt.Fprintf(out, "Created %d/%d releases before failing.\n", len(published), len(res.Releases))
 			return err
 		}
 		fmt.Fprintf(out, "Published %d release(s).\n", len(published))

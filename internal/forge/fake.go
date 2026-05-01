@@ -24,9 +24,12 @@ type Fake struct {
 	// auto-assigned starting at 1.
 	Releases map[int64]*Release
 
-	// FailNext, when non-nil, is returned by the next API call
-	// regardless of which one. Single-shot.
-	FailNext error
+	// FailNext, when non-nil, is consulted before every API call.
+	// Return non-nil to fail the call. The fake doesn't manage call
+	// counts; tests own the closure state. Use [FailOnce] for a
+	// one-shot failure or [FailOnNth] for "succeed N-1 times then
+	// fail."
+	FailNext func() error
 }
 
 // NewFake returns an empty Fake with DefaultBranch="main".
@@ -38,13 +41,39 @@ func NewFake() *Fake {
 	}
 }
 
-func (f *Fake) take() error {
-	if f.FailNext != nil {
-		err := f.FailNext
-		f.FailNext = nil
+// FailOnce returns a closure that fails once with err and then
+// succeeds. Use as [Fake.FailNext] for the common single-shot
+// fault-injection pattern.
+func FailOnce(err error) func() error {
+	fired := false
+	return func() error {
+		if fired {
+			return nil
+		}
+		fired = true
 		return err
 	}
-	return nil
+}
+
+// FailOnNth returns a closure that returns nil for the first n-1
+// calls, fails with err on the nth, then succeeds. Use to test
+// partial-success paths. n must be >= 1.
+func FailOnNth(n int, err error) func() error {
+	var calls int
+	return func() error {
+		calls++
+		if calls == n {
+			return err
+		}
+		return nil
+	}
+}
+
+func (f *Fake) take() error {
+	if f.FailNext == nil {
+		return nil
+	}
+	return f.FailNext()
 }
 
 func (f *Fake) nextPRNumber() int {
@@ -120,12 +149,17 @@ func (f *Fake) CreatePR(_ context.Context, opts CreatePROptions) (*PullRequest, 
 	return &cp, nil
 }
 
-// UpdatePR implements [Client.UpdatePR].
+// UpdatePR implements [Client.UpdatePR]. Mirrors the GitHub impl by
+// rejecting a no-op patch (both Title and Body nil); a no-op patch is
+// a programmer error rather than a silent success.
 func (f *Fake) UpdatePR(_ context.Context, number int, opts UpdatePROptions) (*PullRequest, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.take(); err != nil {
 		return nil, err
+	}
+	if opts.Title == nil && opts.Body == nil {
+		return nil, errors.New("forge fake: UpdatePR has nothing to change")
 	}
 	pr, ok := f.PRs[number]
 	if !ok {

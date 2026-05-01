@@ -119,15 +119,51 @@ func TestFake_CreateRelease(t *testing.T) {
 	}
 }
 
-func TestFake_FailNext(t *testing.T) {
+func TestFake_FailOnce(t *testing.T) {
 	f := forge.NewFake()
 	want := errors.New("synthetic")
-	f.FailNext = want
+	f.FailNext = forge.FailOnce(want)
 
 	if _, err := f.GetDefaultBranch(context.Background()); !errors.Is(err, want) {
 		t.Errorf("err = %v, want %v", err, want)
 	}
 	if _, err := f.GetDefaultBranch(context.Background()); err != nil {
-		t.Errorf("FailNext should be one-shot, got err: %v", err)
+		t.Errorf("FailOnce should fire once, got err on second call: %v", err)
+	}
+}
+
+func TestFake_FailOnNth(t *testing.T) {
+	f := forge.NewFake()
+	want := errors.New("synthetic")
+	f.FailNext = forge.FailOnNth(3, want)
+
+	for i := 1; i <= 5; i++ {
+		_, err := f.GetDefaultBranch(context.Background())
+		if i == 3 {
+			if !errors.Is(err, want) {
+				t.Errorf("call #3 err = %v, want %v", err, want)
+			}
+		} else if err != nil {
+			t.Errorf("call #%d err = %v, want nil", i, err)
+		}
+	}
+}
+
+func TestFake_UpdatePR_NoOpRejected(t *testing.T) {
+	f := forge.NewFake()
+	ctx := context.Background()
+	if _, err := f.CreatePR(ctx, forge.CreatePROptions{
+		Title:      "x",
+		HeadBranch: "h",
+		BaseBranch: "main",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.UpdatePR(ctx, 1, forge.UpdatePROptions{})
+	if err == nil {
+		t.Fatal("expected error for no-op patch")
+	}
+	if !strings.Contains(err.Error(), "nothing to change") {
+		t.Errorf("error = %q, want one mentioning nothing-to-change", err)
 	}
 }

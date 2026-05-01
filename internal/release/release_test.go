@@ -77,8 +77,8 @@ func TestApply_Stable_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if len(res.Tags) != 1 || res.Tags[0] != "transports/foo/v1.6.0" {
-		t.Errorf("Tags = %v, want [transports/foo/v1.6.0]", res.Tags)
+	if len(res.Releases) != 1 || res.Tags()[0] != "transports/foo/v1.6.0" {
+		t.Errorf("Tags = %v, want [transports/foo/v1.6.0]", res.Tags())
 	}
 	if res.CommitSHA == "" {
 		t.Error("CommitSHA empty")
@@ -131,8 +131,8 @@ func TestApply_Stable_InitialRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if len(res.Tags) != 1 || res.Tags[0] != "transports/foo/v0.1.0" {
-		t.Errorf("Tags = %v, want [transports/foo/v0.1.0]", res.Tags)
+	if len(res.Releases) != 1 || res.Tags()[0] != "transports/foo/v0.1.0" {
+		t.Errorf("Tags = %v, want [transports/foo/v0.1.0]", res.Tags())
 	}
 }
 
@@ -225,8 +225,8 @@ func TestApply_PreRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply pre: %v", err)
 	}
-	if res.Tags[0] != "transports/foo/v1.6.0-rc.0" {
-		t.Errorf("Tags = %v, want suffixed", res.Tags)
+	if res.Tags()[0] != "transports/foo/v1.6.0-rc.0" {
+		t.Errorf("Tags = %v, want suffixed", res.Tags())
 	}
 
 	// CHANGELOG should be UNTOUCHED (pre mode skips CHANGELOG writes).
@@ -305,8 +305,8 @@ changelog = "transports/bar/CHANGELOG.md"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Tags) != 2 {
-		t.Errorf("Tags = %v, want 2 entries", res.Tags)
+	if len(res.Releases) != 2 {
+		t.Errorf("Tags = %v, want 2 entries", res.Tags())
 	}
 	// Both CHANGELOGs bucket the change at their respective level.
 	foo, _ := os.ReadFile(filepath.Join(r.Dir, "transports/foo/CHANGELOG.md"))

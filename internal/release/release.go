@@ -56,19 +56,46 @@ type Options struct {
 }
 
 // Result reports what [Apply] did.
+//
+// Releases is the source of truth for what was published. By contract
+// it is fully populated when err == nil (i.e. there is no partial
+// Result). On any failure during tag creation, [Apply] returns
+// (nil, err); downstream consumers can rely on Result being complete.
 type Result struct {
 	// CommitSHA is the SHA of the release commit.
 	CommitSHA string
 
-	// Tags is every tag created, in plan order (sorted by package
-	// name). Same shape as the corresponding PackageRelease.Tag.
-	Tags []string
+	// Releases is one entry per created tag, in plan order (sorted by
+	// package name). The downstream forge publisher iterates this.
+	Releases []ReleaseInfo
+}
 
-	// Bodies is the rendered Keep-a-Changelog body for each tag,
-	// keyed by tag name. Always populated (in pre mode too) so a
-	// downstream GitHub-Releases publisher can use it as the
-	// release notes.
-	Bodies map[string]string
+// ReleaseInfo is the post-Apply view of a single package release.
+type ReleaseInfo struct {
+	// Tag is the full git tag created at HEAD, e.g.
+	// "transports/foo/v1.6.0" or "v1.6.0" (bare-tag root).
+	Tag string
+
+	// Body is the rendered Keep-a-Changelog entry for this release.
+	// Populated even in pre-release mode (where it isn't written to
+	// CHANGELOG.md) so a downstream GitHub-Releases publisher can
+	// use it as the release notes.
+	Body string
+
+	// Prerelease mirrors [plan.PackageRelease.Prerelease]: true for
+	// pre-release-mode tags. The forge publisher uses this to set
+	// each provider's "pre-release" flag on the created release.
+	Prerelease bool
+}
+
+// Tags returns the tag names from r.Releases in plan order. Convenient
+// for human-readable output.
+func (r *Result) Tags() []string {
+	out := make([]string, len(r.Releases))
+	for i, rel := range r.Releases {
+		out[i] = rel.Tag
+	}
+	return out
 }
 
 // ErrPlanEmpty is returned by [Apply] when the plan has no releases.
@@ -122,10 +149,13 @@ func Apply(opts Options) (*Result, error) {
 		today = changelog.Today()
 	}
 
-	bodies := make(map[string]string, len(opts.Plan.Releases))
+	releases := make([]ReleaseInfo, 0, len(opts.Plan.Releases))
 	for _, r := range opts.Plan.Releases {
-		entry := buildEntry(r, today)
-		bodies[r.Tag] = entry.Render()
+		releases = append(releases, ReleaseInfo{
+			Tag:        r.Tag,
+			Body:       buildEntry(r, today).Render(),
+			Prerelease: r.Prerelease,
+		})
 	}
 
 	if opts.PreState == nil {
@@ -147,15 +177,13 @@ func Apply(opts Options) (*Result, error) {
 		return nil, fmt.Errorf("release: read HEAD after commit: %w", err)
 	}
 
-	tags := make([]string, 0, len(opts.Plan.Releases))
 	for _, r := range opts.Plan.Releases {
 		if err := opts.Repo.CreateTag(r.Tag, fmt.Sprintf("Release %s %s", r.Name, r.To)); err != nil {
 			return nil, fmt.Errorf("release: create tag %q: %w", r.Tag, err)
 		}
-		tags = append(tags, r.Tag)
 	}
 
-	return &Result{CommitSHA: commitSHA, Tags: tags, Bodies: bodies}, nil
+	return &Result{CommitSHA: commitSHA, Releases: releases}, nil
 }
 
 // preflightTags errors if any planned tag already exists. Run before
