@@ -4,7 +4,7 @@
 # so releases produce bare `vX.Y.Z` tags (e.g. `v0.1.0`), the format
 # `go install monorel.disaresta.com/cmd/monorel@v0.1.0` expects.
 
-[forge]
+[provider]
 owner = "disaresta-org"
 repo = "monorel"
 

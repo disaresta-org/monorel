@@ -47,8 +47,8 @@ A mismatch would have meant either the manifest was stale (safe to proceed; mono
 Generated `monorel.toml` mirrors the previous manifest 1:1 in the same order so the diff reviews as "delete config, add toml":
 
 ```toml
-[forge]
-provider = "github"
+[provider]
+name = "github"
 owner    = "loglayer"
 repo     = "loglayer-go"
 

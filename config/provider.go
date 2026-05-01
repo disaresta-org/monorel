@@ -1,7 +1,7 @@
 package config
 
 // Provider names recognized by [IsKnownProvider]. These are the
-// values that `forge.provider` in monorel.toml can take. Adding a
+// values that `provider.name` in monorel.toml can take. Adding a
 // new provider: append to KnownProviders and wire up a forge
 // implementation under internal/forge/<name>/.
 const (
@@ -9,7 +9,7 @@ const (
 )
 
 // DefaultProvider is the value [ResolveProvider] returns for an
-// empty input. monorel.toml's `forge.provider` defaults to "github"
+// empty input. monorel.toml's `provider.name` defaults to "github"
 // when omitted.
 const DefaultProvider = ProviderGitHub
 

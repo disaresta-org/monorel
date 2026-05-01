@@ -32,7 +32,7 @@ monorel/
 │   ├── changelog/                Keep-a-Changelog writer (insert above first H2)
 │   ├── release/                  Apply ReleasePlan: write changelogs, tag, commit, publish
 │   ├── forge/                    Provider-neutral host API seam (PR upsert + release create)
-│   │   ├── factory/              Dispatch by config.ForgeConfig.Provider
+│   │   ├── factory/              Dispatch by config.ProviderConfig.Name
 │   │   └── github/               go-github implementation
 │   └── action/                   (Phase 9, not yet built) bot orchestrator
 ├── docs/                         VitePress documentation site
@@ -145,17 +145,21 @@ To cut a release:
 4. The release workflow runs `monorel release`, pushes tags, and
    publishes a GitHub Release per tag.
 
-## Adding a New Forge Provider
+## Adding a New Provider
 
-The provider seam is `internal/forge.Client`. To add `<name>`:
+The provider seam is `internal/forge.Client` (the package name stays
+"forge" internally even though the user-visible vocabulary is
+"provider" — `forge.Client` is the abstract host interface). To add
+`<name>`:
 
 1. Create `internal/forge/<name>/<name>.go` implementing the six
    methods on `forge.Client`. Return `forge.Client` from `New(opts)`,
    keep the concrete type unexported.
 2. Add a case to `internal/forge/factory.New` that constructs your
-   provider from `config.ForgeConfig`.
-3. Append your provider name to `forge.KnownProviders` and add a case
-   to `forge.TokenEnvVars` if the provider uses an env-var token.
+   provider from `config.ProviderConfig`.
+3. Append your provider name to `config.KnownProviders` (public) and
+   add a case to `forge.TokenEnvVars` (internal) if the provider uses
+   an env-var token.
 4. Add tests against `forge.NewFake` for any orchestration that uses
    provider-specific behavior. The provider's own impl typically
    doesn't need unit tests beyond constructor validation; live-API

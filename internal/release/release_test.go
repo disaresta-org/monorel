@@ -16,7 +16,7 @@ import (
 )
 
 const oneFooTOML = `
-[forge]
+[provider]
 owner = "x"
 repo = "y"
 
@@ -256,7 +256,7 @@ func TestApply_PreRelease(t *testing.T) {
 func TestApply_MultiPackage(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.WriteFile("monorel.toml", `
-[forge]
+[provider]
 owner = "x"
 repo = "y"
 

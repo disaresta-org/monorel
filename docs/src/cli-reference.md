@@ -93,7 +93,7 @@ monorel validate
 
 ### What it checks
 
-- **Schema**: forge fields, package fields, no two packages share a `tag_prefix`. Same checks `monorel plan` runs lazily; this command runs them eagerly and aggregates.
+- **Schema**: provider fields, package fields, no two packages share a `tag_prefix`. Same checks `monorel plan` runs lazily; this command runs them eagerly and aggregates.
 - **Filesystem**: every package's `path` exists relative to the config and is a directory; no two packages share a `path`; every `changelog`'s parent directory exists (the file itself can be absent — first release creates it).
 - **Changesets**: every `.changeset/*.md` parses cleanly (frontmatter shape, body present, recognized bump levels) and only names packages declared in `monorel.toml`. An unknown package key is the most common authoring typo and is surfaced as an error.
 - **Tags** (opt-in via `--check-tags`): for each package, every tag matching its prefix has a parseable semver version. Non-semver tags surface as warnings; the planner already ignores them, but `validate` lets operators clean up tag noise.
@@ -131,7 +131,7 @@ monorel release
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--publish` | bool | After tagging, create one forge release per tag using the configured forge provider. Requires the provider's auth token in the environment and that tags have been pushed. |
+| `--publish` | bool | After tagging, create one provider release per tag using the configured provider. Requires the provider's auth token in the environment and that tags have been pushed. |
 
 In stable mode `release` writes per-package CHANGELOG entries, deletes the consumed `.changeset/*.md` files, makes a single commit, and creates per-package annotated tags at HEAD.
 
@@ -207,4 +207,4 @@ monorel pre status
 ## Exit codes
 
 - `0`: success.
-- non-zero: an error occurred. The CLI prints the error to stderr; commands that do partial work (e.g. `release --publish` failing on the second forge release) print a "created N/M" line before the error.
+- non-zero: an error occurred. The CLI prints the error to stderr; commands that do partial work (e.g. `release --publish` failing on the second provider release) print a "created N/M" line before the error.

@@ -37,14 +37,14 @@ The bot orchestrator force-pushes a speculative-version branch (`monorel/release
 
 **Why:** Exhaustive table-driven tests are cheap. The planner is the load-bearing logic of the tool, and "pure function over plain data" is the cheapest way to give it the test coverage that matches its blast radius.
 
-## Provider-neutral forge seam
+## Provider-neutral host seam
 
-`internal/forge.Client` is a six-method interface (`GetDefaultBranch`, `FindOpenReleasePR`, `CreatePR`, `UpdatePR`, `ClosePR`, `CreateRelease`). The factory dispatches by `config.ForgeConfig.Provider` to a per-provider subpackage. GitHub today; GitLab / Gitea / Bitbucket / Forgejo by adding a subpackage.
+`internal/provider.Client` is a six-method interface (`GetDefaultBranch`, `FindOpenReleasePR`, `CreatePR`, `UpdatePR`, `ClosePR`, `CreateRelease`). The factory dispatches by `config.ProviderConfig.Name` to a per-provider subpackage. GitHub today; GitLab / Gitea / Bitbucket / Forgejo by adding a subpackage.
 
-**Why:** The interface is genuinely the slice of host operations monorel uses. Naming it `forge` (rather than `github`) is a small upfront cost that pays off the first time someone wants GitLab. Adding a new provider requires one new subpackage, one factory case, one entry in `forge.KnownProviders`, and one entry in `forge.TokenEnvVars`.
+**Why:** The interface is genuinely the slice of host operations monorel uses. Naming the abstraction `provider` (rather than `github`) is a small upfront cost that pays off the first time someone wants GitLab. Adding a new provider requires one new subpackage, one factory case, one entry in `config.KnownProviders`, and one entry in `provider.TokenEnvVars`.
 
 ::: tip CI wrappers are NOT abstracted in Go
-The orchestration layer is provider-neutral, but the **CI wrapper** (the `action.yml` for GitHub, the `.gitlab-ci.yml` for GitLab, etc.) is per-CI-system YAML. There's no shared schema across forges' CI systems; each wrapper is a thin shim that downloads the monorel binary and runs it. They live under `ci/<provider>/` at the repo root.
+The orchestration layer is provider-neutral, but the **CI wrapper** (the `action.yml` for GitHub, the `.gitlab-ci.yml` for GitLab, etc.) is per-CI-system YAML. There's no shared schema across providers' CI systems; each wrapper is a thin shim that downloads the monorel binary and runs it. They live under `ci/<provider>/` at the repo root.
 :::
 
 ## Hard cut to Keep-a-Changelog

@@ -1,17 +1,17 @@
-// Package forge is the version-control-host seam for monorel.
+// Package provider is the version-control-host seam for monorel.
 //
 // [Client] models the slice of host operations monorel needs:
 //   - upsert an open change request (PR / merge request)
 //   - create a release pointing at a tag with markdown notes
 //   - read repository metadata (default branch)
 //
-// Implementations live in subpackages under internal/forge.
+// Implementations live in subpackages under internal/provider.
 //
 // The provider name catalog (ProviderGitHub, KnownProviders,
 // IsKnownProvider, ResolveProvider) lives in the public config
 // package — those values are part of monorel.toml's schema and
 // external consumers may want to reference them.
-package forge
+package provider
 
 import (
 	"context"

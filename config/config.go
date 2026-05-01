@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -24,19 +25,19 @@ import (
 // package's filesystem path for sub-modules ("transports/zerolog") and
 // the import path for the root module ("github.com/foo/bar").
 type Config struct {
-	Forge    ForgeConfig              `toml:"forge"`
+	Provider ProviderConfig           `toml:"provider"`
 	Packages map[string]PackageConfig `toml:"packages"`
 }
 
-// ForgeConfig identifies the version-control host monorel manages
-// releases on (GitHub, GitLab, Gitea, etc.). The Provider field
-// selects the implementation; Owner/Repo (and Host for self-hosted
+// ProviderConfig identifies the version-control host monorel manages
+// releases on (GitHub, GitLab, Gitea, etc.). The Name field selects
+// the implementation; Owner/Repo (and Host for self-hosted
 // installations) identify the specific repository.
-type ForgeConfig struct {
-	// Provider selects the forge implementation. Recognized values:
+type ProviderConfig struct {
+	// Name selects the provider implementation. Recognized values:
 	// "github" (default when empty). Future: "gitlab", "gitea",
 	// "bitbucket", "forgejo".
-	Provider string `toml:"provider"`
+	Name string `toml:"name"`
 
 	// Owner is the user or org that owns the repo. On GitLab this
 	// maps to the namespace; on Bitbucket to the workspace.
@@ -115,12 +116,23 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		// Fail loudly on unknown keys so config typos don't silently
-		// degrade behavior. Future config additions go through proper
-		// schema evolution rather than tolerating drift.
+		// Catch the v0.2 → v0.3 migration explicitly so users get a
+		// targeted message instead of a generic "unknown keys" error.
+		// monorel renamed the [forge] section to [provider] and the
+		// inner `provider` field to `name`.
+		var legacyForge bool
 		keys := make([]string, len(undecoded))
 		for i, k := range undecoded {
 			keys[i] = k.String()
+			if keys[i] == "forge" || strings.HasPrefix(keys[i], "forge.") {
+				legacyForge = true
+			}
+		}
+		if legacyForge {
+			return nil, fmt.Errorf(
+				"parse %s: legacy [forge] section detected. monorel v0.3+ uses [provider]; rename the section and rename the inner `provider = \"github\"` field to `name = \"github\"`. See https://monorel.disaresta.com/configuration#provider",
+				path,
+			)
 		}
 		return nil, fmt.Errorf("parse %s: unknown keys: %v", path, keys)
 	}
@@ -138,15 +150,15 @@ var ErrNoPackages = errors.New("no packages declared")
 // Validate checks invariants beyond what TOML parsing enforces.
 // Returns the first violation encountered.
 func (c *Config) Validate() error {
-	if c.Forge.Owner == "" {
-		return errors.New("forge.owner is required")
+	if c.Provider.Owner == "" {
+		return errors.New("provider.owner is required")
 	}
-	if c.Forge.Repo == "" {
-		return errors.New("forge.repo is required")
+	if c.Provider.Repo == "" {
+		return errors.New("provider.repo is required")
 	}
-	if c.Forge.Provider != "" && !IsKnownProvider(c.Forge.Provider) {
-		return fmt.Errorf("forge.provider %q is not recognized (use one of: %v)",
-			c.Forge.Provider, KnownProviders)
+	if c.Provider.Name != "" && !IsKnownProvider(c.Provider.Name) {
+		return fmt.Errorf("provider.name %q is not recognized (use one of: %v)",
+			c.Provider.Name, KnownProviders)
 	}
 	if len(c.Packages) == 0 {
 		return ErrNoPackages

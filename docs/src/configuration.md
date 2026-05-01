@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: "monorel.toml reference: forge, per-package tag_prefix, path, changelog."
+description: "monorel.toml reference: provider, per-package tag_prefix, path, changelog."
 ---
 
 # Configuration
@@ -10,11 +10,11 @@ description: "monorel.toml reference: forge, per-package tag_prefix, path, chang
 ## File shape
 
 ```toml
-[forge]
-provider = "github"  # optional, default "github"
-owner    = "acme"
-repo     = "widget"
-host     = ""        # optional, for self-hosted (e.g. "gitlab.example.com")
+[provider]
+name  = "github"  # optional, default "github"
+owner = "acme"
+repo  = "widget"
+host  = ""        # optional, for self-hosted (e.g. "github.example.com")
 
 [packages."<name>"]
 tag_prefix = "..."
@@ -24,11 +24,13 @@ changelog  = "..."
 
 At least one `[packages."<name>"]` block is required.
 
-## `[forge]`
+## `[provider]`
+
+Identifies the version-control host that owns the repo. monorel is host-agnostic; the `[provider]` block selects which implementation to use and identifies the specific repository on that host.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `provider` | string | `"github"` | Forge implementation: currently only `"github"`. Future: `"gitlab"`, `"gitea"`. |
+| `name` | string | `"github"` | Provider implementation: currently only `"github"`. Future: `"gitlab"`, `"gitea"`, `"bitbucket"`, `"forgejo"`. |
 | `owner` | string | required | The user or org that owns the repo. On GitLab maps to namespace; on Bitbucket to workspace. |
 | `repo` | string | required | The repository name. |
 | `host` | string | `""` | API host for self-hosted installations. Empty means the provider's default public host. |
@@ -53,7 +55,7 @@ The main module at the repo root needs `tag_prefix = ""` (the empty string) for 
 ## Example: single-package repo
 
 ```toml
-[forge]
+[provider]
 owner = "acme"
 repo  = "widget"
 
@@ -68,7 +70,7 @@ Tags emerge as bare `vX.Y.Z` (`v1.0.0`, `v1.1.0`, ...). This is what `go install
 ## Example: monorepo with sub-modules
 
 ```toml
-[forge]
+[provider]
 owner = "loglayer"
 repo  = "loglayer-go"
 
@@ -94,23 +96,38 @@ Tags: `v1.6.0` (root), `transports/zerolog/v1.6.0`, `transports/zap/v1.6.0`. Eac
 
 `monorel` rejects misconfigurations at load time:
 
-- **`forge.owner is required`** / **`forge.repo is required`**: required fields.
-- **`forge.provider %q is not recognized`**: provider name is not in `forge.KnownProviders`. Today only `"github"` is supported.
+- **`provider.owner is required`** / **`provider.repo is required`**: required fields.
+- **`provider.name %q is not recognized`**: provider name is not in `config.KnownProviders`. Today only `"github"` is supported.
 - **`no packages declared`**: at least one `[packages."<name>"]` block is required.
 - **`packages.X: path is required`** / **`changelog is required`**: per-package required fields.
 - **`packages.X and packages.Y share tag_prefix Z`**: two packages mapping to the same tag namespace would silently collide. Pick distinct prefixes.
 - **`unknown keys: ...`**: unknown TOML keys fail loud, so config typos surface immediately.
 
-## Self-hosted forges
+## Self-hosted providers
 
 Set `host` to the API hostname:
 
 ```toml
-[forge]
-provider = "github"
-host     = "github.example.com"  # GitHub Enterprise
-owner    = "acme"
-repo     = "widget"
+[provider]
+name  = "github"
+host  = "github.example.com"  # GitHub Enterprise
+owner = "acme"
+repo  = "widget"
 ```
 
-The provider implementation maps `host` to its provider-specific URL shape (GitHub Enterprise uses `https://<host>/api/v3/`).
+The provider implementation maps `host` to its host-specific URL shape (GitHub Enterprise uses `https://<host>/api/v3/`).
+
+## Migration from v0.2 to v0.3
+
+The section name changed from `[forge]` to `[provider]`, and the inner `provider = "github"` field was renamed to `name = "github"`. monorel v0.3+ rejects the old shape with a targeted migration error pointing at this page. To migrate:
+
+```diff
+-[forge]
+-provider = "github"
++[provider]
++name = "github"
+ owner = "acme"
+ repo  = "widget"
+```
+
+The `provider`, `owner`, `repo`, and `host` semantics are unchanged.

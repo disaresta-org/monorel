@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"monorel.disaresta.com/internal/forge"
+	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/internal/release"
 )
 
 func TestPublishReleases_AllTags(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	res := &release.Result{
 		Releases: []release.ReleaseInfo{
 			{Tag: "transports/foo/v1.6.0", Body: "## [1.6.0]\n### Minor Changes\n- Feature."},
@@ -32,7 +32,7 @@ func TestPublishReleases_AllTags(t *testing.T) {
 }
 
 func TestPublishReleases_PrereleaseFlag(t *testing.T) {
-	f := forge.NewFake()
+	f := provider.NewFake()
 	res := &release.Result{
 		Releases: []release.ReleaseInfo{
 			{Tag: "transports/foo/v1.6.0-rc.0", Body: "rc body", Prerelease: true},
@@ -49,9 +49,9 @@ func TestPublishReleases_PrereleaseFlag(t *testing.T) {
 func TestPublishReleases_PartialOnError(t *testing.T) {
 	// Three releases; the second CreateRelease call fails. The
 	// returned slice must contain the first (successful) release.
-	f := forge.NewFake()
+	f := provider.NewFake()
 	wantErr := errors.New("synthetic")
-	f.FailNext = forge.FailOnNth(2, wantErr)
+	f.FailNext = provider.FailOnNth(2, wantErr)
 
 	res := &release.Result{
 		Releases: []release.ReleaseInfo{
@@ -80,7 +80,7 @@ func TestPublishReleases_PartialOnError(t *testing.T) {
 }
 
 func TestPublishReleases_NilResult(t *testing.T) {
-	if _, err := release.PublishReleases(context.Background(), forge.NewFake(), nil); err == nil {
+	if _, err := release.PublishReleases(context.Background(), provider.NewFake(), nil); err == nil {
 		t.Error("expected error for nil result")
 	}
 }

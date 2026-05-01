@@ -9,9 +9,9 @@ import (
 
 	"monorel.disaresta.com/changelog"
 	"monorel.disaresta.com/config"
-	"monorel.disaresta.com/internal/forge"
-	"monorel.disaresta.com/internal/forge/factory"
 	"monorel.disaresta.com/internal/orchestrator"
+	"monorel.disaresta.com/internal/provider"
+	"monorel.disaresta.com/internal/provider/factory"
 	"monorel.disaresta.com/internal/release"
 	"monorel.disaresta.com/plan"
 )
@@ -63,13 +63,13 @@ func runPreview(cmd *cobra.Command, _ []string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	provider := config.ResolveProvider(rt.Config.Forge.Provider)
-	token := forge.TokenFromEnv(provider)
+	providerName := config.ResolveProvider(rt.Config.Provider.Name)
+	token := provider.TokenFromEnv(providerName)
 	if token == "" {
-		envVars := strings.Join(forge.TokenEnvVars(provider), " or ")
-		return fmt.Errorf("--upsert: provider %q requires %s in the environment", provider, envVars)
+		envVars := strings.Join(provider.TokenEnvVars(providerName), " or ")
+		return fmt.Errorf("--upsert: provider %q requires %s in the environment", providerName, envVars)
 	}
-	client, err := factory.New(ctx, rt.Config.Forge, token)
+	client, err := factory.New(ctx, rt.Config.Provider, token)
 	if err != nil {
 		return fmt.Errorf("forge client: %w", err)
 	}

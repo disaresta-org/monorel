@@ -209,7 +209,7 @@ Cause: GitHub's anti-recursion rule suppresses `push: tags` events when the tag 
 
 ### `monorel publish` fails partway through
 
-monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags (each `CreateRelease` is idempotent on the tag name; the forge returns an error for duplicates, which the partial-success path surfaces). Tags from the prior `release` step are already in place.
+monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags (each `CreateRelease` is idempotent on the tag name; the provider returns an error for duplicates, which the partial-success path surfaces). Tags from the prior `release` step are already in place.
 
 ### "422 Field:head Code:invalid" on release-pr
 

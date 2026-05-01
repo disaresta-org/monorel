@@ -25,7 +25,7 @@ func writeFile(t *testing.T, dir, rel, content string) {
 func TestDiscoverPublishables_Empty(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Forge: config.ForgeConfig{Owner: "x", Repo: "y"},
+		Provider: config.ProviderConfig{Owner: "x", Repo: "y"},
 		Packages: map[string]config.PackageConfig{
 			"foo": {TagPrefix: "transports/foo", Path: "transports/foo", Changelog: "transports/foo/CHANGELOG.md"},
 		},
@@ -43,7 +43,7 @@ func TestDiscoverPublishables_Empty(t *testing.T) {
 func TestDiscoverPublishables_StableMode(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Forge: config.ForgeConfig{Owner: "x", Repo: "y"},
+		Provider: config.ProviderConfig{Owner: "x", Repo: "y"},
 		Packages: map[string]config.PackageConfig{
 			"foo": {TagPrefix: "transports/foo", Path: "transports/foo", Changelog: "transports/foo/CHANGELOG.md"},
 		},
@@ -97,7 +97,7 @@ func TestDiscoverPublishables_StableMode(t *testing.T) {
 func TestDiscoverPublishables_PreReleaseFlag(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Forge: config.ForgeConfig{Owner: "x", Repo: "y"},
+		Provider: config.ProviderConfig{Owner: "x", Repo: "y"},
 		Packages: map[string]config.PackageConfig{
 			"foo": {TagPrefix: "transports/foo", Path: "transports/foo", Changelog: "transports/foo/CHANGELOG.md"},
 		},
@@ -122,7 +122,7 @@ func TestDiscoverPublishables_PreReleaseFlag(t *testing.T) {
 func TestDiscoverPublishables_BareTagRoot(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{
-		Forge: config.ForgeConfig{Owner: "x", Repo: "y"},
+		Provider: config.ProviderConfig{Owner: "x", Repo: "y"},
 		Packages: map[string]config.PackageConfig{
 			"core": {TagPrefix: "", Path: ".", Changelog: "CHANGELOG.md"},
 			"foo":  {TagPrefix: "transports/foo", Path: "transports/foo", Changelog: "transports/foo/CHANGELOG.md"},

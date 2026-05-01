@@ -11,7 +11,7 @@ import (
 )
 
 const twoPackageTOML = `
-[forge]
+[provider]
 owner = "x"
 repo = "y"
 

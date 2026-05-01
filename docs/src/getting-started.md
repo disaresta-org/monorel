@@ -30,7 +30,7 @@ The pre-built binaries are unsigned (paid signing certificates aren't worth it f
 Pick a `monorel.toml` shape that matches your repo. The minimal single-package config:
 
 ```toml
-[forge]
+[provider]
 owner = "acme"
 repo  = "widget"
 
@@ -43,7 +43,7 @@ changelog  = "CHANGELOG.md"
 For a monorepo with sub-modules, add one `[packages."<name>"]` block per package:
 
 ```toml
-[forge]
+[provider]
 owner = "acme"
 repo  = "widget"
 
@@ -142,7 +142,7 @@ git push --follow-tags
 The [GitHub Action](/github-action) orchestrates the push step in CI.
 :::
 
-To also create one forge release per tag (with the rendered CHANGELOG entry as release notes), pass `--publish`:
+To also create one provider release per tag (with the rendered CHANGELOG entry as release notes), pass `--publish`:
 
 ```sh
 git push --follow-tags
