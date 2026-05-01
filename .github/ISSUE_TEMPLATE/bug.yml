@@ -1,0 +1,45 @@
+name: Bug report
+description: Something monorel does that's wrong, surprising, or breaks.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A few details up front make the fix faster.
+  - type: input
+    id: version
+    attributes:
+      label: monorel version
+      description: Output of `monorel --version`.
+      placeholder: "v0.1.2"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what you got.
+      placeholder: |
+        $ monorel plan
+        ... output ...
+
+        Expected: ...
+        Got: ...
+    validations:
+      required: true
+  - type: textarea
+    id: monorel-toml
+    attributes:
+      label: monorel.toml (relevant excerpt)
+      render: toml
+  - type: textarea
+    id: changeset
+    attributes:
+      label: Changeset content (if relevant)
+      description: The .changeset/*.md file(s) the bug surfaced with.
+      render: markdown
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: OS, runner type, links to a reproducing repo / PR / Action run.

@@ -55,21 +55,25 @@ monorel/
 ├── internal/
 │   ├── cli/                    cobra commands
 │   ├── config/                 monorel.toml schema
-│   ├── changeset/              .changeset/*.md format
+│   ├── changeset/              .changeset/*.md format + pre.json
 │   ├── semver/                 bump levels + initial-release rules
-│   ├── git/                    interface + shell-out impl + fake
+│   ├── git/                    interface + shell-out impl + fake + testutil
 │   ├── plan/                   pure-function planner (the core)
 │   ├── changelog/              Keep-a-Changelog generator
-│   ├── release/                applies a ReleasePlan
-│   ├── github/                 GitHub API client + fake
-│   └── action/                 always-open release PR orchestration
-├── action/                     composite GH Action wrapper
+│   ├── release/                applies a ReleasePlan; renders preview markdown
+│   ├── forge/                  provider-neutral host API seam
+│   │   ├── factory/            dispatch by config.ForgeConfig.Provider
+│   │   └── github/             go-github implementation
+│   └── orchestrator/           drives the always-open PR pattern
+├── ci/                         per-CI-system action wrappers
+│   └── github/action.yml       composite GitHub Action
 ├── docs/                       VitePress docs site
-├── testdata/                   fixture repos and golden files
 └── .changeset/                 self-hosted changesets
 ```
 
-The pure-function planner (`internal/plan`) is the heart. Most logic lives there as `(config, []Changeset, []Tag) -> ReleasePlan`; everything else is plumbing around it. Tests for `Plan` cover the version-math matrix exhaustively.
+The pure-function planner (`internal/plan`) is the heart. Most logic lives there as `(config, []Changeset, []Tag, *PreState) -> ReleasePlan`; everything else is plumbing around it. Tests for `Plan` cover the version-math matrix exhaustively.
+
+Adding a new forge provider: see [`AGENTS.md`](AGENTS.md) "Adding a New Forge Provider". The interface is `forge.Client` (six methods); each provider lives in `internal/forge/<name>/` and the factory dispatches by config.
 
 ## License
 

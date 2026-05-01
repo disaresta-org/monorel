@@ -1,0 +1,22 @@
+name: Feature request
+description: Something monorel could do that it doesn't yet.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Lead with the use case, not the implementation. We'll figure out the API together.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried?
+      description: Workarounds, related tools, prior art in changesets / release-please / Knope.
+  - type: textarea
+    id: shape
+    attributes:
+      label: Proposed shape (optional)
+      description: A rough CLI, config field, or workflow sketch.
+      render: shell

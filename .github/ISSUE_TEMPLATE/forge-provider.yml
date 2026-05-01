@@ -1,0 +1,36 @@
+name: New forge provider
+description: Request a new forge provider (GitLab, Gitea, Bitbucket, Forgejo, …).
+labels: [enhancement, forge-provider]
+body:
+  - type: input
+    id: provider
+    attributes:
+      label: Provider name
+      placeholder: "gitlab"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Use case + any unusual constraints (self-hosted only, custom auth, etc.).
+    validations:
+      required: true
+  - type: textarea
+    id: api-shape
+    attributes:
+      label: API mapping
+      description: |
+        How does this provider model the six forge.Client methods?
+          - GetDefaultBranch
+          - FindOpenReleasePR
+          - CreatePR
+          - UpdatePR
+          - ClosePR
+          - CreateRelease
+        Note any deviations (e.g. Bitbucket has no first-class Release).
+  - type: textarea
+    id: auth
+    attributes:
+      label: Auth shape
+      description: Token scopes, env-var conventions used in CI.

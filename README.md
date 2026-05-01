@@ -11,10 +11,10 @@ A changesets-style release tool for multi-module Go monorepos.
 
 ## Why monorel?
 
-The Go ecosystem has a real gap: no battle-tested off-the-shelf release tool fits "main module at repo root with bare `vX.Y.Z` tags + sub-modules with `<path>/vX.Y.Z` tags" cleanly.
+The Go ecosystem has a real gap: no battle-tested release tool fits "main module at repo root with bare `vX.Y.Z` tags + sub-modules with `<path>/vX.Y.Z` tags" cleanly.
 
 - **release-please** works with friction (`Release-As:` footers leak across packages, full-history scans cause initial-release surprises, squash-merge strips footers).
-- **Knope** doesn't support per-package tag-prefix overrides (so it can't do bare-tag root + prefixed sub-modules).
+- **Knope** doesn't support per-package tag-prefix overrides, so it can't do bare-tag root + prefixed sub-modules.
 - **changesets** is JS-native and needs synthetic `package.json` files in every Go module.
 
 `monorel` fills that gap. Read [the introduction](https://disaresta-org.github.io/monorel/introduction) for the full comparison.
@@ -25,35 +25,36 @@ The Go ecosystem has a real gap: no battle-tested off-the-shelf release tool fit
 # 1. Install
 go install github.com/disaresta-org/monorel/cmd/monorel@latest
 
-# 2. Scaffold config in your repo
-monorel init
+# 2. Author a changeset describing this PR
+monorel add --package "transports/zerolog:minor" --message "Adds Lazy() helper."
 
-# 3. Add a changeset describing what's about to release
-monorel add
-
-# 4. Preview what will release
+# 3. Preview the next release
 monorel plan
 
-# 5. Apply (writes CHANGELOGs, tags, pushes)
+# 4. Apply locally (writes CHANGELOGs, deletes consumed changesets,
+#    creates the release commit and tags). Push is your job.
 monorel release
+git push --follow-tags
 ```
+
+For a `monorel.toml` example and full walkthrough, see [Getting Started](https://disaresta-org.github.io/monorel/getting-started).
 
 ## Documentation
 
-- [Introduction](https://disaresta-org.github.io/monorel/introduction) — why monorel, design tradeoffs.
-- [Getting Started](https://disaresta-org.github.io/monorel/getting-started) — install, init, first release.
-- [Configuration](https://disaresta-org.github.io/monorel/configuration) — `monorel.toml` reference.
-- [CLI](https://disaresta-org.github.io/monorel/cli-reference) — every command and flag.
-- [Changesets](https://disaresta-org.github.io/monorel/changesets) — file format, conventions.
-- [GitHub Action](https://disaresta-org.github.io/monorel/github-action) — always-open PR setup.
+- [Introduction](https://disaresta-org.github.io/monorel/introduction): why monorel, design tradeoffs.
+- [Getting Started](https://disaresta-org.github.io/monorel/getting-started): install, init, first release.
+- [Configuration](https://disaresta-org.github.io/monorel/configuration): `monorel.toml` reference.
+- [CLI](https://disaresta-org.github.io/monorel/cli-reference): every command and flag.
+- [Changesets](https://disaresta-org.github.io/monorel/changesets): file format, conventions.
+- [GitHub Action](https://disaresta-org.github.io/monorel/github-action): always-open PR setup.
+- [Bootstrapping](https://disaresta-org.github.io/monorel/bootstrap): one-time procedure for the first release.
 
 ## GitHub Action
 
 ```yaml
-- uses: disaresta-org/monorel-action@v1
+- uses: disaresta-org/monorel/ci/github@v1
   with:
-    command: pr      # or 'release' on release-PR merge
-    token: ${{ secrets.GITHUB_TOKEN }}
+    command: pr      # or 'release' on the release-PR merge / dispatch
 ```
 
 Full setup in the [GitHub Action docs](https://disaresta-org.github.io/monorel/github-action).
@@ -70,7 +71,7 @@ make build         # builds ./monorel
 make test-race     # full test suite under -race
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev-loop details.
 
 ## License
 
