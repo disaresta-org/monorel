@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: "Per-command reference for monorel: add, plan, status, validate, apply, tag, release, preview, publish, pre, init."
+description: "Per-command reference for monorel: add, plan, status, validate, apply, tag, release, preview, publish, pre, init, doctor."
 ---
 
 # CLI Reference
@@ -288,6 +288,56 @@ monorel init
 | `--force` | bool | Overwrite an existing `monorel.toml` (otherwise the command refuses). |
 
 Refuses to run without at least one `go.mod`. Existing `.changeset/README.md` is preserved; only created when missing.
+
+## `monorel doctor`
+
+Diagnose repository state issues monorel's planner won't catch on its own. Today the only built-in check is `revived-changeset`: a `.changeset/*.md` file currently on disk that a previous `chore(release):` commit deleted, indicating a stale-branch + squash-merge revival. The next release would re-ship the same content under a new version.
+
+```sh
+monorel doctor
+# No findings. Repository state looks healthy.
+
+monorel doctor --json
+# { "findings": [...], "errors": 0, "warnings": 0 }
+```
+
+When something's wrong:
+
+```sh
+monorel doctor
+# ERRORS:
+#   - revived-changeset: .changeset/foo.md was deleted by a previous
+#     chore(release) commit but is back on disk; likely cause:
+#     stale-branch + squash-merge revived it. Delete the file and
+#     the next release plan will re-evaluate. [.changeset/foo.md]
+#
+# 1 error(s), 0 warning(s).
+echo $?
+# 1
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--json` | bool | Emit findings as JSON. Schema: `{ findings: [{severity, check_name, path, message}], errors, warnings }`. |
+
+Exit codes:
+
+- `0`: no findings.
+- `1`: one or more error-severity findings.
+
+Mechanically, doctor walks `git log --diff-filter=D --grep='chore(release):'` to build the set of changeset filenames previous releases consumed, then intersects with the live `.changeset/` directory. The check costs one `git log` invocation and is cheap to run on every PR.
+
+::: tip Wire it into CI
+The check is most useful as a pre-merge gate: CI checks out fresh against the actual base, so the git-log scan always reflects current main. Each integration page documents the workflow file:
+
+- [GitHub](/integrations/github#doctor-yml-pre-merge-sanity-check-recommended)
+- [Gitea / Forgejo](/integrations/gitea) (under Workflows)
+- [GitLab](/integrations/gitlab#workflows) (the `doctor` stage in the canonical `.gitlab-ci.yml`)
+
+Local pre-commit / pre-push hooks are NOT a good fit: the bug class doctor catches arises from GitHub's squash-merge taking a stale branch tree, which the local branch state can't observe directly. CI on PRs is the right gate.
+:::
+
+The same logic is exposed as a Go library at [`monorel.disaresta.com/doctor`](/api#doctor) for callers who want to embed the check in custom CI without shelling out.
 
 ## Persistent flags
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -174,6 +175,47 @@ func (e *Exec) IsClean() (bool, error) {
 		return false, err
 	}
 	return strings.TrimSpace(out) == "", nil
+}
+
+// DeletedFilesInCommitsMatching implements
+// [Repo.DeletedFilesInCommitsMatching].
+//
+// Shells out to `git log --diff-filter=D --name-only --format=
+// --fixed-strings --grep=<messageGrep>`, then dedupes/sorts the
+// result. --fixed-strings makes the grep a literal substring match;
+// --format= suppresses the commit header so stdout is just deleted
+// paths.
+func (e *Exec) DeletedFilesInCommitsMatching(messageGrep string) ([]string, error) {
+	if messageGrep == "" {
+		return nil, errors.New("messageGrep is empty")
+	}
+	out, err := e.run("log",
+		"--diff-filter=D",
+		"--name-only",
+		"--format=",
+		"--fixed-strings",
+		"--grep="+messageGrep,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return dedupSorted(splitLines(out)), nil
+}
+
+// dedupSorted returns a copy of in with duplicates removed and the
+// remaining elements sorted lexicographically.
+func dedupSorted(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // splitLines splits raw on '\n', trimming carriage returns, and drops

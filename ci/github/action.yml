@@ -1,5 +1,5 @@
 name: monorel
-description: "Run monorel against the current repo. Commands: pr (upsert release PR), release (cut a release)."
+description: "Run monorel against the current repo. Commands: pr (upsert release PR), release (cut a release), doctor (diagnose repo state)."
 author: disaresta-org
 branding:
   icon: tag
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   command:
-    description: "Either 'pr' (upsert / close the always-open release PR) or 'release' (cut a release on the current commit, push tags, publish provider releases)."
+    description: "One of 'pr' (upsert / close the always-open release PR), 'release' (cut a release on the current commit, push tags, publish provider releases), or 'doctor' (diagnose repository state; exit non-zero on error-severity findings)."
     required: true
   version:
     description: "monorel version to run, e.g. v1.2.3. Defaults to 'latest'."
@@ -164,8 +164,15 @@ runs:
             git push --follow-tags
             monorel publish --config "$CONFIG"
             ;;
+          doctor)
+            # Pre-merge sanity check. Today's only built-in check
+            # surfaces stale-branch + squash-merge changeset revivals.
+            # Exits non-zero on error-severity findings, which fails
+            # the workflow step so the PR can't merge until cleaned up.
+            monorel doctor --config "$CONFIG"
+            ;;
           *)
-            echo "::error::unknown command: $COMMAND (expected 'pr' or 'release')"
+            echo "::error::unknown command: $COMMAND (expected 'pr', 'release', or 'doctor')"
             exit 1
             ;;
         esac

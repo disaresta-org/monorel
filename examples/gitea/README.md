@@ -8,7 +8,8 @@ gitea/
 ├── .changeset/README.md
 └── .gitea/workflows/
     ├── release-pr.yml
-    └── release.yml
+    ├── release.yml
+    └── doctor.yml      (recommended: pre-merge sanity check)
 ```
 
 Copy these files into your repo, set `provider.host` to your instance (or `codeberg.org`, etc.), replace `acme/widget` with your owner/repo, then commit and push to `main`. The `release-pr` workflow opens / updates the always-open release MR; merging it triggers `release.yml`.

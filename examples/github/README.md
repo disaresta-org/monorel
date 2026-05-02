@@ -8,7 +8,8 @@ github/
 ├── .changeset/README.md
 └── .github/workflows/
     ├── release-pr.yml
-    └── release.yml
+    ├── release.yml
+    └── doctor.yml      (recommended: pre-merge sanity check)
 ```
 
 Copy these files into your repo, replace `acme/widget` with your owner/repo and the package keys with your own (`monorel init` will scaffold this from your `go.mod` files), then commit and push to `main`. The `release-pr` workflow opens / updates the always-open release PR; merging it triggers `release.yml` which creates tags and publishes GitHub Releases.

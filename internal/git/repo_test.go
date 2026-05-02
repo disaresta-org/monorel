@@ -14,6 +14,104 @@ import (
 // Tests target both the Exec impl (via testutil.NewRepo) and the
 // Fake impl, since they must satisfy the same Repo contract.
 
+func TestExec_DeletedFilesInCommitsMatching(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.WriteFile(".changeset/a.md", "a")
+	r.WriteFile(".changeset/b.md", "b")
+	r.WriteFile(".changeset/keep.md", "keep")
+	r.WriteFile("README.md", "readme")
+	r.AddCommit("seed", ".changeset/a.md", ".changeset/b.md", ".changeset/keep.md", "README.md")
+
+	if err := r.Repo.Remove(".changeset/a.md", ".changeset/b.md"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if err := r.Repo.Commit("chore(release): pkg v1.0.0\n\nmonorel-Release: pkg v1.0.0\n"); err != nil {
+		t.Fatalf("release commit: %v", err)
+	}
+
+	// An unrelated commit that also deletes a file should NOT be
+	// surfaced (its message doesn't match the grep).
+	if err := r.Repo.Remove("README.md"); err != nil {
+		t.Fatalf("remove README: %v", err)
+	}
+	if err := r.Repo.Commit("chore: drop the readme"); err != nil {
+		t.Fatalf("readme commit: %v", err)
+	}
+
+	got, err := r.Repo.DeletedFilesInCommitsMatching("chore(release):")
+	if err != nil {
+		t.Fatalf("DeletedFilesInCommitsMatching: %v", err)
+	}
+	want := []string{".changeset/a.md", ".changeset/b.md"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("[%d]: got %q, want %q", i, got[i], w)
+		}
+	}
+}
+
+func TestExec_DeletedFilesInCommitsMatching_RejectsEmptyGrep(t *testing.T) {
+	r := testutil.NewRepo(t)
+	if _, err := r.Repo.DeletedFilesInCommitsMatching(""); err == nil {
+		t.Error("expected error for empty grep")
+	}
+}
+
+func TestFake_DeletedFilesInCommitsMatching(t *testing.T) {
+	f := git.NewFake()
+
+	// Commit 1: matching message, two deletions.
+	if err := f.Remove(".changeset/x.md", ".changeset/y.md"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if err := f.Commit("chore(release): pkg v1.0.0"); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	// Commit 2: non-matching message, deletion that should be excluded.
+	if err := f.Remove("README.md"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if err := f.Commit("chore: cleanup"); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	// Commit 3: matching message, one further deletion (dedup test
+	// when combined with commit 1).
+	if err := f.Remove(".changeset/x.md", ".changeset/z.md"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if err := f.Commit("chore(release): pkg v1.1.0"); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	got, err := f.DeletedFilesInCommitsMatching("chore(release):")
+	if err != nil {
+		t.Fatalf("DeletedFilesInCommitsMatching: %v", err)
+	}
+	want := []string{".changeset/x.md", ".changeset/y.md", ".changeset/z.md"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("[%d]: got %q, want %q", i, got[i], w)
+		}
+	}
+}
+
+func TestFake_DeletedFilesInCommitsMatching_FailNext(t *testing.T) {
+	f := git.NewFake()
+	want := errors.New("boom")
+	f.FailNext = want
+	if _, err := f.DeletedFilesInCommitsMatching("anything"); !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+}
+
 func TestExec_ListTagsAndHead(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Tag("v1.0.0", "")
