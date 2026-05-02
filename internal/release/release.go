@@ -367,8 +367,9 @@ func configFromPlan(p *plan.ReleasePlan) *config.Config {
 	return &config.Config{Packages: pkgs}
 }
 
-// applyStable writes CHANGELOG entries, deletes consumed changesets,
-// and stages everything. Caller does the commit.
+// applyStable writes CHANGELOG entries, rewrites go.mod files for
+// the released sub-modules, deletes consumed changesets, and stages
+// everything. Caller does the commit.
 func applyStable(opts Options, today string) error {
 	for _, r := range opts.Plan.Releases {
 		entry := buildEntry(r, today)
@@ -385,6 +386,13 @@ func applyStable(opts Options, today string) error {
 		if err := opts.Repo.Add(r.Config.Changelog); err != nil {
 			return fmt.Errorf("release: stage %s: %w", r.Config.Changelog, err)
 		}
+	}
+
+	// Strip dev-only sibling replaces and pin sibling require
+	// versions in each released package's go.mod, so the published
+	// modules are clean for downstream consumers.
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		return err
 	}
 
 	// Delete the consumed changesets. The planner's Consumed list

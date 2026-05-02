@@ -23,6 +23,7 @@ The off-the-shelf options each have a sharp edge for this layout.
 | Local CLI (works off-CI) | ⚠️ via npm package | ✅ | ✅ | ✅ |
 | Bare-tag root (`vX.Y.Z`) | ✅ | n/a (JS layout) | ❌ prefixes mandatory | ✅ |
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
+| Cleans `go.mod` for proxy publish | ❌ | n/a (JS) | ❌ | ✅ |
 | Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
 | Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab |
@@ -59,6 +60,7 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 - **Always-open release PR.** The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Merging the PR runs `monorel release` on the merge commit, pushes tags, and publishes per-tag releases.
 - **Pre-release support.** `monorel pre enter rc` switches the repo to release-candidate mode; subsequent releases append `-rc.N` to the next stable version and increment a per-package counter. `pre exit` returns to stable.
 - **Provider-neutral.** GitHub, Gitea / Forgejo, and GitLab today; Bitbucket by adding a subpackage. The orchestrator never sees provider-specific types.
+- **Clean `go.mod` at release time.** Sub-modules carry dev `replace` directives and placeholder `require` versions for local cross-module work; monorel strips and pins them in the release commit so downstream consumers' `go mod tidy` resolves the published versions.
 
 ## When monorel is overkill
 
