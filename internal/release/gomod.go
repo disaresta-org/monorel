@@ -20,8 +20,9 @@ import (
 //     left intact.
 //  2. Rewrite require lines for sibling packages to the planned
 //     release version. Sub-modules hold each other's require version
-//     at a placeholder pseudo-version (e.g. v0.0.0-00010101000000-
-//  000000000000. during development; without the rewrite, the
+//     at a placeholder pseudo-version (e.g.
+//     v0.0.0-00010101000000-000000000000) during development;
+//     without the rewrite, the
 //     placeholder ships to the proxy and downstream consumers'
 //     `go mod tidy` returns 404 on the placeholder.
 //
