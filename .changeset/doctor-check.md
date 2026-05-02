@@ -26,8 +26,8 @@ Library:
 
 ```go
 findings, err := doctor.Run(doctor.Options{
-    ChangesetDir: ".changeset",
-    GitLog:       repo.DeletedFilesInCommitsMatching,
+    RepoDir: ".",
+    GitLog:  repo.DeletedFilesInCommitsMatching,
 })
 ```
 

@@ -74,12 +74,12 @@ type Options struct {
 	// `monorel.toml` and `.changeset/`). Required.
 	//
 	// The doctor package only supports the canonical changeset
-	// directory name `.changeset` — both because monorel itself
-	// only writes that name and because the historical scan
-	// matches against `git log --name-only` output, which always
-	// emits repo-relative paths starting with that prefix. If a
-	// future monorel version supports a different name, this
-	// option would gain a sibling for the override.
+	// directory name `.changeset`. Two reasons: monorel itself
+	// only writes that name, and the historical scan matches
+	// against `git log --name-only` output, which always emits
+	// repo-relative paths starting with that prefix. If a future
+	// monorel version supports a different name, this option
+	// would gain a sibling for the override.
 	RepoDir string
 
 	// GitLog returns previously-deleted files for a given commit-
@@ -136,7 +136,7 @@ func Run(opts Options) ([]Finding, error) {
 
 // changesetDirName is the only changeset directory name doctor
 // recognizes. Both git's repo-relative output and the live-tree scan
-// key off this name — see the doc comment on Options.RepoDir.
+// key off this name; see the doc comment on Options.RepoDir.
 const changesetDirName = ".changeset"
 
 // changesetPathPrefix is the path prefix every `.changeset/*.md`
