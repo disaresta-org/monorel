@@ -6,10 +6,10 @@ Composite action that downloads the monorel binary for the runner's OS+arch and 
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `command` | required | `pr` (upsert / close the always-open release PR via `monorel preview --upsert`) or `release` (run the full local→push→publish pipeline). |
+| `command` | required | `pr` (upsert / close the always-open release PR via `monorel preview --upsert`), `release` (run the full local→push→publish pipeline), or `doctor` (run `monorel doctor`; exits non-zero on error-severity findings). |
 | `version` | `latest` | monorel version to run (e.g. `v1.2.3`). |
 | `config` | `monorel.toml` | Path to the config file. |
-| `token` | the workflow's `GITHUB_TOKEN` | Token for provider API calls. Needs `contents: write` and `pull-requests: write`. |
+| `token` | the workflow's `GITHUB_TOKEN` | Token for provider API calls. Needs `contents: write` and `pull-requests: write`. The `doctor` command needs no token; `contents: read` alone is sufficient. |
 
 The `release` command runs three monorel invocations in order:
 

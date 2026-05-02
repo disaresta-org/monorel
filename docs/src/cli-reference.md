@@ -325,7 +325,17 @@ Exit codes:
 - `0`: no findings.
 - `1`: one or more error-severity findings.
 
-Mechanically, doctor walks `git log --diff-filter=D --grep='chore(release):'` to build the set of changeset filenames previous releases consumed, then intersects with the live `.changeset/` directory. The check costs one `git log` invocation and is cheap to run on every PR (e.g. as a lint step alongside `monorel validate`).
+Mechanically, doctor walks `git log --diff-filter=D --grep='chore(release):'` to build the set of changeset filenames previous releases consumed, then intersects with the live `.changeset/` directory. The check costs one `git log` invocation and is cheap to run on every PR.
+
+::: tip Wire it into CI
+The check is most useful as a pre-merge gate: CI checks out fresh against the actual base, so the git-log scan always reflects current main. Each integration page documents the workflow file:
+
+- [GitHub](/integrations/github#doctor-yml-pre-merge-sanity-check-recommended)
+- [Gitea / Forgejo](/integrations/gitea) (under Workflows)
+- [GitLab](/integrations/gitlab#workflows) (the `doctor` stage in the canonical `.gitlab-ci.yml`)
+
+Local pre-commit / pre-push hooks are NOT a good fit: the bug class doctor catches arises from GitHub's squash-merge taking a stale branch tree, which the local branch state can't observe directly. CI on PRs is the right gate.
+:::
 
 The same logic is exposed as a Go library at [`monorel.disaresta.com/doctor`](/api#doctor) for callers who want to embed the check in custom CI without shelling out.
 

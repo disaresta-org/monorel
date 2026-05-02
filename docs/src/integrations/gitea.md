@@ -66,6 +66,12 @@ Gitea Actions (since Gitea 1.21, Forgejo 1.21) implements GitHub Actions' workfl
 
 The auto-injected `GITHUB_TOKEN` is enough for the basic case (open / update / close the release PR; create tags; create Releases). The PAT escalation for required-status-check repos is documented under [Tokens and required status checks](#tokens-and-required-status-checks) below.
 
+`.gitea/workflows/doctor.yml` (recommended pre-merge sanity check; mirrors the GitHub setup):
+
+<!--@include: ../_partials/gitea-doctor-yml.md-->
+
+`fetch-depth: 0` is required so doctor's git-log scan sees prior `chore(release):` commits. See [`monorel doctor`](/cli-reference#monorel-doctor) for what the check covers.
+
 ### Local CLI (no CI)
 
 Same shape as the [Working without CI](/getting-started#working-without-ci) section of Getting Started, with `GITEA_TOKEN` instead of `GITHUB_TOKEN`:

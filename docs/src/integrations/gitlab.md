@@ -50,7 +50,7 @@ For self-hosted instances or sub-group projects, use a project access token or g
 
 ## Workflows
 
-monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLab CI with the published Docker image (`ghcr.io/disaresta-org/monorel`). Two-stage pipeline: `release-pr` keeps the always-open MR up to date on every push to the default branch; `release` cuts the release once the MR is merged.
+monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLab CI with the published Docker image (`ghcr.io/disaresta-org/monorel`). Three-stage pipeline: `doctor` runs a pre-merge sanity check on every MR (catches stale-branch + squash-merge changeset revivals and other diagnostic issues; see [`monorel doctor`](/cli-reference#monorel-doctor)); `release-pr` keeps the always-open MR up to date on every push to the default branch; `release` cuts the release once the MR is merged.
 
 `.gitlab-ci.yml`:
 

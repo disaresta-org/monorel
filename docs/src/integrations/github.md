@@ -77,13 +77,21 @@ The split exists because GitHub validates that the tag is already on the remote 
 
 The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
 
+### `doctor.yml`: pre-merge sanity check (recommended)
+
+A separate workflow that runs `monorel doctor` against every PR. Today's only built-in check catches stale-branch + squash-merge changeset revivals; the workflow exits non-zero on any error-severity finding so the PR can't merge until cleaned up. See [`monorel doctor`](/cli-reference#monorel-doctor) for the diagnostic itself.
+
+<!--@include: ../_partials/github-doctor-yml.md-->
+
+`fetch-depth: 0` is required: doctor's `git log --grep='chore(release):'` scan needs full history to see prior release commits. The default shallow checkout would miss them and turn the check into a no-op.
+
 ### Action wrapper inputs
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`) or `release` (post-merge: `monorel tag` + push + `monorel publish`). |
+| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`), `release` (post-merge: `monorel tag` + push + `monorel publish`), or `doctor` (run `monorel doctor`; exit non-zero on error-severity findings). |
 | `version` | `latest` | Pin a specific monorel version, e.g. `v0.6.0`. |
-| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. Override with a PAT or App token via `secrets.<name>` syntax. |
+| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. The `doctor` command needs no token; `contents: read` alone is sufficient. Override with a PAT or App token via `secrets.<name>` syntax. |
 | `config` | `monorel.toml` | Path to the config file. |
 
 ### Chaining downstream workflows (deploy-docs, build-binaries, etc.)

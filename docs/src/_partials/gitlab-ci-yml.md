@@ -4,8 +4,19 @@ default:
   image: ghcr.io/disaresta-org/monorel:0.6.0
 
 stages:
+  - doctor
   - release-pr
   - release
+
+# Pre-merge sanity check on the proposed MR. Exits non-zero on any
+# error-severity finding (today: stale-branch + squash-merge changeset
+# revival), which fails the pipeline.
+doctor:
+  stage: doctor
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - monorel doctor
 
 # Maintain the always-open release MR. Fires on every push to the
 # default branch except the chore(release): merge commit.
