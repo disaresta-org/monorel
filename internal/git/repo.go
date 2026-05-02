@@ -78,4 +78,18 @@ type Repo interface {
 	// Pre-release safety check: monorel refuses to run release on
 	// a dirty tree.
 	IsClean() (bool, error)
+
+	// DeletedFilesInCommitsMatching returns the union of every file
+	// path deleted (`--diff-filter=D`) by a commit whose subject or
+	// body literally contains messageGrep. The substring match is
+	// case-sensitive and does NOT use regex.
+	//
+	// Used by `monorel doctor` to scan past `chore(release):`
+	// commits for the changeset filenames they consumed, so a
+	// stale-branch + squash-merge revival can be detected.
+	//
+	// Order: deduplicated, sorted lexicographically. Includes paths
+	// that were re-added by later commits — callers intersect
+	// against the live tree to flag that case.
+	DeletedFilesInCommitsMatching(messageGrep string) ([]string, error)
 }

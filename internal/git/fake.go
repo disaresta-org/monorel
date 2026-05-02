@@ -64,6 +64,12 @@ type Fake struct {
 type FakeCommit struct {
 	Message string
 	Files   []string
+
+	// Deletions are the paths Remove(...) recorded for this commit.
+	// Subset of Files. Tracked separately so
+	// DeletedFilesInCommitsMatching can answer accurately without
+	// the fake needing to know each path's add-vs-delete state.
+	Deletions []string
 }
 
 // NewFake returns an empty in-memory repo with the given initial
@@ -182,7 +188,12 @@ func (f *Fake) Commit(message string) error {
 	}
 	files := append([]string{}, f.Staged...)
 	files = append(files, f.Removed...)
-	f.Commits = append(f.Commits, FakeCommit{Message: message, Files: files})
+	deletions := append([]string{}, f.Removed...)
+	f.Commits = append(f.Commits, FakeCommit{
+		Message:   message,
+		Files:     files,
+		Deletions: deletions,
+	})
 	f.Staged = nil
 	f.Removed = nil
 	return nil
@@ -255,4 +266,35 @@ func (f *Fake) IsClean() (bool, error) {
 		return false, err
 	}
 	return !f.Dirty, nil
+}
+
+// DeletedFilesInCommitsMatching implements
+// [Repo.DeletedFilesInCommitsMatching]. Walks the recorded Commits,
+// collecting Deletions from any commit whose Message contains
+// messageGrep as a literal substring.
+func (f *Fake) DeletedFilesInCommitsMatching(messageGrep string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	if messageGrep == "" {
+		return nil, errors.New("messageGrep is empty")
+	}
+	seen := make(map[string]struct{})
+	var out []string
+	for _, c := range f.Commits {
+		if !strings.Contains(c.Message, messageGrep) {
+			continue
+		}
+		for _, p := range c.Deletions {
+			if _, ok := seen[p]; ok {
+				continue
+			}
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }

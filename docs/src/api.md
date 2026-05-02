@@ -5,7 +5,7 @@ description: "monorel's Go library API surface for programmatic use: pure-functi
 
 # Library API
 
-monorel ships a Go library API alongside the CLI. From v0.2.0 onward, six pure-function packages are public and SemVer-committed:
+monorel ships a Go library API alongside the CLI. From v0.2.0 onward, the following pure-function packages are public and SemVer-committed:
 
 | Package | Purpose | Entry points |
 |---------|---------|--------------|
@@ -15,6 +15,7 @@ monorel ships a Go library API alongside the CLI. From v0.2.0 onward, six pure-f
 | [`semver`](https://pkg.go.dev/monorel.disaresta.com/semver) | Bump-level abstraction, version application, initial-release rules. | `Apply`, `InitialFromBump`, `Max`, `ParseBumpLevel`, `IsValid`, `Compare` |
 | [`validate`](https://pkg.go.dev/monorel.disaresta.com/validate) | Fault-tolerant static checks against a config + changeset directory. | `Run`, `HasErrors`, `HasWarnings` |
 | [`changelog`](https://pkg.go.dev/monorel.disaresta.com/changelog) | Keep-a-Changelog renderer with non-destructive insertion. | `Insert`, `WriteFile`, `Today` |
+| [`doctor`](https://pkg.go.dev/monorel.disaresta.com/doctor) | Repository state diagnostics the planner can't catch (e.g. revived changesets). | `Run`, `Finding`, `Severity`, `GitLog` |
 
 Module path: `monorel.disaresta.com`. Install:
 
@@ -30,6 +31,36 @@ Full GoDoc with runnable examples lives on [pkg.go.dev](https://pkg.go.dev/monor
 - **IDE / editor plugin.** You want "is this changeset frontmatter valid?" or "does this package key exist in monorel.toml?" feedback. Use `changeset.Parse` + `validate.Run`.
 - **Repo audit tool.** You want to surface monorel-shaped state across many repos. Use `config.Load` + `validate.Run`.
 - **Custom changeset authoring.** A bot or workflow that produces `.changeset/*.md` files programmatically. Use `changeset.Changeset` + `Changeset.WriteFile`.
+- **Repo health diagnostics.** A pre-merge or pre-release CI step that fails closed when a previously-shipped changeset is back on disk (the stale-branch + squash-merge revival pattern). Use `doctor.Run` with a `GitLog` adapter over your existing git library.
+
+## doctor
+
+The `doctor` package wraps a small, extensible check-runner. Today it ships a single check, `revived-changeset`, that catches a common failure mode: when a contributor branches from `main` BEFORE a release commit and squash-merges later, GitHub re-introduces the changeset files the release commit deleted. The next release plan re-ships the same content under a new version.
+
+```go
+import (
+	"fmt"
+
+	"monorel.disaresta.com/doctor"
+	"monorel.disaresta.com/internal/git" // or your own git seam
+)
+
+func main() {
+	repo := git.Open(".")
+	findings, err := doctor.Run(doctor.Options{
+		ChangesetDir: ".changeset",
+		GitLog:       repo.DeletedFilesInCommitsMatching,
+	})
+	if err != nil {
+		panic(err)
+	}
+	for _, f := range findings {
+		fmt.Printf("%s [%s] %s: %s\n", f.Severity, f.CheckName, f.Path, f.Message)
+	}
+}
+```
+
+`doctor.GitLog` is a function value, not an interface, so callers can adapt any git library (go-git, libgit2 bindings, a local cache) without conforming to a struct shape. Pass any function with signature `func(messageGrep string) (deletedPaths []string, err error)` that scans commit history for deletions in commits whose message contains the substring.
 
 ## What's NOT public
 
@@ -40,7 +71,7 @@ These packages stay in `internal/` deliberately and are not part of the SemVer c
 | `release` | Writes files, creates commits, creates tags. Promoting locks side-effect ordering. |
 | `orchestrator` | Provider-coupled (calls `provider.Client`); not useful without it. |
 | `provider` | Host-abstraction interface; promoting locks every interface change as breaking. |
-| `git` | Shell-out implementation detail. |
+| `git` | Shell-out implementation detail. The doctor package's `GitLog` function-value seam is how callers get at git history without depending on it. |
 | `cli` | Cobra wiring. The library is the API; the CLI is one consumer. |
 
 Side-effect-bearing packages should never be public commitments — every refactor would be a SemVer break.

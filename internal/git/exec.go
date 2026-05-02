@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -174,6 +175,42 @@ func (e *Exec) IsClean() (bool, error) {
 		return false, err
 	}
 	return strings.TrimSpace(out) == "", nil
+}
+
+// DeletedFilesInCommitsMatching implements
+// [Repo.DeletedFilesInCommitsMatching].
+//
+// Shells out to `git log --diff-filter=D --name-only --format=
+// --fixed-strings --grep=<messageGrep>`, then dedupes/sorts the
+// result. --fixed-strings makes the grep a literal substring match;
+// --format= suppresses the commit header so stdout is just deleted
+// paths.
+func (e *Exec) DeletedFilesInCommitsMatching(messageGrep string) ([]string, error) {
+	if messageGrep == "" {
+		return nil, errors.New("messageGrep is empty")
+	}
+	out, err := e.run("log",
+		"--diff-filter=D",
+		"--name-only",
+		"--format=",
+		"--fixed-strings",
+		"--grep="+messageGrep,
+	)
+	if err != nil {
+		return nil, err
+	}
+	lines := splitLines(out)
+	seen := make(map[string]struct{}, len(lines))
+	uniq := make([]string, 0, len(lines))
+	for _, l := range lines {
+		if _, ok := seen[l]; ok {
+			continue
+		}
+		seen[l] = struct{}{}
+		uniq = append(uniq, l)
+	}
+	sort.Strings(uniq)
+	return uniq, nil
 }
 
 // splitLines splits raw on '\n', trimming carriage returns, and drops

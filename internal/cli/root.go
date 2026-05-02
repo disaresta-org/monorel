@@ -44,6 +44,7 @@ Reference docs: https://monorel.disaresta.com`,
 		newPreviewCmd(),
 		newPreCmd(),
 		newInitCmd(),
+		newDoctorCmd(),
 	)
 	return cmd
 }
