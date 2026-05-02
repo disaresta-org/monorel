@@ -13,7 +13,7 @@
 
 A changesets-style release tool for multi-module Go monorepos.
 
-`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with the [GitHub Action](#github-action) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
+`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with CI on your provider (GitHub, Gitea / Forgejo, or GitLab) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
 
 ## Why monorel?
 
@@ -36,8 +36,8 @@ go install monorel.disaresta.com/cmd/monorel@latest
 # 2. Scaffold monorel.toml + .changeset/ from your repo
 monorel init
 
-# 3. Wire up CI: copy .github/workflows/{release-pr,release}.yml from
-#    https://monorel.disaresta.com/getting-started
+# 3. Wire up CI: copy the provider-specific workflow files from
+#    examples/{github,gitea,gitlab}/ into your repo
 
 # 4. Author a changeset on a feature branch
 monorel add --package "transports/foo:minor" --message "Adds Lazy() helper."
@@ -47,7 +47,7 @@ git commit && gh pr create
 #    always-open release PR. Merge it when ready to ship.
 ```
 
-For a full working example, fork [disaresta-org/monorel-example](https://github.com/disaresta-org/monorel-example): a 2-package repo with everything wired up. Or read [Getting Started](https://monorel.disaresta.com/getting-started) for the walkthrough.
+Reference setups for each provider live in [`examples/`](examples/) (GitHub, Gitea / Forgejo, GitLab). Copy the files you need; the [Getting Started](https://monorel.disaresta.com/getting-started) walkthrough explains the full lifecycle.
 
 ## Documentation
 
@@ -57,22 +57,32 @@ For a full working example, fork [disaresta-org/monorel-example](https://github.
 - [Configuration](https://monorel.disaresta.com/configuration): `monorel.toml` reference.
 - [CLI](https://monorel.disaresta.com/cli-reference): every command and flag.
 - [Changesets](https://monorel.disaresta.com/changesets): file format and authoring conventions.
-- [GitHub Action](https://monorel.disaresta.com/github-action): action wrapper inputs, branch protection, token setup.
+- Integration guides: [GitHub](https://monorel.disaresta.com/integrations/github), [Gitea / Forgejo](https://monorel.disaresta.com/integrations/gitea), [GitLab](https://monorel.disaresta.com/integrations/gitlab).
 - [FAQ](https://monorel.disaresta.com/faq): the questions that come up after the first release.
 - [Glossary](https://monorel.disaresta.com/glossary): canonical definitions of monorel terminology.
 - [Library API](https://monorel.disaresta.com/api): Go packages exposed for programmatic use.
 
-## GitHub Action
+## CI integration
+
+monorel ships a composite GitHub Action wrapper plus first-class support for Gitea / Forgejo and GitLab CI. Each provider has a working reference setup under [`examples/`](examples/):
+
+| Provider | Example | Notes |
+|---|---|---|
+| GitHub | [`examples/github/`](examples/github/) | Composite action wrapper + two workflow files. |
+| Gitea / Forgejo | [`examples/gitea/`](examples/gitea/) | Same wrapper on Gitea Actions; `provider.host` set; covers Forgejo via API compatibility. |
+| GitLab | [`examples/gitlab/`](examples/gitlab/) | Single `.gitlab-ci.yml` using `ghcr.io/disaresta-org/monorel`. Project must use fast-forward merge. |
+
+The GitHub flow looks like this:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.5.0
+- uses: disaresta-org/monorel/ci/github@v0.7.0
   with:
     command: pr      # or 'release' for the post-merge tag + push + publish step
 ```
 
-If your repo has required status checks on the default branch, set the `token` input to a PAT or GitHub App token instead of the default `GITHUB_TOKEN`. See [Tokens and required status checks](https://monorel.disaresta.com/github-action#tokens-and-required-status-checks).
+If your repo enforces required status checks on the default branch, the bot-created release PR's checks won't fire on the auto-injected token (anti-recursion). Switch to a PAT or GitHub App token. See [Tokens and required status checks](https://monorel.disaresta.com/integrations/github#tokens-and-required-status-checks).
 
-Full setup in the [GitHub Action docs](https://monorel.disaresta.com/github-action).
+Full setup per provider in the integration guides linked above.
 
 ## Development
 

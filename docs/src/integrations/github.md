@@ -7,6 +7,10 @@ description: "Wire up monorel against a GitHub repository: action wrapper, workf
 
 The canonical monorel-on-GitHub setup: a composite action wrapper plus two workflow files that drive the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
 
+::: tip Example
+Working reference setup at [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github). Copy the files you need.
+:::
+
 ## Configuration
 
 `monorel.toml`:

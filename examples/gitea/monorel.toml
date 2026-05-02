@@ -1,0 +1,17 @@
+# monorel configuration. See https://monorel.disaresta.com/configuration
+
+[provider]
+name  = "gitea"
+host  = "gitea.example.com"  # or codeberg.org, your Forgejo instance, etc.
+owner = "acme"
+repo  = "widget"
+
+[packages."gitea.example.com/acme/widget"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+
+[packages."transports/foo"]
+tag_prefix = "transports/foo"
+path       = "transports/foo"
+changelog  = "transports/foo/CHANGELOG.md"

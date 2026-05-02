@@ -7,6 +7,7 @@ package config
 const (
 	ProviderGitHub = "github"
 	ProviderGitea  = "gitea"
+	ProviderGitLab = "gitlab"
 )
 
 // DefaultProvider is the value [ResolveProvider] returns for an
@@ -20,6 +21,7 @@ const DefaultProvider = ProviderGitHub
 var KnownProviders = []string{
 	ProviderGitea,
 	ProviderGitHub,
+	ProviderGitLab,
 }
 
 // ResolveProvider returns name, or [DefaultProvider] if name is empty.
