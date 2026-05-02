@@ -55,6 +55,12 @@ type client struct {
 
 // New returns a [provider.Client] backed by gitlab.com/gitlab-org/api/client-go.
 // Empty Host defaults to gitlab.com.
+//
+// Does NOT make a network call: the SDK's NewClient only constructs
+// a struct from the supplied options. The first network call happens
+// when one of the [provider.Client] methods is invoked. An
+// unreachable host surfaces as the first call's wrapped error, not
+// from this constructor.
 func New(_ context.Context, opts Options) (provider.Client, error) {
 	if opts.Owner == "" || opts.Repo == "" {
 		return nil, ErrMissingOwnerRepo
@@ -69,13 +75,13 @@ func New(_ context.Context, opts Options) (provider.Client, error) {
 	}
 	c, err := gl.NewClient(opts.Token, clientOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("gitlab: connect: %w", err)
+		return nil, fmt.Errorf("gitlab: build client: %w", err)
 	}
 	return &client{pid: opts.Owner + "/" + opts.Repo, gl: c}, nil
 }
 
-func (c *client) GetDefaultBranch(_ context.Context) (string, error) {
-	proj, _, err := c.gl.Projects.GetProject(c.pid, nil)
+func (c *client) GetDefaultBranch(ctx context.Context) (string, error) {
+	proj, _, err := c.gl.Projects.GetProject(c.pid, nil, gl.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("gitlab: get project %s: %w", c.pid, err)
 	}
@@ -85,14 +91,14 @@ func (c *client) GetDefaultBranch(_ context.Context) (string, error) {
 	return proj.DefaultBranch, nil
 }
 
-func (c *client) FindOpenReleasePR(_ context.Context, headBranch string) (*provider.PullRequest, error) {
+func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*provider.PullRequest, error) {
 	var page int64 = 1
 	for {
 		mrs, resp, err := c.gl.MergeRequests.ListProjectMergeRequests(c.pid, &gl.ListProjectMergeRequestsOptions{
 			ListOptions:  gl.ListOptions{Page: page, PerPage: 50},
 			State:        gl.Ptr("opened"),
 			SourceBranch: gl.Ptr(headBranch),
-		})
+		}, gl.WithContext(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: list MRs %s: %w", c.pid, err)
 		}
@@ -108,42 +114,42 @@ func (c *client) FindOpenReleasePR(_ context.Context, headBranch string) (*provi
 	}
 }
 
-func (c *client) CreatePR(_ context.Context, opts provider.CreatePROptions) (*provider.PullRequest, error) {
+func (c *client) CreatePR(ctx context.Context, opts provider.CreatePROptions) (*provider.PullRequest, error) {
 	mr, _, err := c.gl.MergeRequests.CreateMergeRequest(c.pid, &gl.CreateMergeRequestOptions{
 		Title:        gl.Ptr(opts.Title),
 		Description:  gl.Ptr(opts.Body),
 		SourceBranch: gl.Ptr(opts.HeadBranch),
 		TargetBranch: gl.Ptr(opts.BaseBranch),
-	})
+	}, gl.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("gitlab: create MR %s -> %s: %w", opts.HeadBranch, opts.BaseBranch, err)
 	}
 	return mrToPR(mr), nil
 }
 
-func (c *client) UpdatePR(_ context.Context, number int, opts provider.UpdatePROptions) (*provider.PullRequest, error) {
+func (c *client) UpdatePR(ctx context.Context, number int, opts provider.UpdatePROptions) (*provider.PullRequest, error) {
 	patch := &gl.UpdateMergeRequestOptions{
 		Title:       opts.Title,
 		Description: opts.Body,
 	}
-	mr, _, err := c.gl.MergeRequests.UpdateMergeRequest(c.pid, int64(number), patch)
+	mr, _, err := c.gl.MergeRequests.UpdateMergeRequest(c.pid, int64(number), patch, gl.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("gitlab: update MR !%d: %w", number, err)
 	}
 	return mrToPR(mr), nil
 }
 
-func (c *client) ClosePR(_ context.Context, number int) error {
+func (c *client) ClosePR(ctx context.Context, number int) error {
 	_, _, err := c.gl.MergeRequests.UpdateMergeRequest(c.pid, int64(number), &gl.UpdateMergeRequestOptions{
 		StateEvent: gl.Ptr("close"),
-	})
+	}, gl.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("gitlab: close MR !%d: %w", number, err)
 	}
 	return nil
 }
 
-func (c *client) CreateRelease(_ context.Context, opts provider.CreateReleaseOptions) (*provider.Release, error) {
+func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseOptions) (*provider.Release, error) {
 	// GitLab has no first-class "prerelease" flag. The SemVer pre-
 	// release suffix on the tag (e.g. "-rc.0") is the only signal;
 	// monorel's tag naming already encodes it.
@@ -151,7 +157,7 @@ func (c *client) CreateRelease(_ context.Context, opts provider.CreateReleaseOpt
 		TagName:     gl.Ptr(opts.Tag),
 		Name:        gl.Ptr(opts.Name),
 		Description: gl.Ptr(opts.Body),
-	})
+	}, gl.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("gitlab: create release %q: %w", opts.Tag, err)
 	}

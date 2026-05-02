@@ -34,6 +34,10 @@ repo  = "widget"
 | `owner` | The user, group, or sub-group path that owns the project. May contain slashes for nested sub-groups (e.g. `team/platform`). |
 | `repo` | The project's path component (the last segment of the project's full path). |
 
+::: info Sub-groups and `monorel init` auto-detection
+`monorel init` auto-detects `owner` and `repo` from `git config remote.origin.url`. For sub-group projects, the auto-detected split is leading-component: a URL like `https://gitlab.com/team/platform/widget.git` becomes `owner = "team"`, `repo = "platform/widget"`. Both shapes work because the provider concatenates `owner + "/" + repo` to form the project path; pick whichever you find easier to read in your `monorel.toml`. The example in [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab) uses the canonical form (`owner = "team/platform"`, `repo = "widget"`).
+:::
+
 Run `monorel validate` to confirm the config loads cleanly.
 
 ## Token
@@ -102,9 +106,13 @@ For complex setups (cross-project pipelines, dynamic environments), consider rep
 
 monorel binary is older than v0.7.0 (when the GitLab provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
 
-### `gitlab: connect: ...`
+### `gitlab: build client: ...`
 
-The GitLab SDK's first API call failed. Likely cause: the host is unreachable from the runner. Check:
+The SDK's `NewClient` rejected the supplied options. The most common cause is a malformed `host` value (`provider.host` in `monorel.toml`). The SDK doesn't make a network call at construction; this error is purely option-application.
+
+### `gitlab: get project ...: ...` (or any other method-prefixed gitlab error)
+
+The first network call against the configured host failed. Likely cause: the host is unreachable from the runner. Check:
 
 - Spelling of `host` in `monorel.toml`.
 - Whether the runner can reach the host (firewall, DNS).
