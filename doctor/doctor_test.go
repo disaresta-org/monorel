@@ -23,11 +23,13 @@ func stubGitLog(t *testing.T, wantGrep string, paths []string) doctor.GitLog {
 	}
 }
 
-// writeChangesetDir materializes a .changeset directory with the
-// given filenames (each created empty). Returns the directory path.
-func writeChangesetDir(t *testing.T, names ...string) string {
+// repoWithChangesets creates a temp repo root containing a
+// `.changeset/` directory with the given filenames (each created
+// empty). Returns the repo root.
+func repoWithChangesets(t *testing.T, names ...string) string {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), ".changeset")
+	repo := t.TempDir()
+	dir := filepath.Join(repo, ".changeset")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -36,13 +38,13 @@ func writeChangesetDir(t *testing.T, names ...string) string {
 			t.Fatalf("write %s: %v", n, err)
 		}
 	}
-	return dir
+	return repo
 }
 
 func TestRun_NoFindingsWhenNoRevivals(t *testing.T) {
-	dir := writeChangesetDir(t, "fresh-feature.md")
+	repo := repoWithChangesets(t, "fresh-feature.md")
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: dir,
+		RepoDir: repo,
 		GitLog: stubGitLog(t, "chore(release):", []string{
 			".changeset/old-shipped.md",
 		}),
@@ -56,9 +58,9 @@ func TestRun_NoFindingsWhenNoRevivals(t *testing.T) {
 }
 
 func TestRun_FlagsRevivedChangeset(t *testing.T) {
-	dir := writeChangesetDir(t, "gitlab-provider.md", "fresh-feature.md")
+	repo := repoWithChangesets(t, "gitlab-provider.md", "fresh-feature.md")
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: dir,
+		RepoDir: repo,
 		GitLog: stubGitLog(t, "chore(release):", []string{
 			".changeset/gitlab-provider.md",
 			".changeset/something-else.md",
@@ -85,9 +87,9 @@ func TestRun_FlagsRevivedChangeset(t *testing.T) {
 func TestRun_FlagsAllRevivedSorted(t *testing.T) {
 	// When multiple changesets are revived the output is sorted by
 	// path so callers can rely on stable ordering.
-	dir := writeChangesetDir(t, "z-last.md", "a-first.md", "m-mid.md")
+	repo := repoWithChangesets(t, "z-last.md", "a-first.md", "m-mid.md")
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: dir,
+		RepoDir: repo,
 		GitLog: stubGitLog(t, "chore(release):", []string{
 			".changeset/z-last.md",
 			".changeset/a-first.md",
@@ -115,10 +117,10 @@ func TestRun_FlagsAllRevivedSorted(t *testing.T) {
 func TestRun_IgnoresNonChangesetDeletions(t *testing.T) {
 	// Release commits often delete other files alongside the
 	// changeset (e.g. earlier-version artifacts). Doctor must only
-	// consider .changeset/*.md paths.
-	dir := writeChangesetDir(t, "live.md")
+	// consider top-level `.changeset/*.md` paths.
+	repo := repoWithChangesets(t, "live.md")
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: dir,
+		RepoDir: repo,
 		GitLog: stubGitLog(t, "chore(release):", []string{
 			"CHANGELOG.md",                    // wrong dir
 			"docs/whats-new.md",               // wrong dir
@@ -137,11 +139,12 @@ func TestRun_IgnoresNonChangesetDeletions(t *testing.T) {
 
 func TestRun_NoChangesetDirIsClean(t *testing.T) {
 	// Repos that haven't run `monorel init` yet shouldn't error;
-	// there's just nothing to flag.
-	tmp := t.TempDir()
+	// there's just nothing to flag. Pass a repo that has no
+	// `.changeset/` directory at all.
+	repo := t.TempDir()
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: filepath.Join(tmp, "missing-changeset"),
-		GitLog:       stubGitLog(t, "chore(release):", []string{".changeset/foo.md"}),
+		RepoDir: repo,
+		GitLog:  stubGitLog(t, "chore(release):", []string{".changeset/foo.md"}),
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -152,10 +155,10 @@ func TestRun_NoChangesetDirIsClean(t *testing.T) {
 }
 
 func TestRun_GitLogErrorIsReturned(t *testing.T) {
-	dir := writeChangesetDir(t, "x.md")
+	repo := repoWithChangesets(t, "x.md")
 	want := errors.New("git boom")
 	_, err := doctor.Run(doctor.Options{
-		ChangesetDir: dir,
+		RepoDir: repo,
 		GitLog: func(string) ([]string, error) {
 			return nil, want
 		},
@@ -170,11 +173,11 @@ func TestRun_ValidatesRequiredOptions(t *testing.T) {
 		name string
 		opts doctor.Options
 	}{
-		{"missing ChangesetDir", doctor.Options{
+		{"missing RepoDir", doctor.Options{
 			GitLog: func(string) ([]string, error) { return nil, nil },
 		}},
 		{"missing GitLog", doctor.Options{
-			ChangesetDir: t.TempDir(),
+			RepoDir: t.TempDir(),
 		}},
 	}
 	for _, tc := range cases {
@@ -191,9 +194,9 @@ func TestRun_CustomReleaseCommitGrep(t *testing.T) {
 	// Callers integrating with a non-monorel release-commit
 	// convention can override the grep; doctor should pass it
 	// through to GitLog.
-	dir := writeChangesetDir(t, "x.md")
+	repo := repoWithChangesets(t, "x.md")
 	_, err := doctor.Run(doctor.Options{
-		ChangesetDir:      dir,
+		RepoDir:           repo,
 		ReleaseCommitGrep: "Release v",
 		GitLog:            stubGitLog(t, "Release v", nil),
 	})
@@ -203,14 +206,11 @@ func TestRun_CustomReleaseCommitGrep(t *testing.T) {
 }
 
 func TestSeverity_String(t *testing.T) {
-	cases := map[doctor.Severity]string{
-		doctor.SeverityWarn:  "warn",
-		doctor.SeverityError: "error",
-		doctor.Severity(99):  "unknown",
+	// Severity is a typed string; the constants ARE the wire form.
+	if string(doctor.SeverityError) != "error" {
+		t.Errorf("SeverityError = %q, want %q", doctor.SeverityError, "error")
 	}
-	for sev, want := range cases {
-		if got := sev.String(); got != want {
-			t.Errorf("Severity(%d).String() = %q, want %q", sev, got, want)
-		}
+	if string(doctor.SeverityWarning) != "warning" {
+		t.Errorf("SeverityWarning = %q, want %q", doctor.SeverityWarning, "warning")
 	}
 }

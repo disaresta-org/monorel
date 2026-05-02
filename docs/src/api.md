@@ -48,8 +48,8 @@ import (
 func main() {
 	repo := git.Open(".")
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: ".changeset",
-		GitLog:       repo.DeletedFilesInCommitsMatching,
+		RepoDir: ".",
+		GitLog:  repo.DeletedFilesInCommitsMatching,
 	})
 	if err != nil {
 		panic(err)

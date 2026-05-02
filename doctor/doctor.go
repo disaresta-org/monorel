@@ -25,31 +25,21 @@ import (
 	"strings"
 )
 
-// Severity classifies a [Finding]'s urgency.
-type Severity int
+// Severity classifies a [Finding]'s urgency. The string form is the
+// JSON wire value; matches the constants the validate package uses
+// for the same concept.
+type Severity string
 
 const (
-	// SeverityWarn flags an issue that may not break a release but
-	// usually indicates a mistake. Callers may surface as a warning
-	// without failing the build.
-	SeverityWarn Severity = iota
-
 	// SeverityError flags an issue that will produce a wrong
 	// release if not fixed. Callers should fail closed.
-	SeverityError
-)
+	SeverityError Severity = "error"
 
-// String returns "warn" or "error".
-func (s Severity) String() string {
-	switch s {
-	case SeverityWarn:
-		return "warn"
-	case SeverityError:
-		return "error"
-	default:
-		return "unknown"
-	}
-}
+	// SeverityWarning flags an issue that may not break a release
+	// but usually indicates a mistake. Callers may surface as a
+	// warning without failing the build.
+	SeverityWarning Severity = "warning"
+)
 
 // Finding is one issue [Run] surfaced.
 type Finding struct {
@@ -80,10 +70,17 @@ type GitLog func(messageGrep string) ([]string, error)
 
 // Options configures a [Run] invocation.
 type Options struct {
-	// ChangesetDir is the absolute or repo-relative path to the
-	// `.changeset/` directory whose live contents should be
-	// checked. Required.
-	ChangesetDir string
+	// RepoDir is the repository root (the directory containing
+	// `monorel.toml` and `.changeset/`). Required.
+	//
+	// The doctor package only supports the canonical changeset
+	// directory name `.changeset` — both because monorel itself
+	// only writes that name and because the historical scan
+	// matches against `git log --name-only` output, which always
+	// emits repo-relative paths starting with that prefix. If a
+	// future monorel version supports a different name, this
+	// option would gain a sibling for the override.
+	RepoDir string
 
 	// GitLog returns previously-deleted files for a given commit-
 	// message substring. Required.
@@ -112,8 +109,8 @@ const DefaultReleaseCommitGrep = "chore(release):"
 // and surfaced issues in the repository; callers decide whether to
 // treat findings as blocking based on each finding's Severity.
 func Run(opts Options) ([]Finding, error) {
-	if opts.ChangesetDir == "" {
-		return nil, errors.New("doctor: ChangesetDir is required")
+	if opts.RepoDir == "" {
+		return nil, errors.New("doctor: RepoDir is required")
 	}
 	if opts.GitLog == nil {
 		return nil, errors.New("doctor: GitLog is required")
@@ -123,7 +120,7 @@ func Run(opts Options) ([]Finding, error) {
 		grep = DefaultReleaseCommitGrep
 	}
 
-	findings, err := checkRevivedChangesets(opts.ChangesetDir, opts.GitLog, grep)
+	findings, err := checkRevivedChangesets(opts.RepoDir, opts.GitLog, grep)
 	if err != nil {
 		return nil, err
 	}
@@ -137,22 +134,35 @@ func Run(opts Options) ([]Finding, error) {
 	return findings, nil
 }
 
+// changesetDirName is the only changeset directory name doctor
+// recognizes. Both git's repo-relative output and the live-tree scan
+// key off this name — see the doc comment on Options.RepoDir.
+const changesetDirName = ".changeset"
+
+// changesetPathPrefix is the path prefix every `.changeset/*.md`
+// entry has in `git log --name-only` output and in the live-tree
+// comparison key.
+const changesetPathPrefix = changesetDirName + "/"
+
 // checkRevivedChangesets surfaces every `.changeset/*.md` file
 // currently on disk whose path was previously deleted by a
 // release-style commit. Each match becomes a SeverityError finding.
-func checkRevivedChangesets(changesetDir string, gitLog GitLog, grep string) ([]Finding, error) {
+func checkRevivedChangesets(repoDir string, gitLog GitLog, grep string) ([]Finding, error) {
 	deleted, err := gitLog(grep)
 	if err != nil {
 		return nil, fmt.Errorf("doctor: list previously-deleted files: %w", err)
 	}
 	deletedSet := make(map[string]struct{}, len(deleted))
 	for _, p := range deleted {
-		// Only care about changeset files. The grep is a
-		// substring match against the commit message, which
-		// happens to also catch unrelated deletions in the same
-		// commit; filter to .changeset/*.md here.
-		base := filepath.Base(p)
-		if !strings.HasPrefix(p, ".changeset/") || !strings.HasSuffix(base, ".md") {
+		// The grep is a substring match against the commit
+		// message, which also catches unrelated deletions in
+		// the same commit; filter to `.changeset/*.md`
+		// (top-level only, no nested paths) here.
+		if !strings.HasPrefix(p, changesetPathPrefix) {
+			continue
+		}
+		rest := p[len(changesetPathPrefix):]
+		if strings.Contains(rest, "/") || !strings.HasSuffix(rest, ".md") {
 			continue
 		}
 		deletedSet[p] = struct{}{}
@@ -161,14 +171,14 @@ func checkRevivedChangesets(changesetDir string, gitLog GitLog, grep string) ([]
 		return nil, nil
 	}
 
-	entries, err := os.ReadDir(changesetDir)
+	entries, err := os.ReadDir(filepath.Join(repoDir, changesetDirName))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// No `.changeset/` at all means no live changesets
 			// to compare against; nothing to flag.
 			return nil, nil
 		}
-		return nil, fmt.Errorf("doctor: read %s: %w", changesetDir, err)
+		return nil, fmt.Errorf("doctor: read %s: %w", filepath.Join(repoDir, changesetDirName), err)
 	}
 
 	var findings []Finding
@@ -180,11 +190,10 @@ func checkRevivedChangesets(changesetDir string, gitLog GitLog, grep string) ([]
 		if !strings.HasSuffix(name, ".md") {
 			continue
 		}
-		// Compare against the path shape the git log emits
-		// (`.changeset/<name>.md`). The changeset dir on disk
-		// may live anywhere; the deletion entries are always
-		// repo-relative because git log emits them that way.
-		relPath := ".changeset/" + name
+		// The deletion entries are repo-relative because git
+		// log emits them that way; build the comparison key
+		// the same way.
+		relPath := changesetPathPrefix + name
 		if _, revived := deletedSet[relPath]; !revived {
 			continue
 		}

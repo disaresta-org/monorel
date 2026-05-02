@@ -53,8 +53,8 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	repo := git.Open(repoDir)
 
 	findings, err := doctor.Run(doctor.Options{
-		ChangesetDir: filepath.Join(repoDir, ".changeset"),
-		GitLog:       repo.DeletedFilesInCommitsMatching,
+		RepoDir: repoDir,
+		GitLog:  repo.DeletedFilesInCommitsMatching,
 	})
 	if err != nil {
 		return err
@@ -87,11 +87,11 @@ func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 		switch f.Severity {
 		case doctor.SeverityError:
 			errCount++
-		case doctor.SeverityWarn:
+		case doctor.SeverityWarning:
 			warnCount++
 		}
 	}
-	for _, sev := range []doctor.Severity{doctor.SeverityError, doctor.SeverityWarn} {
+	for _, sev := range []doctor.Severity{doctor.SeverityError, doctor.SeverityWarning} {
 		header := false
 		for _, f := range findings {
 			if f.Severity != sev {
@@ -99,7 +99,7 @@ func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 			}
 			if !header {
 				label := "ERRORS"
-				if sev == doctor.SeverityWarn {
+				if sev == doctor.SeverityWarning {
 					label = "WARNINGS"
 				}
 				if _, err := fmt.Fprintf(w, "\n%s:\n", label); err != nil {
@@ -120,14 +120,18 @@ func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 	return err
 }
 
+// writeDoctorJSON emits the findings + headline counts. The shape
+// matches validate's `{findings, errors, warnings}` envelope; the
+// per-finding object uses `check_name` (not `code`) because doctor
+// findings name the diagnostic that produced them, not a stable
+// lint identifier. Severity values are `"error"` and `"warning"`,
+// matching validate's wire form.
 func writeDoctorJSON(w io.Writer, findings []doctor.Finding) error {
-	// Match validate's JSON envelope so consumers can parse both
-	// commands' output with the same schema.
 	type wireFinding struct {
-		Severity  string `json:"severity"`
-		CheckName string `json:"check_name"`
-		Path      string `json:"path,omitempty"`
-		Message   string `json:"message"`
+		Severity  doctor.Severity `json:"severity"`
+		CheckName string          `json:"check_name"`
+		Path      string          `json:"path,omitempty"`
+		Message   string          `json:"message"`
 	}
 	type doc struct {
 		Findings []wireFinding `json:"findings"`
@@ -137,7 +141,7 @@ func writeDoctorJSON(w io.Writer, findings []doctor.Finding) error {
 	out := doc{Findings: make([]wireFinding, 0, len(findings))}
 	for _, f := range findings {
 		out.Findings = append(out.Findings, wireFinding{
-			Severity:  f.Severity.String(),
+			Severity:  f.Severity,
 			CheckName: f.CheckName,
 			Path:      f.Path,
 			Message:   f.Message,
@@ -145,7 +149,7 @@ func writeDoctorJSON(w io.Writer, findings []doctor.Finding) error {
 		switch f.Severity {
 		case doctor.SeverityError:
 			out.Errors++
-		case doctor.SeverityWarn:
+		case doctor.SeverityWarning:
 			out.Warnings++
 		}
 	}
@@ -154,6 +158,10 @@ func writeDoctorJSON(w io.Writer, findings []doctor.Finding) error {
 	return enc.Encode(out)
 }
 
+// hasDoctorErrors reports whether any finding is error-severity.
+// All current built-in checks emit SeverityError; when a warning-
+// only check ships, add a `--strict` flag mirroring validate to let
+// callers fail closed on warnings too.
 func hasDoctorErrors(findings []doctor.Finding) bool {
 	for _, f := range findings {
 		if f.Severity == doctor.SeverityError {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"monorel.disaresta.com/doctor"
 	"monorel.disaresta.com/internal/git/testutil"
 )
 
@@ -136,6 +137,12 @@ func TestDoctorCmd_JSONShape(t *testing.T) {
 		if f.Severity != "error" || f.CheckName != "revived-changeset" {
 			t.Errorf("unexpected finding: %+v", f)
 		}
+	}
+	// `warning` (not `warn`) must be the wire form for symmetry
+	// with validate's schema. No findings produce warnings today,
+	// but the type alias guarantees the spelling.
+	if string(doctor.SeverityWarning) != "warning" {
+		t.Errorf("SeverityWarning wire = %q, want %q", doctor.SeverityWarning, "warning")
 	}
 }
 
