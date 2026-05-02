@@ -147,9 +147,10 @@ func rewriteSubmoduleGoMods(opts Options) error {
 }
 
 // isRelativePath reports whether s names a filesystem path relative
-// to the package's go.mod directory. A target that doesn't start with
-// "." or ".." is treated as a non-relative location (an absolute
-// path, a remote module path, etc.) and is left alone.
+// to the package's go.mod directory. modfile's grammar says any
+// replace target starting with "." (so ".", "./x", "..", "../x") is
+// a filesystem path; absolute paths, remote module paths, etc. are
+// left alone.
 func isRelativePath(s string) bool {
-	return strings.HasPrefix(s, ".") || strings.HasPrefix(s, "..")
+	return strings.HasPrefix(s, ".")
 }

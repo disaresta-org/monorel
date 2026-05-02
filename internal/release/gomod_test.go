@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/git"
 	"monorel.disaresta.com/plan"
@@ -140,6 +139,114 @@ require github.com/some/dep v1.0.0
 	}
 }
 
+// TestRewriteSubmoduleGoMods_MultiSiblingRequirePin verifies that a
+// go.mod with multiple sibling require lines gets every sibling
+// pinned, not just the first one.
+func TestRewriteSubmoduleGoMods_MultiSiblingRequirePin(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/baz/go.mod"), `module example.com/transports/baz/v2
+
+go 1.25.0
+
+replace example.com/transports/foo/v2 => ../foo
+replace example.com/transports/bar/v2 => ../bar
+
+require (
+	example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+	example.com/transports/foo/v2 v2.0.0-00010101000000-000000000000
+)
+`)
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake()
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{
+				{
+					Name: "transports/baz", Tag: "transports/baz/v2.0.1", To: "v2.0.1", Bump: semver.Patch,
+					Config: config.PackageConfig{TagPrefix: "transports/baz", Path: "transports/baz"},
+				},
+				{
+					Name: "transports/foo", Tag: "transports/foo/v2.0.1", To: "v2.0.1", Bump: semver.Patch,
+					Config: config.PackageConfig{TagPrefix: "transports/foo", Path: "transports/foo"},
+				},
+				{
+					Name: "transports/bar", Tag: "transports/bar/v2.0.1", To: "v2.0.1", Bump: semver.Patch,
+					Config: config.PackageConfig{TagPrefix: "transports/bar", Path: "transports/bar"},
+				},
+			},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/baz/go.mod"))
+	for _, want := range []string{
+		"example.com/transports/foo/v2 v2.0.1",
+		"example.com/transports/bar/v2 v2.0.1",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing pinned require %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "v2.0.0-00010101000000-000000000000") {
+		t.Errorf("placeholder version still present:\n%s", got)
+	}
+	if strings.Contains(got, "replace example.com/transports/") {
+		t.Errorf("dev replace directives should be stripped:\n%s", got)
+	}
+}
+
+// TestRewriteSubmoduleGoMods_OutOfPlanSiblingLeftAlone verifies
+// that a require for a package that ISN'T in the current release
+// plan (even if it shares the same naming pattern) is not touched.
+// The contract is "rewrite siblings IN the plan"; out-of-plan
+// siblings stay at whatever version the go.mod already specifies.
+func TestRewriteSubmoduleGoMods_OutOfPlanSiblingLeftAlone(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+require example.com/transports/external/v2 v2.5.0
+`)
+
+	repo := git.NewFake()
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{{
+				Name: "transports/foo", Tag: "transports/foo/v2.0.1", To: "v2.0.1", Bump: semver.Patch,
+				Config: config.PackageConfig{TagPrefix: "transports/foo", Path: "transports/foo"},
+			}},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if !strings.Contains(got, "example.com/transports/external/v2 v2.5.0") {
+		t.Errorf("out-of-plan sibling require should be preserved:\n%s", got)
+	}
+	if len(repo.Staged) != 0 {
+		t.Errorf("nothing should be staged when no rewrite occurs; staged = %v", repo.Staged)
+	}
+}
+
 // TestRewriteSubmoduleGoMods_NoGoModSkipsSilently confirms a
 // release whose Path doesn't contain a go.mod (e.g. a pure-changelog
 // package) doesn't error out.
@@ -183,6 +290,3 @@ func mustRead(t *testing.T, path string) string {
 	}
 	return string(data)
 }
-
-// Ensure changeset import is exercised so the linter is happy.
-var _ = changeset.Changeset{}
