@@ -83,6 +83,13 @@ func RenderPreview(p *plan.ReleasePlan, today string) string {
 	return b.String()
 }
 
+// CompactElidedNotesMarker is the line the compact-form rendering
+// emits in place of the per-package "Released changes" sections.
+// Exported so downstream tooling that scrapes release-PR bodies has
+// a stable substring to detect "this PR's body was rendered in the
+// compact form because the full content didn't fit".
+const CompactElidedNotesMarker = "_Per-package release notes were elided to fit the provider's PR body limit. Each package's `CHANGELOG.md` will receive the full content when this PR merges._"
+
 // RenderPreviewCompact is a slimmer variant of [RenderPreview] for
 // release plans whose full rendering would exceed a provider's PR
 // body limit. The output keeps the header, the per-package version
@@ -94,7 +101,11 @@ func RenderPreview(p *plan.ReleasePlan, today string) string {
 // The orchestrator falls back to this when the full rendering
 // exceeds [MaxPRBodyBytes]; callers don't normally invoke it
 // directly.
-func RenderPreviewCompact(p *plan.ReleasePlan, today string) string {
+//
+// Unlike [RenderPreview], this function takes no `today` parameter:
+// the compact form has no per-package date-stamped CHANGELOG
+// content, so the date is not needed.
+func RenderPreviewCompact(p *plan.ReleasePlan) string {
 	if p == nil || p.IsEmpty() {
 		return "_No pending changesets. The release PR will be closed._\n"
 	}
@@ -118,7 +129,7 @@ func RenderPreviewCompact(p *plan.ReleasePlan, today string) string {
 		fmt.Fprintln(&b)
 	}
 
-	fmt.Fprintln(&b, "_Per-package release notes were elided to fit the provider's PR body limit. Each package's `CHANGELOG.md` will receive the full content when this PR merges._")
+	fmt.Fprintln(&b, CompactElidedNotesMarker)
 
 	if len(p.Consumed) > 0 {
 		fmt.Fprintln(&b)

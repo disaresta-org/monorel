@@ -114,7 +114,7 @@ func TestRenderPreviewCompact(t *testing.T) {
 		}},
 		Consumed: []*changeset.Changeset{cs},
 	}
-	got := release.RenderPreviewCompact(p, "2026-04-30")
+	got := release.RenderPreviewCompact(p)
 
 	// The version table is the load-bearing content of the
 	// compact form; make sure it survives.
@@ -141,10 +141,32 @@ func TestRenderPreviewCompact(t *testing.T) {
 }
 
 func TestRenderPreviewCompact_EmptyPlan(t *testing.T) {
-	if got := release.RenderPreviewCompact(nil, ""); !strings.Contains(got, "No pending changesets") {
+	if got := release.RenderPreviewCompact(nil); !strings.Contains(got, "No pending changesets") {
 		t.Errorf("nil plan should render empty-state message; got %q", got)
 	}
-	if got := release.RenderPreviewCompact(&plan.ReleasePlan{}, ""); !strings.Contains(got, "No pending changesets") {
+	if got := release.RenderPreviewCompact(&plan.ReleasePlan{}); !strings.Contains(got, "No pending changesets") {
 		t.Errorf("empty plan should render empty-state message; got %q", got)
+	}
+}
+
+func TestCompactElidedNotesMarker_StableContract(t *testing.T) {
+	// CompactElidedNotesMarker is the stable substring downstream
+	// scrapers can detect to know the body was rendered compact.
+	// Verify the constant matches what RenderPreviewCompact emits
+	// so a future rewrite of one without the other can't drift.
+	cs := &changeset.Changeset{
+		Name:  "x",
+		Bumps: map[string]semver.BumpLevel{"foo": semver.Patch},
+		Body:  "x",
+	}
+	p := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{{
+			Name: "foo", From: "v1.0.0", To: "v1.0.1", Bump: semver.Patch,
+			Tag: "foo/v1.0.1", Changesets: []*changeset.Changeset{cs},
+		}},
+	}
+	got := release.RenderPreviewCompact(p)
+	if !strings.Contains(got, release.CompactElidedNotesMarker) {
+		t.Errorf("compact rendering doesn't contain the public marker constant")
 	}
 }

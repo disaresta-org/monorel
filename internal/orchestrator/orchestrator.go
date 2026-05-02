@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"unicode/utf8"
 
 	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/internal/release"
@@ -188,7 +189,7 @@ func renderBodyWithinLimit(p *plan.ReleasePlan, today string) string {
 	if len(body) <= MaxPRBodyBytes {
 		return body
 	}
-	body = release.RenderPreviewCompact(p, today)
+	body = release.RenderPreviewCompact(p)
 	if len(body) <= MaxPRBodyBytes {
 		return body
 	}
@@ -196,13 +197,30 @@ func renderBodyWithinLimit(p *plan.ReleasePlan, today string) string {
 	// packages). Hard-truncate at a byte boundary, leaving room
 	// for a trailing marker so the body remains valid markdown
 	// and the reader knows content was dropped.
+	return truncateWithMarker(body, MaxPRBodyBytes)
+}
+
+// truncateWithMarker cuts body to at most max bytes (including the
+// trailing marker) on a UTF-8 codepoint boundary so a multi-byte
+// rune doesn't render as a replacement character. Exposed at
+// package scope so the test suite can exercise the tier-3 branch
+// directly without building a release plan large enough to drive
+// the orchestrator there organically.
+func truncateWithMarker(body string, max int) string {
 	const marker = "\n\n_…(release-PR body truncated by monorel; see each package's CHANGELOG.md for the full content)._\n"
-	cut := MaxPRBodyBytes - len(marker)
+	cut := max - len(marker)
 	if cut < 0 {
 		cut = 0
 	}
 	if cut > len(body) {
 		cut = len(body)
+	}
+	// Walk back to the nearest UTF-8 codepoint boundary so the
+	// truncation never splits a multi-byte rune. RuneStart
+	// returns true for ASCII bytes too, so single-byte truncations
+	// are unaffected.
+	for cut > 0 && !utf8.RuneStart(body[cut]) {
+		cut--
 	}
 	return body[:cut] + marker
 }

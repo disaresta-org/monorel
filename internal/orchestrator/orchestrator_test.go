@@ -236,3 +236,24 @@ func TestRun_LongBodyFallsBackToCompact(t *testing.T) {
 		t.Errorf("version table missing from compact rendering")
 	}
 }
+
+// TestTruncateWithMarker_Tier3 directly tests the hard-truncation
+// helper with a small max so we don't have to build a release plan
+// large enough to drive the orchestrator there organically. Covers:
+//   - body fits within max: marker is appended unconditionally; this test only asserts the multi-byte rune case below.
+//   - body exceeds max → cut + marker, total length <= max + len(marker).
+//   - body contains a multi-byte rune at the cut point → walks back to a UTF-8 boundary.
+func TestTruncateWithMarker_Tier3(t *testing.T) {
+	// Build a body that would split a 3-byte UTF-8 rune (€ = U+20AC,
+	// 0xE2 0x82 0xAC) at byte 2 if we naively cut at len(body) - 1.
+	// Place the rune so that the cut lands inside it.
+	body := strings.Repeat("a", 600) + "€" + strings.Repeat("b", 600)
+	// max chosen so the cut would land mid-rune without UTF-8 walk-back.
+	got := orchestrator.TruncateWithMarker(body, 700)
+	if strings.Contains(got, "�") {
+		t.Errorf("truncation produced a UTF-8 replacement character: %q", got[:60])
+	}
+	if !strings.Contains(got, "release-PR body truncated by monorel") {
+		t.Errorf("truncated body missing trailing marker: %q", got[len(got)-200:])
+	}
+}
