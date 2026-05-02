@@ -4,6 +4,7 @@ const defaultTitle = 'monorel'
 const defaultDescription =
   'A changesets-style release tool for multi-module Go monorepos.'
 const baseUrl = 'https://monorel.disaresta.com'
+const gaMeasurementId = 'G-BFQMES7Z4B'
 
 export default defineConfig({
   lang: 'en-US',
@@ -14,6 +15,22 @@ export default defineConfig({
   sitemap: { hostname: baseUrl },
   async transformHead({ pageData }) {
     const head: HeadConfig[] = [
+      // Google Analytics (gtag.js)
+      [
+        'script',
+        {
+          async: '',
+          src: `https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`,
+        },
+      ],
+      [
+        'script',
+        {},
+        `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${gaMeasurementId}');`,
+      ],
       ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
       // Vanity import path. Go's toolchain fetches
       // monorel.disaresta.com/cmd/monorel?go-get=1, parses these
