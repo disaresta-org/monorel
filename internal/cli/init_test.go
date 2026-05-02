@@ -1,12 +1,13 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	loglayer "go.loglayer.dev/v2"
 )
 
 func TestSplitOwnerRepo(t *testing.T) {
@@ -202,8 +203,7 @@ func TestDoInit_FreshRepo(t *testing.T) {
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/acme/widget.git")
 	writeMod(t, dir, "go.mod", "module github.com/acme/widget\n")
 
-	var out bytes.Buffer
-	if err := doInit(&out, initOptions{dir: dir}); err != nil {
+	if err := doInit(loglayer.NewMock(), initOptions{dir: dir}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
 
@@ -233,7 +233,7 @@ func TestDoInit_RefusesWithoutForce(t *testing.T) {
 	}
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
-	err := doInit(&bytes.Buffer{}, initOptions{dir: dir, owner: "a", repo: "b"})
+	err := doInit(loglayer.NewMock(), initOptions{dir: dir, owner: "a", repo: "b"})
 	if err == nil {
 		t.Fatal("expected error when monorel.toml exists without --force")
 	}
@@ -265,7 +265,7 @@ changelog  = "CHANGELOG.md"
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/wrong/wrong.git")
 
-	if err := doInit(&bytes.Buffer{}, initOptions{dir: dir, force: true}); err != nil {
+	if err := doInit(loglayer.NewMock(), initOptions{dir: dir, force: true}); err != nil {
 		t.Fatalf("doInit --force: %v", err)
 	}
 
@@ -302,7 +302,7 @@ changelog  = "CHANGELOG.md"
 	}
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
-	if err := doInit(&bytes.Buffer{}, initOptions{
+	if err := doInit(loglayer.NewMock(), initOptions{
 		dir:   dir,
 		force: true,
 		owner: "new-team",
@@ -337,7 +337,7 @@ func TestDoInit_ForcePreservesExistingReadme(t *testing.T) {
 	}
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 
-	if err := doInit(&bytes.Buffer{}, initOptions{
+	if err := doInit(loglayer.NewMock(), initOptions{
 		dir:   dir,
 		owner: "acme",
 		repo:  "widget",
@@ -355,7 +355,7 @@ func TestDoInit_NoGoMod(t *testing.T) {
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/acme/widget.git")
-	if err := doInit(&bytes.Buffer{}, initOptions{dir: dir}); err == nil {
+	if err := doInit(loglayer.NewMock(), initOptions{dir: dir}); err == nil {
 		t.Fatal("expected error when no go.mod files are present")
 	}
 }
@@ -366,7 +366,7 @@ func TestDoInit_OwnerRepoOverrideNoRemote(t *testing.T) {
 	// stays at the default (github) because init validates against
 	// KnownProviders before writing.
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
-	if err := doInit(&bytes.Buffer{}, initOptions{
+	if err := doInit(loglayer.NewMock(), initOptions{
 		dir:   dir,
 		owner: "acme",
 		repo:  "widget",
@@ -384,7 +384,7 @@ func TestDoInit_OwnerRepoOverrideNoRemote(t *testing.T) {
 func TestDoInit_RejectsUnknownProvider(t *testing.T) {
 	dir := t.TempDir()
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
-	err := doInit(&bytes.Buffer{}, initOptions{
+	err := doInit(loglayer.NewMock(), initOptions{
 		dir:      dir,
 		provider: "bitbucket", // not in KnownProviders today.
 		owner:    "acme",
@@ -425,8 +425,8 @@ changelog  = "CHANGELOG.md"
 	runGit(t, dir, "init", "-q")
 	runGit(t, dir, "remote", "add", "origin", "https://github.com/auto-detected/from-origin.git")
 
-	var out bytes.Buffer
-	if err := doInit(&out, initOptions{dir: dir, force: true}); err != nil {
+	log, out := testLogger()
+	if err := doInit(log, initOptions{dir: dir, force: true}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
 	if !strings.Contains(out.String(), "warning") {

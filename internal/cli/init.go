@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/url"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	loglayer "go.loglayer.dev/v2"
 	"golang.org/x/mod/modfile"
 
 	"monorel.disaresta.com/config"
@@ -63,12 +63,16 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	opts.owner, _ = cmd.Flags().GetString("owner")
 	opts.repo, _ = cmd.Flags().GetString("repo")
 	opts.force, _ = cmd.Flags().GetBool("force")
-	return doInit(cmd.OutOrStdout(), opts)
+	log, err := newLogger(cmd)
+	if err != nil {
+		return err
+	}
+	return doInit(log, opts)
 }
 
 // doInit is the body of `monorel init`, factored out of runInit so
 // tests can drive it without process-global os.Chdir.
-func doInit(out io.Writer, opts initOptions) error {
+func doInit(log *loglayer.LogLayer, opts initOptions) error {
 	configPath := filepath.Join(opts.dir, "monorel.toml")
 
 	if !opts.force {
@@ -92,7 +96,7 @@ func doInit(out io.Writer, opts initOptions) error {
 		case errors.Is(err, fs.ErrNotExist):
 			// Fresh repo; nothing to preserve.
 		default:
-			fmt.Fprintf(out, "warning: existing monorel.toml could not be loaded (%v); falling back to auto-detect\n", err)
+			log.Warn("existing monorel.toml could not be loaded (%v); falling back to auto-detect", err)
 		}
 	}
 
@@ -162,14 +166,14 @@ func doInit(out io.Writer, opts initOptions) error {
 		// else: file present, leave it alone.
 	}
 
-	fmt.Fprintf(out, "Wrote monorel.toml with %d package(s):\n", len(pkgs))
+	log.Info("Wrote monorel.toml with %d package(s):", len(pkgs))
 	for _, p := range pkgs {
-		fmt.Fprintf(out, "  %s (path: %s, tag prefix: %q)\n", p.Name, p.Path, p.TagPrefix)
+		log.Info("  %s (path: %s, tag prefix: %q)", p.Name, p.Path, p.TagPrefix)
 	}
-	fmt.Fprintln(out, "Created .changeset/ with a README.")
-	fmt.Fprintln(out, "Next steps:")
-	fmt.Fprintln(out, "  monorel validate     # confirm the config")
-	fmt.Fprintln(out, "  monorel add          # write your first changeset")
+	log.Info("Created .changeset/ with a README.")
+	log.Info("Next steps:")
+	log.Info("  monorel validate     # confirm the config")
+	log.Info("  monorel add          # write your first changeset")
 	return nil
 }
 

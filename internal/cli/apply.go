@@ -55,7 +55,7 @@ func runApply(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if p.IsEmpty() {
-		fmt.Fprintln(cmd.OutOrStdout(), "No pending changesets. Nothing to apply.")
+		rt.Log.Info("No pending changesets. Nothing to apply.")
 		return nil
 	}
 
@@ -71,13 +71,15 @@ func runApply(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "Applied %d release(s) at %s:\n", len(res.Releases), short(res.CommitSHA))
+	// Headline summary: the GitHub Action wrapper parses these lines
+	// (the "Applied N release(s) at <sha>:" / "  staged: <pkg> <ver>"
+	// shape). Keep them literal.
+	rt.Log.Info("Applied %d release(s) at %s:", len(res.Releases), short(res.CommitSHA))
 	for _, r := range res.Releases {
 		// Apply doesn't create tags; the planned tag name is what
 		// `monorel tag` will produce for this release.
-		fmt.Fprintf(out, "  staged: %s\n", r.Tag)
+		rt.Log.Info("  staged: %s", r.Tag)
 	}
-	fmt.Fprintln(out, "Run `monorel tag` (typically post-merge) to create tags from this commit's trailers.")
+	rt.Log.Info("Run `monorel tag` (typically post-merge) to create tags from this commit's trailers.")
 	return nil
 }

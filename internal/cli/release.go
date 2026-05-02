@@ -55,7 +55,7 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if p.IsEmpty() {
-		fmt.Fprintln(cmd.OutOrStdout(), "No pending changesets. Nothing to release.")
+		rt.Log.Info("No pending changesets. Nothing to release.")
 		return nil
 	}
 
@@ -71,12 +71,13 @@ func runRelease(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "Released %d package(s) at %s:\n", len(res.Releases), short(res.CommitSHA))
+	// Headline summary: keep the wording stable (the GitHub Action
+	// wrapper greps for these lines).
+	rt.Log.Info("Released %d package(s) at %s:", len(res.Releases), short(res.CommitSHA))
 	for _, r := range res.Releases {
-		fmt.Fprintf(out, "  %s\n", r.Tag)
+		rt.Log.Info("  %s", r.Tag)
 	}
-	fmt.Fprintln(out, "Run `git push --follow-tags && monorel publish` to publish.")
+	rt.Log.Info("Run `git push --follow-tags && monorel publish` to publish.")
 	return nil
 }
 

@@ -55,8 +55,8 @@ Errors if pre-release mode is already active. To switch channels, run
 			if err := state.Write(rt.ChangesetDir); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"entered pre-release mode (channel %q). Subsequent releases will be tagged vX.Y.Z-%s.N.\n",
+			rt.Log.Info(
+				"entered pre-release mode (channel %q). Subsequent releases will be tagged vX.Y.Z-%s.N.",
 				channel, channel)
 			return nil
 		},
@@ -73,14 +73,14 @@ func newPreExitCmd() *cobra.Command {
 				return err
 			}
 			if rt.PreState == nil {
-				fmt.Fprintln(cmd.OutOrStdout(), "not in pre-release mode; nothing to exit.")
+				rt.Log.Info("not in pre-release mode; nothing to exit.")
 				return nil
 			}
 			if err := changeset.RemovePreState(rt.ChangesetDir); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"exited pre-release mode (was channel %q). Next release is a stable version.\n",
+			rt.Log.Info(
+				"exited pre-release mode (was channel %q). Next release is a stable version.",
 				rt.PreState.Channel)
 			return nil
 		},
@@ -96,14 +96,13 @@ func newPreStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
 			if rt.PreState == nil {
-				fmt.Fprintln(out, "stable mode (not in pre-release).")
+				rt.Log.Info("stable mode (not in pre-release).")
 				return nil
 			}
-			fmt.Fprintf(out, "pre-release mode: channel=%q\n", rt.PreState.Channel)
+			rt.Log.Info("pre-release mode: channel=%q", rt.PreState.Channel)
 			if len(rt.PreState.Counters) == 0 {
-				fmt.Fprintln(out, "  no per-package counters yet.")
+				rt.Log.Info("  no per-package counters yet.")
 				return nil
 			}
 			// Sort counter keys for deterministic output.
@@ -113,7 +112,7 @@ func newPreStatusCmd() *cobra.Command {
 			}
 			sort.Strings(names)
 			for _, name := range names {
-				fmt.Fprintf(out, "  %s: counter=%d\n", name, rt.PreState.Counters[name])
+				rt.Log.Info("  %s: counter=%d", name, rt.PreState.Counters[name])
 			}
 			return nil
 		},

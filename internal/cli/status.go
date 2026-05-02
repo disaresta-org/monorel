@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"fmt"
-	"io"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	loglayer "go.loglayer.dev/v2"
 
 	"monorel.disaresta.com/changeset"
 )
@@ -30,16 +28,18 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	return writeStatus(cmd.OutOrStdout(), rt.Changesets)
+	emitStatus(rt.Log, rt.Changesets)
+	return nil
 }
 
-// writeStatus writes a tabular summary: one row per (changeset,
+// emitStatus prints a tabular summary: one row per (changeset,
 // package) pair. Sorted by changeset name, then package name, so the
-// output is stable across runs.
-func writeStatus(w io.Writer, changesets []*changeset.Changeset) error {
+// output is stable across runs. The cli transport renders the row
+// slice as an aligned table.
+func emitStatus(log *loglayer.LogLayer, changesets []*changeset.Changeset) {
 	if len(changesets) == 0 {
-		_, err := fmt.Fprintln(w, "No pending changesets.")
-		return err
+		log.Info("No pending changesets.")
+		return
 	}
 	// Sort by changeset name for determinism (LoadAll already sorts,
 	// but defensive: status may be called on caller-supplied slices
@@ -47,19 +47,24 @@ func writeStatus(w io.Writer, changesets []*changeset.Changeset) error {
 	sorted := append([]*changeset.Changeset(nil), changesets...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "CHANGESET\tPACKAGE\tBUMP\tSUMMARY")
+	rows := make([]loglayer.Metadata, 0, len(sorted))
 	for _, cs := range sorted {
 		summary := firstLine(cs.Body)
 		for _, pkg := range cs.PackageNames() {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", cs.Name, pkg, cs.Bumps[pkg], summary)
+			rows = append(rows, loglayer.Metadata{
+				"changeset": cs.Name,
+				"package":   pkg,
+				"bump":      cs.Bumps[pkg].String(),
+				"summary":   summary,
+			})
 		}
 	}
-	if err := tw.Flush(); err != nil {
-		return err
-	}
-	fmt.Fprintf(w, "\n%d changeset(s) pending.\n", len(sorted))
-	return nil
+	// Emit the table on its own (no headline) and follow with the
+	// summary line. The cli transport detects the slice-of-map
+	// metadata shape and renders an aligned table; calling
+	// MetadataOnly avoids prepending an empty leading line.
+	log.MetadataOnly(rows)
+	log.Info("%d changeset(s) pending.", len(sorted))
 }
 
 // firstLine returns the first non-empty line of body, trimmed. Empty
