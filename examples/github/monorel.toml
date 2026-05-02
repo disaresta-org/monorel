@@ -1,0 +1,16 @@
+# monorel configuration. See https://monorel.disaresta.com/configuration
+
+[provider]
+name  = "github"  # optional; default
+owner = "acme"
+repo  = "widget"
+
+[packages."github.com/acme/widget"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+
+[packages."transports/foo"]
+tag_prefix = "transports/foo"
+path       = "transports/foo"
+changelog  = "transports/foo/CHANGELOG.md"

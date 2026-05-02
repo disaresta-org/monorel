@@ -10,7 +10,13 @@ This page walks you from a fresh repo to a published release using monorel's can
 The shortest version: every release-affecting PR includes a changeset; the bot maintains an always-open release PR; you merge the release PR when you want to ship.
 
 ::: info Looking for a working example?
-[monorel-example](https://github.com/disaresta-org/monorel-example) is a minimal two-package Go monorepo wired up with monorel: one root module, one sub-module, the two workflow files, and a `monorel.toml` scaffolded by `monorel init`. Clone it, study it, copy the files you need.
+The [`examples/`](https://github.com/disaresta-org/monorel/tree/main/examples) directory in the monorel repo has minimal reference setups for each provider:
+
+- [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github): composite action wrapper + two workflow files.
+- [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea): same wrapper, Gitea Actions YAML format, `provider.host` set, Forgejo-compatible.
+- [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab): single `.gitlab-ci.yml` using the published Docker image.
+
+Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy into your repo.
 
 For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 25 sub-modules.
 :::

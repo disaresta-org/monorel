@@ -11,6 +11,10 @@ monorel's Gitea provider talks to any Gitea or Forgejo instance via the standard
 The Gitea provider landed in monorel v0.6.0. Earlier versions only support GitHub.
 :::
 
+::: tip Example
+Working reference setup at [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea). Copy the files you need.
+:::
+
 ## Configuration
 
 `monorel.toml`:

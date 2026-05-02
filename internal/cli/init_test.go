@@ -386,7 +386,7 @@ func TestDoInit_RejectsUnknownProvider(t *testing.T) {
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 	err := doInit(&bytes.Buffer{}, initOptions{
 		dir:      dir,
-		provider: "gitlab", // not in KnownProviders today.
+		provider: "bitbucket", // not in KnownProviders today.
 		owner:    "acme",
 		repo:     "widget",
 	})

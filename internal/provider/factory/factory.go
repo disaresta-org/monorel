@@ -14,6 +14,7 @@ import (
 	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/internal/provider/gitea"
 	"monorel.disaresta.com/internal/provider/github"
+	"monorel.disaresta.com/internal/provider/gitlab"
 )
 
 // New constructs a [provider.Client] for the configured provider. Pass an
@@ -30,6 +31,13 @@ func New(ctx context.Context, cfg config.ProviderConfig, token string) (provider
 		})
 	case config.ProviderGitea:
 		return gitea.New(ctx, gitea.Options{
+			Owner: cfg.Owner,
+			Repo:  cfg.Repo,
+			Host:  cfg.Host,
+			Token: token,
+		})
+	case config.ProviderGitLab:
+		return gitlab.New(ctx, gitlab.Options{
 			Owner: cfg.Owner,
 			Repo:  cfg.Repo,
 			Host:  cfg.Host,

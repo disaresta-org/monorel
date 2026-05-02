@@ -47,7 +47,7 @@ git commit && gh pr create
 #    always-open release PR. Merge it when ready to ship.
 ```
 
-For a full working example, fork [disaresta-org/monorel-example](https://github.com/disaresta-org/monorel-example): a 2-package repo with everything wired up. Or read [Getting Started](https://monorel.disaresta.com/getting-started) for the walkthrough.
+Reference setups for each provider live in [`examples/`](examples/) (GitHub, Gitea / Forgejo, GitLab). Copy the files you need; the [Getting Started](https://monorel.disaresta.com/getting-started) walkthrough explains the full lifecycle.
 
 ## Documentation
 

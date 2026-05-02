@@ -1,0 +1,17 @@
+# monorel configuration. See https://monorel.disaresta.com/configuration
+
+[provider]
+name  = "gitlab"
+host  = "gitlab.com"           # or your self-hosted instance
+owner = "team/platform"        # may contain slashes for sub-groups
+repo  = "widget"
+
+[packages."gitlab.com/team/platform/widget"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+
+[packages."transports/foo"]
+tag_prefix = "transports/foo"
+path       = "transports/foo"
+changelog  = "transports/foo/CHANGELOG.md"
