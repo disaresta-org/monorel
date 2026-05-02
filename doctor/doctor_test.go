@@ -73,8 +73,8 @@ func TestRun_FlagsRevivedChangeset(t *testing.T) {
 		t.Fatalf("got %d findings, want 1: %v", len(findings), findings)
 	}
 	f := findings[0]
-	if f.CheckName != "revived-changeset" {
-		t.Errorf("CheckName = %q, want revived-changeset", f.CheckName)
+	if f.CheckName != doctor.CheckNameRevivedChangeset {
+		t.Errorf("CheckName = %q, want %q", f.CheckName, doctor.CheckNameRevivedChangeset)
 	}
 	if f.Severity != doctor.SeverityError {
 		t.Errorf("Severity = %v, want SeverityError", f.Severity)

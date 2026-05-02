@@ -99,6 +99,15 @@ type Options struct {
 // monorel writes via `monorel apply` / `monorel release`.
 const DefaultReleaseCommitGrep = "chore(release):"
 
+// CheckNameRevivedChangeset is the [Finding.CheckName] value the
+// revived-changeset diagnostic emits. Exported so callers can
+// match findings by check name without hardcoding the string:
+//
+//	for _, f := range findings {
+//	    if f.CheckName == doctor.CheckNameRevivedChangeset { ... }
+//	}
+const CheckNameRevivedChangeset = "revived-changeset"
+
 // Run executes every built-in check against the repository state
 // described by opts. Returns the findings in deterministic order
 // (sorted by CheckName, then Path) plus any error encountered while
@@ -199,7 +208,7 @@ func checkRevivedChangesets(repoDir string, gitLog GitLog, grep string) ([]Findi
 		}
 		findings = append(findings, Finding{
 			Severity:  SeverityError,
-			CheckName: "revived-changeset",
+			CheckName: CheckNameRevivedChangeset,
 			Path:      relPath,
 			Message: fmt.Sprintf(
 				"%s was deleted by a previous %s commit but is back on disk; "+

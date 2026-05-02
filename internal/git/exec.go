@@ -199,18 +199,23 @@ func (e *Exec) DeletedFilesInCommitsMatching(messageGrep string) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	lines := splitLines(out)
-	seen := make(map[string]struct{}, len(lines))
-	uniq := make([]string, 0, len(lines))
-	for _, l := range lines {
-		if _, ok := seen[l]; ok {
+	return dedupSorted(splitLines(out)), nil
+}
+
+// dedupSorted returns a copy of in with duplicates removed and the
+// remaining elements sorted lexicographically.
+func dedupSorted(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; ok {
 			continue
 		}
-		seen[l] = struct{}{}
-		uniq = append(uniq, l)
+		seen[s] = struct{}{}
+		out = append(out, s)
 	}
-	sort.Strings(uniq)
-	return uniq, nil
+	sort.Strings(out)
+	return out
 }
 
 // splitLines splits raw on '\n', trimming carriage returns, and drops

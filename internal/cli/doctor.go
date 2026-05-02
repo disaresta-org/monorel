@@ -91,6 +91,10 @@ func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 			warnCount++
 		}
 	}
+	severityLabel := map[doctor.Severity]string{
+		doctor.SeverityError:   "ERRORS",
+		doctor.SeverityWarning: "WARNINGS",
+	}
 	for _, sev := range []doctor.Severity{doctor.SeverityError, doctor.SeverityWarning} {
 		header := false
 		for _, f := range findings {
@@ -98,11 +102,7 @@ func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 				continue
 			}
 			if !header {
-				label := "ERRORS"
-				if sev == doctor.SeverityWarning {
-					label = "WARNINGS"
-				}
-				if _, err := fmt.Fprintf(w, "\n%s:\n", label); err != nil {
+				if _, err := fmt.Fprintf(w, "\n%s:\n", severityLabel[sev]); err != nil {
 					return err
 				}
 				header = true

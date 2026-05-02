@@ -281,20 +281,12 @@ func (f *Fake) DeletedFilesInCommitsMatching(messageGrep string) ([]string, erro
 	if messageGrep == "" {
 		return nil, errors.New("messageGrep is empty")
 	}
-	seen := make(map[string]struct{})
-	var out []string
+	var paths []string
 	for _, c := range f.Commits {
 		if !strings.Contains(c.Message, messageGrep) {
 			continue
 		}
-		for _, p := range c.Deletions {
-			if _, ok := seen[p]; ok {
-				continue
-			}
-			seen[p] = struct{}{}
-			out = append(out, p)
-		}
+		paths = append(paths, c.Deletions...)
 	}
-	sort.Strings(out)
-	return out, nil
+	return dedupSorted(paths), nil
 }

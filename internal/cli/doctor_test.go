@@ -88,7 +88,7 @@ func TestDoctorCmd_FlagsRevival(t *testing.T) {
 		t.Fatalf("err = %v, want ErrExit(1)", err)
 	}
 	for _, want := range []string{
-		"revived-changeset",
+		doctor.CheckNameRevivedChangeset,
 		".changeset/shipped.md",
 		"1 error(s)",
 	} {
@@ -134,7 +134,7 @@ func TestDoctorCmd_JSONShape(t *testing.T) {
 		t.Errorf("paths in wrong order: %+v", got.Findings)
 	}
 	for _, f := range got.Findings {
-		if f.Severity != "error" || f.CheckName != "revived-changeset" {
+		if f.Severity != "error" || f.CheckName != doctor.CheckNameRevivedChangeset {
 			t.Errorf("unexpected finding: %+v", f)
 		}
 	}
