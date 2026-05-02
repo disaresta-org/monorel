@@ -23,7 +23,7 @@ The off-the-shelf options each have a sharp edge for this layout.
 | Local CLI (works off-CI) | ⚠️ via npm package | ✅ | ✅ | ✅ |
 | Bare-tag root (`vX.Y.Z`) | ✅ | n/a (JS layout) | ❌ prefixes mandatory | ✅ |
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
-| Strips dev `replace` + pins sibling `require` versions in `go.mod` at release time | ❌ | n/a (JS) | ❌ | ✅ |
+| Cleans `go.mod` for proxy publish | ❌ | n/a (JS) | ❌ | ✅ |
 | Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
 | Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab |
@@ -60,7 +60,7 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 - **Always-open release PR.** The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Merging the PR runs `monorel release` on the merge commit, pushes tags, and publishes per-tag releases.
 - **Pre-release support.** `monorel pre enter rc` switches the repo to release-candidate mode; subsequent releases append `-rc.N` to the next stable version and increment a per-package counter. `pre exit` returns to stable.
 - **Provider-neutral.** GitHub, Gitea / Forgejo, and GitLab today; Bitbucket by adding a subpackage. The orchestrator never sees provider-specific types.
-- **Clean `go.mod` at release time.** Go monorepo sub-modules conventionally carry `replace go.example.com/<sibling> => ../<sibling>` for local development plus a placeholder pseudo-version (`v0.0.0-00010101000000-000000000000`) on the matching `require` line. Both are correct in the local checkout; both are wrong on the module proxy. Without intervention they ship verbatim to the proxy and downstream consumers' `go mod tidy` returns 404 on the placeholder version. monorel's `apply` rewrites every released sub-module's `go.mod` before staging the release commit: drops the dev-only `replace` directives whose target is a sibling in the same release plan, and pins each sibling's `require` line to its planned tag. External (non-sibling) `replace` directives are preserved. This is monorel-specific: `release-please`, `Knope`, and `changesets` don't model the Go-monorepo proxy contract, so every adopter solves it hand-rolled (kubernetes' staging-publishing-bot, hashicorp's modulemodifier, etc.).
+- **Clean `go.mod` at release time.** Sub-modules carry dev `replace` directives and placeholder `require` versions for local cross-module work; monorel strips and pins them in the release commit so downstream consumers' `go mod tidy` doesn't 404 on the placeholder. The other tools don't model the Go-monorepo proxy contract; every adopter who hits this hand-rolls a publishing script.
 
 ## When monorel is overkill
 
