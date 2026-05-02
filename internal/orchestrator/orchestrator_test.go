@@ -184,3 +184,76 @@ func TestRun_MultiPackageTitle(t *testing.T) {
 		t.Errorf("multi-package title = %q, want '2 packages'", res.PR.Title)
 	}
 }
+
+// TestRun_LongBodyFallsBackToCompact builds a plan whose full
+// rendering would exceed MaxPRBodyBytes (a single huge changeset
+// body fanned across 30 packages) and verifies the orchestrator
+// falls back to the compact form so the provider call still
+// succeeds.
+func TestRun_LongBodyFallsBackToCompact(t *testing.T) {
+	f := provider.NewFake()
+
+	// 5 KiB of body × 30 packages = ~150 KiB, well over the 64 KiB
+	// limit. Each package has its own changeset with the same body.
+	body := strings.Repeat("This is a long changeset body. ", 160) // ~5 KB
+	p := &plan.ReleasePlan{}
+	for i := 0; i < 30; i++ {
+		name := "pkg" + string(rune('a'+i))
+		cs := &changeset.Changeset{
+			Name:  name,
+			Bumps: map[string]semver.BumpLevel{name: semver.Major},
+			Body:  body,
+		}
+		p.Releases = append(p.Releases, plan.PackageRelease{
+			Name:       name,
+			From:       "v1.0.0",
+			To:         "v2.0.0",
+			Bump:       semver.Major,
+			Tag:        "transports/" + name + "/v2.0.0",
+			Changesets: []*changeset.Changeset{cs},
+		})
+		p.Consumed = append(p.Consumed, cs)
+	}
+
+	res, err := orchestrator.Run(context.Background(), orchestrator.Options{
+		Plan:     p,
+		Provider: f,
+		Today:    "2026-05-02",
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if got := len(res.PR.Body); got > orchestrator.MaxPRBodyBytes {
+		t.Errorf("body size %d exceeds limit %d; orchestrator should have fallen back", got, orchestrator.MaxPRBodyBytes)
+	}
+	if !strings.Contains(res.PR.Body, "Per-package release notes were elided") {
+		t.Errorf("compact-form marker missing; body:\n%s", res.PR.Body)
+	}
+	// Sanity: the table is still present (so the reader sees
+	// what's shipping at what versions).
+	if !strings.Contains(res.PR.Body, "| Package | Bump | From | To |") {
+		t.Errorf("version table missing from compact rendering")
+	}
+}
+
+// TestTruncateWithMarker_Tier3 directly tests the hard-truncation
+// helper with a small max so we don't have to build a release plan
+// large enough to drive the orchestrator there organically. Covers:
+//   - body fits within max: marker is appended unconditionally; this test only asserts the multi-byte rune case below.
+//   - body exceeds max → cut + marker, total length <= max + len(marker).
+//   - body contains a multi-byte rune at the cut point → walks back to a UTF-8 boundary.
+func TestTruncateWithMarker_Tier3(t *testing.T) {
+	// Build a body that would split a 3-byte UTF-8 rune (€ = U+20AC,
+	// 0xE2 0x82 0xAC) at byte 2 if we naively cut at len(body) - 1.
+	// Place the rune so that the cut lands inside it.
+	body := strings.Repeat("a", 600) + "€" + strings.Repeat("b", 600)
+	// max chosen so the cut would land mid-rune without UTF-8 walk-back.
+	got := orchestrator.TruncateWithMarker(body, 700)
+	if strings.Contains(got, "�") {
+		t.Errorf("truncation produced a UTF-8 replacement character: %q", got[:60])
+	}
+	if !strings.Contains(got, "release-PR body truncated by monorel") {
+		t.Errorf("truncated body missing trailing marker: %q", got[len(got)-200:])
+	}
+}

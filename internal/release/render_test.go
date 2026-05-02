@@ -96,3 +96,77 @@ func TestRenderPreview_PrereleaseNote(t *testing.T) {
 		t.Errorf("pre-release plan should call out the channel state:\n%s", got)
 	}
 }
+
+func TestRenderPreviewCompact(t *testing.T) {
+	cs := &changeset.Changeset{
+		Name:  "first",
+		Bumps: map[string]semver.BumpLevel{"foo": semver.Minor},
+		Body:  "Adds Lazy() helper.",
+	}
+	p := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{{
+			Name:       "foo",
+			From:       "v1.6.1",
+			To:         "v1.7.0",
+			Bump:       semver.Minor,
+			Tag:        "transports/foo/v1.7.0",
+			Changesets: []*changeset.Changeset{cs},
+		}},
+		Consumed: []*changeset.Changeset{cs},
+	}
+	got := release.RenderPreviewCompact(p)
+
+	// The version table is the load-bearing content of the
+	// compact form; make sure it survives.
+	for _, want := range []string{
+		"opened by [monorel]",
+		"`foo`",
+		"v1.6.1",
+		"**v1.7.0**",
+		"Per-package release notes were elided",
+		"`first`", // Consumed footer
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("compact form missing %q\nfull:\n%s", want, got)
+		}
+	}
+	// The per-package "Released changes" section should NOT
+	// render in the compact form; that's the whole point.
+	if strings.Contains(got, "Released changes") {
+		t.Errorf("compact form should drop the Released changes section:\n%s", got)
+	}
+	if strings.Contains(got, "Adds Lazy() helper.") {
+		t.Errorf("compact form should drop the changeset body:\n%s", got)
+	}
+}
+
+func TestRenderPreviewCompact_EmptyPlan(t *testing.T) {
+	if got := release.RenderPreviewCompact(nil); !strings.Contains(got, "No pending changesets") {
+		t.Errorf("nil plan should render empty-state message; got %q", got)
+	}
+	if got := release.RenderPreviewCompact(&plan.ReleasePlan{}); !strings.Contains(got, "No pending changesets") {
+		t.Errorf("empty plan should render empty-state message; got %q", got)
+	}
+}
+
+func TestCompactElidedNotesMarker_StableContract(t *testing.T) {
+	// CompactElidedNotesMarker is the stable substring downstream
+	// scrapers can detect to know the body was rendered compact.
+	// Verify the constant matches what RenderPreviewCompact emits
+	// so a future rewrite of one without the other can't drift.
+	cs := &changeset.Changeset{
+		Name:  "x",
+		Bumps: map[string]semver.BumpLevel{"foo": semver.Patch},
+		Body:  "x",
+	}
+	p := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{{
+			Name: "foo", From: "v1.0.0", To: "v1.0.1", Bump: semver.Patch,
+			Tag: "foo/v1.0.1", Changesets: []*changeset.Changeset{cs},
+		}},
+	}
+	got := release.RenderPreviewCompact(p)
+	if !strings.Contains(got, release.CompactElidedNotesMarker) {
+		t.Errorf("compact rendering doesn't contain the public marker constant")
+	}
+}
