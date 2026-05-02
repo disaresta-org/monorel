@@ -126,7 +126,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	title := titleFor(opts.Plan)
-	body := release.RenderPreview(opts.Plan, opts.Today)
+	body := renderBodyWithinLimit(opts.Plan, opts.Today)
 
 	if existing == nil {
 		pr, err := opts.Provider.CreatePR(ctx, provider.CreatePROptions{
@@ -159,4 +159,50 @@ func titleFor(p *plan.ReleasePlan) string {
 		return fmt.Sprintf("chore(release): %s %s", r.Name, r.To)
 	}
 	return fmt.Sprintf("chore(release): %d packages", len(p.Releases))
+}
+
+// MaxPRBodyBytes is the conservative upper bound used for PR / MR
+// body content across providers. GitHub caps PR descriptions at
+// 65,536 bytes and Gitea matches; GitLab's MR description allows
+// ~1 MiB but we use the same conservative bound so a release plan
+// that fits one provider fits all.
+const MaxPRBodyBytes = 65536
+
+// renderBodyWithinLimit returns the rendered release-PR body, falling
+// back through three steps when the rendering would exceed
+// [MaxPRBodyBytes]:
+//
+//  1. Full [release.RenderPreview] (header + per-package sections).
+//  2. [release.RenderPreviewCompact] (header + version table only;
+//     per-package release notes elided with a pointer to each
+//     package's CHANGELOG).
+//  3. Hard byte-truncation with a trailing marker, for the rare
+//     case where even the compact form is too large (e.g. hundreds
+//     of packages where the table itself exceeds the limit).
+//
+// Step 1 succeeds for the vast majority of release plans; step 2
+// kicks in only when a changeset body × package-count blows past
+// the limit; step 3 is a last-resort safety net.
+func renderBodyWithinLimit(p *plan.ReleasePlan, today string) string {
+	body := release.RenderPreview(p, today)
+	if len(body) <= MaxPRBodyBytes {
+		return body
+	}
+	body = release.RenderPreviewCompact(p, today)
+	if len(body) <= MaxPRBodyBytes {
+		return body
+	}
+	// Compact still doesn't fit (huge release with hundreds of
+	// packages). Hard-truncate at a byte boundary, leaving room
+	// for a trailing marker so the body remains valid markdown
+	// and the reader knows content was dropped.
+	const marker = "\n\n_…(release-PR body truncated by monorel; see each package's CHANGELOG.md for the full content)._\n"
+	cut := MaxPRBodyBytes - len(marker)
+	if cut < 0 {
+		cut = 0
+	}
+	if cut > len(body) {
+		cut = len(body)
+	}
+	return body[:cut] + marker
 }

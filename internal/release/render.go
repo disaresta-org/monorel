@@ -83,6 +83,57 @@ func RenderPreview(p *plan.ReleasePlan, today string) string {
 	return b.String()
 }
 
+// RenderPreviewCompact is a slimmer variant of [RenderPreview] for
+// release plans whose full rendering would exceed a provider's PR
+// body limit. The output keeps the header, the per-package version
+// table, and any pre-release / consumed-changesets footer; it omits
+// the `## Released changes` per-package sections. A reader sees
+// what's shipping at what version and is pointed at the CHANGELOGs
+// for the full prose.
+//
+// The orchestrator falls back to this when the full rendering
+// exceeds [MaxPRBodyBytes]; callers don't normally invoke it
+// directly.
+func RenderPreviewCompact(p *plan.ReleasePlan, today string) string {
+	if p == nil || p.IsEmpty() {
+		return "_No pending changesets. The release PR will be closed._\n"
+	}
+
+	var b strings.Builder
+	fmt.Fprintln(&b, "This PR was opened by [monorel](https://monorel.disaresta.com). Merge it to release the following packages:")
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "| Package | Bump | From | To |")
+	fmt.Fprintln(&b, "|---|---|---|---|")
+	for _, r := range p.Releases {
+		from := r.From
+		if from == "" {
+			from = "_(initial)_"
+		}
+		fmt.Fprintf(&b, "| `%s` | %s | %s | **%s** |\n", r.Name, r.Bump, from, r.To)
+	}
+	fmt.Fprintln(&b)
+
+	if anyPrerelease(p) {
+		fmt.Fprintln(&b, "> **Pre-release**: this release is part of a pre-release window. CHANGELOGs and changeset files are preserved; merging this PR ships pre-release tags.")
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprintln(&b, "_Per-package release notes were elided to fit the provider's PR body limit. Each package's `CHANGELOG.md` will receive the full content when this PR merges._")
+
+	if len(p.Consumed) > 0 {
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "_Consumed %d changeset(s): ", len(p.Consumed))
+		names := make([]string, len(p.Consumed))
+		for i, cs := range p.Consumed {
+			names[i] = "`" + cs.Name + "`"
+		}
+		fmt.Fprint(&b, strings.Join(names, ", "))
+		fmt.Fprintln(&b, "._")
+	}
+
+	return b.String()
+}
+
 func anyPrerelease(p *plan.ReleasePlan) bool {
 	for _, r := range p.Releases {
 		if r.Prerelease {
