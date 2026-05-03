@@ -79,6 +79,11 @@ type Result struct {
 // optimization, not a contract guarantee.
 var ErrProviderRequired = errors.New("detect: Provider is required")
 
+// ErrRepoRequired is returned when [IsReleaseMerge] is called with a
+// nil repo. The repo is required for both signals: the trailer fast
+// path reads HEAD's commit message, and the API path needs HEAD's SHA.
+var ErrRepoRequired = errors.New("detect: Repo is required")
+
 // IsReleaseMerge reports whether HEAD is the merge commit of monorel's
 // always-open release PR. See package doc for the signal contract.
 //
@@ -98,6 +103,9 @@ var ErrProviderRequired = errors.New("detect: Provider is required")
 // always provider-side; the trailer check itself only fails if reading
 // HEAD's commit message fails.
 func IsReleaseMerge(ctx context.Context, repo git.Repo, prov provider.Client, sha string) (*Result, error) {
+	if repo == nil {
+		return nil, ErrRepoRequired
+	}
 	if prov == nil {
 		return nil, ErrProviderRequired
 	}

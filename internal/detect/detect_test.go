@@ -134,8 +134,31 @@ func TestIsReleaseMerge_APIErrorPropagates(t *testing.T) {
 		t.Fatal("expected wrapped network error")
 	}
 	// The error is wrapped, not the same value, so check substring.
-	if !contains(err.Error(), "network down") {
+	if !strings.Contains(err.Error(), "network down") {
 		t.Errorf("err = %v; should wrap underlying network error", err)
+	}
+}
+
+func TestIsReleaseMerge_RepoErrorPropagates(t *testing.T) {
+	repo := git.NewFake()
+	stageAndCommit(t, repo, "some commit\n")
+	// Arm the next call to fail. git.Fake.FailNext is a plain error
+	// (single-shot via take()); no FailOnce helper exists in the git
+	// package. The next operation IsReleaseMerge performs is
+	// HeadCommitMessage, so the error wrap path is exercised.
+	repo.FailNext = errors.New("git ls-files exploded")
+
+	pf := provider.NewFake()
+
+	_, err := IsReleaseMerge(context.Background(), repo, pf, "abcd")
+	if err == nil {
+		t.Fatal("expected wrapped repo error")
+	}
+	if !strings.Contains(err.Error(), "git ls-files exploded") {
+		t.Errorf("err = %v; should wrap underlying repo error", err)
+	}
+	if !strings.Contains(err.Error(), "read HEAD commit message") {
+		t.Errorf("err = %v; should mention 'read HEAD commit message'", err)
 	}
 }
 
@@ -147,6 +170,10 @@ func TestIsReleaseMerge_NilProvider(t *testing.T) {
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || strings.Contains(s, substr))
+func TestIsReleaseMerge_NilRepo(t *testing.T) {
+	pf := provider.NewFake()
+	_, err := IsReleaseMerge(context.Background(), nil, pf, "abcd")
+	if !errors.Is(err, ErrRepoRequired) {
+		t.Errorf("err = %v, want ErrRepoRequired", err)
+	}
 }
