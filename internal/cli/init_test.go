@@ -386,7 +386,7 @@ func TestDoInit_RejectsUnknownProvider(t *testing.T) {
 	writeMod(t, dir, "go.mod", "module example.com/foo\n")
 	err := doInit(loglayer.NewMock(), initOptions{
 		dir:      dir,
-		provider: "bitbucket", // not in KnownProviders today.
+		provider: "sourcehut", // not in KnownProviders.
 		owner:    "acme",
 		repo:     "widget",
 	})

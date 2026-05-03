@@ -106,7 +106,11 @@ Re-run it. `CreateRelease` is idempotent on the tag name: each tag the prior run
 
 ### A release PR merged without `monorel-Release:` body trailers, and `monorel tag` returned `ErrNoReleaseCommit`. What now?
 
-The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/integrations/github#branch-protection)). Recovery: manually create the tags pointing at the merge commit:
+The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/integrations/github#branch-protection)).
+
+**First, the universal trailers fallback usually recovers automatically.** Since v0.13, `monorel preview` writes a `<!-- monorel-trailers ... -->` HTML comment into the PR body whenever it opens or updates the always-open release PR. When `monorel tag` finds no `monorel-Release:` trailers on HEAD, it walks back to the merged PR via the provider's `FindPRByMergeCommit` lookup and parses trailers from that comment block. So even a force-applied squash-merge that rewrote the body still completes the release. Fixing the squash-merge setting is still recommended (one fewer round-trip, one fewer failure mode), but not urgent.
+
+The fallback fails only when **both** the commit body AND the PR body's comment block are absent. The latter happens when a contributor edited the PR body and removed the comment block before merge, or when an older `monorel preview` (pre-v0.13) wrote the body without the comment. In that case, hand-create the tags pointing at the merge commit:
 
 ```sh
 git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m "Release <prefix> v<X.Y.Z>"
@@ -141,7 +145,7 @@ No. The planner reads tags from git history to determine the current version per
 
 ### Does monorel require GitHub?
 
-No. As of v0.7, `provider.name` accepts `"github"`, `"gitea"`, and `"gitlab"`. The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). Bitbucket isn't implemented yet but the provider seam is ready; the path is documented in `internal/provider/factory/factory.go`.
+No. `provider.name` accepts `"github"`, `"gitea"`, `"gitlab"`, and `"bitbucket"` (Bitbucket Cloud added in v0.14). The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). The provider seam is documented in `internal/provider/factory/factory.go` for users who need a different forge.
 
 ### Can monorel coordinate releases across multiple repos?
 

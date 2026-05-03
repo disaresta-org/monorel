@@ -169,6 +169,19 @@ func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseO
 	}, nil
 }
 
+func (c *client) FindPRByMergeCommit(ctx context.Context, sha string) (*provider.PullRequest, error) {
+	mrs, _, err := c.gl.Commits.ListMergeRequestsByCommit(c.pid, sha, gl.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("gitlab: list MRs for commit %s: %w", sha, err)
+	}
+	for _, mr := range mrs {
+		if mr.MergeCommitSHA == sha {
+			return basicMRToPR(mr), nil
+		}
+	}
+	return nil, nil
+}
+
 // mrToPR maps a GitLab full MergeRequest into the provider-neutral
 // shape. Number is the per-project IID (`!N` in the GitLab UI), not
 // the global ID; the provider interface uses IID throughout.
@@ -177,12 +190,13 @@ func mrToPR(src *gl.MergeRequest) *provider.PullRequest {
 		return nil
 	}
 	return &provider.PullRequest{
-		Number:  int(src.IID),
-		State:   src.State,
-		Title:   src.Title,
-		Body:    src.Description,
-		HeadRef: src.SourceBranch,
-		HTMLURL: src.WebURL,
+		Number:    int(src.IID),
+		State:     src.State,
+		Title:     src.Title,
+		Body:      src.Description,
+		HeadRef:   src.SourceBranch,
+		HTMLURL:   src.WebURL,
+		MergedSHA: src.MergeCommitSHA,
 	}
 }
 
@@ -194,12 +208,13 @@ func basicMRToPR(src *gl.BasicMergeRequest) *provider.PullRequest {
 		return nil
 	}
 	return &provider.PullRequest{
-		Number:  int(src.IID),
-		State:   src.State,
-		Title:   src.Title,
-		Body:    src.Description,
-		HeadRef: src.SourceBranch,
-		HTMLURL: src.WebURL,
+		Number:    int(src.IID),
+		State:     src.State,
+		Title:     src.Title,
+		Body:      src.Description,
+		HeadRef:   src.SourceBranch,
+		HTMLURL:   src.WebURL,
+		MergedSHA: src.MergeCommitSHA,
 	}
 }
 

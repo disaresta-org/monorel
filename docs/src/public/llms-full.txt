@@ -57,7 +57,7 @@ The configuration file at the repo root. Top-level provider info plus one `[pack
 # Layout: bare vX.Y.Z tags for the root, <path>/vX.Y.Z for sub-modules.
 
 [provider]
-name  = "github"             # one of "github" / "gitea" / "gitlab"
+name  = "github"             # one of "github" / "gitea" / "gitlab" / "bitbucket"
 owner = "acme"
 repo  = "widget"
 host  = ""                   # set for self-hosted Gitea / Forgejo / GitLab Enterprise
@@ -79,7 +79,7 @@ Field reference:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `provider.name` | string | yes | `github` / `gitea` / `gitlab`. |
+| `provider.name` | string | yes | `github` / `gitea` / `gitlab` / `bitbucket`. |
 | `provider.owner` | string | yes | Repository owner (org or user). |
 | `provider.repo` | string | yes | Repository name (no `.git` suffix). |
 | `provider.host` | string | no | For self-hosted instances; defaults to the provider's public host. |
@@ -481,6 +481,54 @@ release:
 
 GitLab requires the project's merge method set to **Fast-forward** (Settings → Merge requests) so the `monorel-Release:` body trailers reach `main` post-merge.
 
+### Bitbucket Pipelines
+
+Bitbucket Cloud-only (`bitbucket.org`); Bitbucket Data Center / Server is not supported. Use the Docker image. One pipeline that branches on whether the just-landed commit is a `chore(release):` merge:
+
+```yaml
+# bitbucket-pipelines.yml
+image: ghcr.io/disaresta-org/monorel:0.14.0
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: monorel
+          script:
+            - export GIT_AUTHOR_NAME="monorel-bot[automation]"
+            - export GIT_AUTHOR_EMAIL="monorel-bot@users.noreply.example.com"
+            - export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+            - export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+            # Detect release-merge commits by scanning the FULL commit
+            # message (subject + body) for the chore(release): trailer
+            # marker. Bitbucket's merge strategies replace the source
+            # subject with `Merged in <branch> (pull request #N)`, so a
+            # subject-only check would never match. Both squash and
+            # merge_commit preserve the source subject as a body line.
+            - HEAD_MSG=$(git log -1 --format=%B)
+            - if echo "$HEAD_MSG" | grep -qE '(^|\n)chore\(release\):'; then
+                monorel tag &&
+                git push --follow-tags "https://${BB_USER}:${BITBUCKET_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" &&
+                monorel publish;
+              else
+                git fetch origin "$BITBUCKET_BRANCH" &&
+                git checkout -B monorel/release "origin/$BITBUCKET_BRANCH";
+                apply_out=$(monorel apply); echo "$apply_out";
+                if ! echo "$apply_out" | grep -qF "Nothing to apply."; then
+                  git push -f "https://${BB_USER}:${BITBUCKET_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" monorel/release;
+                fi;
+                git checkout "$BITBUCKET_BRANCH" &&
+                monorel preview --upsert;
+              fi
+```
+
+Bitbucket-specific notes:
+
+- Auth uses two env vars (`BITBUCKET_EMAIL` + `BITBUCKET_TOKEN`); both must be set for the provider to construct. The provider probes `GET /2.0/user` once at construction and caches the Bitbucket username; `read:account` is required for that probe.
+- A one-time **workspace plan acceptance** at `bitbucket.org/<workspace>/workspace/settings/plans` is required before any push or REST call succeeds; the symptom is HTTP 402 Payment Required even on free-tier workspaces.
+- Bitbucket Cloud has no first-class Release concept, so `monorel publish` is a no-op (exits cleanly without making API calls). Per-package `CHANGELOG.md` is the canonical release-notes source.
+- All three Bitbucket merge strategies work: fast-forward and merge-commit preserve the `monorel-Release:` body trailers; squash-merge rewrites the body but the universal trailers fallback (a `<!-- monorel-trailers ... -->` comment that `monorel preview` writes into the PR body, retrieved post-merge via `FindPRByMergeCommit`) recovers.
+
 ### Composite-action commands
 
 The `disaresta-org/monorel/ci/github` action wraps the multi-step sequences into single inputs:
@@ -499,6 +547,7 @@ The `disaresta-org/monorel/ci/github` action wraps the multi-step sequences into
 | GitHub (with branch protection) | Personal Access Token or App token | PRs created by the auto token don't trigger required-status-check workflows (anti-recursion). | Same scopes. |
 | Gitea / Forgejo | `GITEA_TOKEN` | PAT generated at `/-/user/settings/applications`. | `repository: write`, `user: read`. |
 | GitLab | `GITLAB_TOKEN` | Personal or project access token. | `api`. |
+| Bitbucket Cloud | `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | Atlassian API token created via "Create API token with scopes" at `id.atlassian.com/manage-profile/security/api-tokens`. The plain "Create API token" button produces a token without Bitbucket scopes (returns 401). | `read:repository:bitbucket`, `write:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`, `read:account` (for the username probe). |
 
 The `doctor` command needs no token; `contents: read` alone is sufficient.
 
@@ -600,7 +649,7 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - `monorel.disaresta.com/workflows`: ASCII diagrams of the lifecycles.
 - `monorel.disaresta.com/changesets`: changeset file format reference.
 - `monorel.disaresta.com/configuration`: `monorel.toml` field reference.
-- `monorel.disaresta.com/integrations/{github,gitea,gitlab}`: per-provider setup.
+- `monorel.disaresta.com/integrations/{github,gitea,gitlab,bitbucket}`: per-provider setup.
 - `monorel.disaresta.com/api`: library API reference.
 - `monorel.disaresta.com/design`: design principles + tradeoffs.
 - `monorel.disaresta.com/docker`: running monorel via container.

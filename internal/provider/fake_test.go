@@ -149,6 +149,40 @@ func TestFake_FailOnNth(t *testing.T) {
 	}
 }
 
+func TestFake_FindPRByMergeCommit(t *testing.T) {
+	f := provider.NewFake()
+	ctx := context.Background()
+
+	// Pre-seed a "merged" PR at a known SHA. The fake doesn't model
+	// merging directly; we set MergedSHA on the PR.
+	pr, err := f.CreatePR(ctx, provider.CreatePROptions{
+		Title:      "release",
+		Body:       "body",
+		HeadBranch: "monorel/release",
+		BaseBranch: "main",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.PRs[pr.Number].MergedSHA = "abc123"
+
+	got, err := f.FindPRByMergeCommit(ctx, "abc123")
+	if err != nil {
+		t.Fatalf("FindPRByMergeCommit: %v", err)
+	}
+	if got == nil || got.Number != pr.Number {
+		t.Errorf("got %v, want PR #%d", got, pr.Number)
+	}
+
+	miss, err := f.FindPRByMergeCommit(ctx, "nosuchsha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if miss != nil {
+		t.Errorf("expected nil for unknown SHA; got %v", miss)
+	}
+}
+
 func TestFake_UpdatePR_NoOpRejected(t *testing.T) {
 	f := provider.NewFake()
 	ctx := context.Background()

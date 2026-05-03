@@ -80,6 +80,13 @@ func RenderPreview(p *plan.ReleasePlan, today string) string {
 		fmt.Fprintln(&b, "._")
 	}
 
+	// Append the monorel-trailers comment block. Invisible in the
+	// rendered PR body (HTML comment); used by `monorel tag` as a
+	// fallback when the merge commit body is rewritten (e.g. by
+	// squash-merge). All four providers preserve HTML comments on
+	// PR-body fetches.
+	writeTrailersBlock(&b, p)
+
 	return b.String()
 }
 
@@ -142,6 +149,12 @@ func RenderPreviewCompact(p *plan.ReleasePlan) string {
 		fmt.Fprintln(&b, "._")
 	}
 
+	// Trailers comment block: same purpose as in RenderPreview. Even
+	// when the body is compacted to fit a provider's PR-body limit,
+	// `monorel tag`'s squash-merge fallback must still find trailers
+	// here.
+	writeTrailersBlock(&b, p)
+
 	return b.String()
 }
 
@@ -152,4 +165,19 @@ func anyPrerelease(p *plan.ReleasePlan) bool {
 		}
 	}
 	return false
+}
+
+// writeTrailersBlock appends the <!-- monorel-trailers ... --> HTML
+// comment block to b. monorel tag's PR-body fallback parses this
+// block when a squash-merge has rewritten the commit body. Both
+// RenderPreview and RenderPreviewCompact emit it so the fallback
+// works regardless of which body shape was published.
+func writeTrailersBlock(b *strings.Builder, p *plan.ReleasePlan) {
+	fmt.Fprintln(b)
+	fmt.Fprintln(b, "<!-- monorel-trailers (do not edit; required for tag recovery if the merge commit body is rewritten)")
+	for _, r := range p.Releases {
+		fmt.Fprintf(b, "monorel-Release: %s %s\n", r.Name, r.To)
+	}
+	fmt.Fprintf(b, "monorel-PreRelease: %t\n", anyPrerelease(p))
+	fmt.Fprintln(b, "-->")
 }

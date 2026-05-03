@@ -23,6 +23,7 @@
 package release
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -32,6 +33,7 @@ import (
 	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/git"
+	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/plan"
 )
 
@@ -225,6 +227,17 @@ type TagOptions struct {
 	// Repo reads the HEAD commit message and creates the tags. Push
 	// is the caller's job.
 	Repo git.Repo
+
+	// Provider, when non-nil, enables the universal PR-body trailers
+	// fallback: when HEAD's commit message has no monorel-Release:
+	// trailers (e.g. a squash-merge rewrote the body), Tag looks up
+	// the PR that was merged at HEAD's SHA via
+	// [provider.Client.FindPRByMergeCommit] and parses trailers from
+	// the PR body's `<!-- monorel-trailers ... -->` comment block.
+	//
+	// nil disables the fallback (Tag returns [ErrNoReleaseCommit] on
+	// missing trailers, the pre-fallback behavior).
+	Provider provider.Client
 }
 
 // Tag reads HEAD's commit trailers, looks each released package up in
@@ -274,7 +287,24 @@ func Tag(opts TagOptions) (*Result, error) {
 	}
 	tagged, prerelease := parseReleaseTrailers(msg)
 	if len(tagged) == 0 {
-		return nil, ErrNoReleaseCommit
+		// Fallback: look up the merged PR's body for a trailers
+		// comment block. Squash-merges rewrite the commit body, so
+		// the trailers from Apply's commit may not survive the
+		// merge. The preview render also writes the same trailers
+		// into the PR body (an HTML comment), and PR bodies survive
+		// every merge strategy.
+		if opts.Provider != nil {
+			fallbackTagged, fallbackPre, ferr := tryPRBodyFallback(opts)
+			if ferr != nil {
+				return nil, ferr
+			}
+			if len(fallbackTagged) > 0 {
+				tagged, prerelease = fallbackTagged, fallbackPre
+			}
+		}
+		if len(tagged) == 0 {
+			return nil, ErrNoReleaseCommit
+		}
 	}
 
 	// Build the tag list and preflight: every named package must
@@ -512,6 +542,52 @@ func commitMessage(p *plan.ReleasePlan, pre bool) string {
 	fmt.Fprintf(&trailers, "monorel-PreRelease: %t\n", pre)
 
 	return subject + "\n\n" + trailers.String()
+}
+
+// tryPRBodyFallback queries the provider for the merged PR at HEAD's
+// SHA and parses release trailers from the PR body's
+// `<!-- monorel-trailers ... -->` comment block. Returns empty slices
+// when the PR isn't found or the comment block is absent: both are
+// "no fallback available," not errors. Returns a non-nil error only
+// when the underlying repo / provider call fails.
+func tryPRBodyFallback(opts TagOptions) ([]taggedRelease, bool, error) {
+	headSHA, err := opts.Repo.CurrentSHA()
+	if err != nil {
+		return nil, false, fmt.Errorf("release: read HEAD SHA for fallback: %w", err)
+	}
+	pr, err := opts.Provider.FindPRByMergeCommit(context.Background(), headSHA)
+	if err != nil {
+		return nil, false, fmt.Errorf("release: PR-body fallback: %w", err)
+	}
+	if pr == nil {
+		return nil, false, nil
+	}
+	block := extractTrailersBlock(pr.Body)
+	if block == "" {
+		return nil, false, nil
+	}
+	tagged, prerelease := parseReleaseTrailers(block)
+	return tagged, prerelease, nil
+}
+
+// extractTrailersBlock returns the lines inside an HTML comment block
+// of the form `<!-- monorel-trailers ... -->`, or "" if no such block
+// is present. Bitbucket / GitHub / GitLab / Gitea all preserve HTML
+// comments on PR-body fetches, so the same extractor works across
+// providers.
+func extractTrailersBlock(prBody string) string {
+	const startMarker = "<!-- monorel-trailers"
+	const endMarker = "-->"
+	start := strings.Index(prBody, startMarker)
+	if start == -1 {
+		return ""
+	}
+	tail := prBody[start+len(startMarker):]
+	end := strings.Index(tail, endMarker)
+	if end == -1 {
+		return ""
+	}
+	return strings.TrimSpace(tail[:end])
 }
 
 // taggedRelease is a single (name, version) pair extracted from a

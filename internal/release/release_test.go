@@ -9,7 +9,9 @@ import (
 
 	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/config"
+	"monorel.disaresta.com/internal/git"
 	"monorel.disaresta.com/internal/git/testutil"
+	"monorel.disaresta.com/internal/provider"
 	"monorel.disaresta.com/internal/release"
 	"monorel.disaresta.com/plan"
 	"monorel.disaresta.com/semver"
@@ -457,6 +459,136 @@ func TestApply_PreRelease_TrailerFlagsTrue(t *testing.T) {
 		if !strings.Contains(msg, want) {
 			t.Errorf("commit message missing %q\nfull:\n%s", want, msg)
 		}
+	}
+}
+
+func TestTag_FallbackToPRBody(t *testing.T) {
+	// Squash-merge has rewritten HEAD's commit body, removing the
+	// monorel-Release: trailers. Tag with a Provider set should fall
+	// back to fetching the merged PR's body and parsing trailers from
+	// the embedded HTML comment block.
+	f := git.NewFake()
+	f.HeadSHA = "abc123"
+	if err := f.Add("dummy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Commit("chore(release): foo v1.7.0\n\n(no trailers; squash-merge)"); err != nil {
+		t.Fatal(err)
+	}
+
+	pf := provider.NewFake()
+	pf.PRs[42] = &provider.PullRequest{
+		Number: 42,
+		State:  "closed",
+		Title:  "release",
+		Body: `Plan body
+<!-- monorel-trailers (do not edit; required for tag recovery if the merge commit body is rewritten)
+monorel-Release: foo v1.7.0
+monorel-PreRelease: false
+-->`,
+		MergedSHA: "abc123",
+	}
+
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"foo": pkgConfig("transports/foo", "transports/foo"),
+		},
+	}
+	res, err := release.Tag(release.TagOptions{Config: cfg, Repo: f, Provider: pf})
+	if err != nil {
+		t.Fatalf("Tag with fallback: %v", err)
+	}
+	if len(res.Releases) != 1 || res.Releases[0].Tag != "transports/foo/v1.7.0" {
+		t.Errorf("got %+v, want one tag transports/foo/v1.7.0", res.Releases)
+	}
+}
+
+func TestTag_FallbackPRWithoutTrailersBlock(t *testing.T) {
+	// HEAD has no trailers; the fallback finds a merged PR but its
+	// body lacks the <!-- monorel-trailers --> comment block. Tag
+	// should still return ErrNoReleaseCommit (a PR exists but offers
+	// nothing to recover from).
+	f := git.NewFake()
+	f.HeadSHA = "abc123"
+	if err := f.Add("dummy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Commit("chore(release): foo v1.7.0\n\n(no trailers; squash-merge)"); err != nil {
+		t.Fatal(err)
+	}
+
+	pf := provider.NewFake()
+	pf.PRs[42] = &provider.PullRequest{
+		Number:    42,
+		State:     "closed",
+		Title:     "release",
+		Body:      "Just a regular PR description, no trailers block here.",
+		MergedSHA: "abc123",
+	}
+
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"foo": pkgConfig("transports/foo", "transports/foo"),
+		},
+	}
+	_, err := release.Tag(release.TagOptions{Config: cfg, Repo: f, Provider: pf})
+	if !errors.Is(err, release.ErrNoReleaseCommit) {
+		t.Fatalf("err = %v, want ErrNoReleaseCommit", err)
+	}
+}
+
+func TestTag_FallbackProviderError(t *testing.T) {
+	// HEAD has no trailers; the provider call itself errors (e.g. a
+	// network failure). Tag should propagate the wrapped error rather
+	// than masking it as ErrNoReleaseCommit.
+	f := git.NewFake()
+	f.HeadSHA = "abc123"
+	if err := f.Add("dummy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Commit("chore(release): foo v1.7.0\n\n(no trailers)"); err != nil {
+		t.Fatal(err)
+	}
+
+	pf := provider.NewFake()
+	pf.FailNext = provider.FailOnce(errors.New("network down"))
+
+	cfg := &config.Config{Packages: map[string]config.PackageConfig{}}
+	_, err := release.Tag(release.TagOptions{Config: cfg, Repo: f, Provider: pf})
+	if err == nil {
+		t.Fatal("expected wrapped network error; got nil")
+	}
+	if errors.Is(err, release.ErrNoReleaseCommit) {
+		t.Errorf("err = %v; should NOT be ErrNoReleaseCommit (provider failed)", err)
+	}
+	if !strings.Contains(err.Error(), "network down") {
+		t.Errorf("err = %q; should wrap underlying network error", err.Error())
+	}
+}
+
+func TestTag_FallbackBothMissing(t *testing.T) {
+	// HEAD has no trailers AND the provider has no PR matching the
+	// SHA. Tag should still return ErrNoReleaseCommit (fallback isn't
+	// a free pass; both sources have to be empty for a no-op).
+	f := git.NewFake()
+	f.HeadSHA = "abc123"
+	if err := f.Add("dummy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Commit("chore(release): foo v1.7.0\n\n(no trailers)"); err != nil {
+		t.Fatal(err)
+	}
+
+	pf := provider.NewFake()
+	// No PR seeded.
+
+	cfg := &config.Config{Packages: map[string]config.PackageConfig{}}
+	_, err := release.Tag(release.TagOptions{Config: cfg, Repo: f, Provider: pf})
+	if err == nil {
+		t.Fatal("expected ErrNoReleaseCommit; got nil")
+	}
+	if !errors.Is(err, release.ErrNoReleaseCommit) {
+		t.Errorf("err = %v, want ErrNoReleaseCommit", err)
 	}
 }
 

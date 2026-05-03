@@ -97,6 +97,60 @@ func TestRenderPreview_PrereleaseNote(t *testing.T) {
 	}
 }
 
+func TestRenderPreview_IncludesTrailersComment(t *testing.T) {
+	p := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{
+				Name: "transports/foo",
+				From: "v1.6.0",
+				To:   "v1.7.0",
+				Bump: semver.Minor,
+				Tag:  "transports/foo/v1.7.0",
+			},
+			{
+				Name: "go.example.com/widget",
+				From: "v2.0.0",
+				To:   "v2.0.1",
+				Bump: semver.Patch,
+				Tag:  "v2.0.1",
+			},
+		},
+	}
+	got := release.RenderPreview(p, "2026-05-03")
+
+	if !strings.Contains(got, "<!-- monorel-trailers") {
+		t.Errorf("expected monorel-trailers comment; got:\n%s", got)
+	}
+	for _, want := range []string{
+		"monorel-Release: transports/foo v1.7.0",
+		"monorel-Release: go.example.com/widget v2.0.1",
+		"monorel-PreRelease: false",
+		"-->",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in body:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderPreview_TrailersInPrereleaseMode(t *testing.T) {
+	p := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{{
+			Name:       "transports/foo",
+			From:       "v1.6.0",
+			To:         "v1.7.0-rc.0",
+			Bump:       semver.Minor,
+			Tag:        "transports/foo/v1.7.0-rc.0",
+			Prerelease: true,
+		}},
+	}
+	got := release.RenderPreview(p, "2026-05-03")
+
+	if !strings.Contains(got, "monorel-PreRelease: true") {
+		t.Errorf("PreRelease trailer should be true:\n%s", got)
+	}
+}
+
 func TestRenderPreviewCompact(t *testing.T) {
 	cs := &changeset.Changeset{
 		Name:  "first",

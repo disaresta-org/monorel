@@ -124,6 +124,7 @@ gtag('config', '${gaMeasurementId}');`,
       {
         text: 'Integrations',
         items: [
+          { text: 'Bitbucket', link: '/integrations/bitbucket' },
           { text: 'GitHub', link: '/integrations/github' },
           { text: 'Gitea / Forgejo', link: '/integrations/gitea' },
           { text: 'GitLab', link: '/integrations/gitlab' },

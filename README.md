@@ -13,7 +13,7 @@
 
 A changesets-style release tool for multi-module Go monorepos.
 
-`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with CI on your provider (GitHub, Gitea / Forgejo, or GitLab) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
+`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with CI on your provider (GitHub, Gitea / Forgejo, GitLab, or Bitbucket Cloud) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
 
 ## Why monorel?
 
@@ -47,7 +47,7 @@ git commit && gh pr create
 #    always-open release PR. Merge it when ready to ship.
 ```
 
-Reference setups for each provider live in [`examples/`](examples/) (GitHub, Gitea / Forgejo, GitLab). Copy the files you need; the [Getting Started](https://monorel.disaresta.com/getting-started) walkthrough explains the full lifecycle.
+Reference setups for each provider live in [`examples/`](examples/) (GitHub, Gitea / Forgejo, GitLab, Bitbucket). Copy the files you need; the [Getting Started](https://monorel.disaresta.com/getting-started) walkthrough explains the full lifecycle.
 
 ## Documentation
 
@@ -58,7 +58,7 @@ Reference setups for each provider live in [`examples/`](examples/) (GitHub, Git
 - [Configuration](https://monorel.disaresta.com/configuration): `monorel.toml` reference.
 - [CLI](https://monorel.disaresta.com/cli-reference): every command and flag.
 - [Changesets](https://monorel.disaresta.com/changesets): file format and authoring conventions.
-- Integration guides: [GitHub](https://monorel.disaresta.com/integrations/github), [Gitea / Forgejo](https://monorel.disaresta.com/integrations/gitea), [GitLab](https://monorel.disaresta.com/integrations/gitlab).
+- Integration guides: [GitHub](https://monorel.disaresta.com/integrations/github), [Gitea / Forgejo](https://monorel.disaresta.com/integrations/gitea), [GitLab](https://monorel.disaresta.com/integrations/gitlab), [Bitbucket](https://monorel.disaresta.com/integrations/bitbucket).
 - [FAQ](https://monorel.disaresta.com/faq): the questions that come up after the first release.
 - [Use with AI / LLMs](https://monorel.disaresta.com/llms): paste-ready `llms.txt` and `llms-full.txt` for coding assistants.
 - [Glossary](https://monorel.disaresta.com/glossary): canonical definitions of monorel terminology.
@@ -66,13 +66,14 @@ Reference setups for each provider live in [`examples/`](examples/) (GitHub, Git
 
 ## CI integration
 
-monorel ships a composite GitHub Action wrapper plus first-class support for Gitea / Forgejo and GitLab CI. Each provider has a working reference setup under [`examples/`](examples/):
+monorel ships a composite GitHub Action wrapper plus first-class support for Gitea / Forgejo, GitLab CI, and Bitbucket Pipelines. Each provider has a working reference setup under [`examples/`](examples/):
 
 | Provider | Example | Notes |
 |---|---|---|
 | GitHub | [`examples/github/`](examples/github/) | Composite action wrapper + two workflow files. |
 | Gitea / Forgejo | [`examples/gitea/`](examples/gitea/) | Same wrapper on Gitea Actions; `provider.host` set; covers Forgejo via API compatibility. |
 | GitLab | [`examples/gitlab/`](examples/gitlab/) | Single `.gitlab-ci.yml` using `ghcr.io/disaresta-org/monorel`. Project must use fast-forward merge. |
+| Bitbucket Cloud | [`examples/bitbucket/`](examples/bitbucket/) | Single `bitbucket-pipelines.yml` using `ghcr.io/disaresta-org/monorel`. Cloud-only; needs the [workspace plan acceptance](https://monorel.disaresta.com/integrations/bitbucket#workspace-plan-acceptance) step. |
 
 The GitHub flow looks like this:
 

@@ -31,6 +31,8 @@ func TokenEnvVars(provider string) []string {
 		return []string{"GITEA_TOKEN"}
 	case config.ProviderGitLab:
 		return []string{"GITLAB_TOKEN", "CI_JOB_TOKEN"}
+	case config.ProviderBitbucket:
+		return []string{"BITBUCKET_TOKEN"}
 	}
 	return nil
 }
@@ -44,6 +46,19 @@ func TokenFromEnv(provider string) string {
 		}
 	}
 	return ""
+}
+
+// EmailEnvVars returns environment variable names to consult for a
+// provider's auth-email, in priority order. Most providers don't use
+// a separate email (the token alone authenticates); Bitbucket Cloud
+// is the exception because its REST API uses HTTP Basic with
+// `email + token`. Returns nil for providers that don't need a
+// separate email.
+func EmailEnvVars(provider string) []string {
+	if config.ResolveProvider(provider) == config.ProviderBitbucket {
+		return []string{"BITBUCKET_EMAIL"}
+	}
+	return nil
 }
 
 // Client is the slice of provider operations monorel needs. The methods
@@ -82,6 +97,18 @@ type Client interface {
 	// Bitbucket) may return an "unsupported" error; callers should
 	// treat that as advisory, not fatal.
 	CreateRelease(ctx context.Context, opts CreateReleaseOptions) (*Release, error)
+
+	// FindPRByMergeCommit returns the PR/MR that was merged into the
+	// repo at the given commit SHA, if one exists. Returns (nil, nil)
+	// when no PR matches (NOT an error): the caller treats that as
+	// "no fallback available."
+	//
+	// Used by the universal PR-body trailers fallback: monorel tag
+	// reads its release-trailer set from HEAD's commit message
+	// normally, but falls back to fetching the merged PR's body
+	// (looking for a `<!-- monorel-trailers ... -->` block) when the
+	// commit body is empty (typically because of a squash-merge).
+	FindPRByMergeCommit(ctx context.Context, sha string) (*PullRequest, error)
 }
 
 // PullRequest is the minimal shape monorel cares about. The name uses
@@ -94,6 +121,11 @@ type PullRequest struct {
 	Body    string
 	HeadRef string
 	HTMLURL string
+
+	// MergedSHA is the merge-commit SHA when this PR was merged
+	// (state transitioned through "merged"). Empty for unmerged PRs.
+	// Used by FindPRByMergeCommit's reverse lookup.
+	MergedSHA string
 }
 
 // CreatePROptions is the input to [Client.CreatePR].
