@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -344,17 +345,27 @@ func promptHuhPackagesAndBumps(in io.Reader, out io.Writer, cfg *config.Config) 
 // promptHuhBody runs the in-place text body prompt. Separate from
 // promptHuhPackagesAndBumps so callers using --editor can replace
 // just this step without skipping the package/bump prompts.
+//
+// The default huh.NewText keymap binds Enter to submit/next, with
+// Alt+Enter or Ctrl+J for newline. Multi-line changelog bodies are
+// the common case here, so we rebind: Enter inserts a newline,
+// Ctrl+S submits. Ctrl+E (huh's built-in) still escapes to $EDITOR.
 func promptHuhBody(in io.Reader, out io.Writer) (string, error) {
 	wire := func(f *huh.Form) *huh.Form { return f.WithInput(in).WithOutput(out) }
+
+	km := huh.NewDefaultKeyMap()
+	km.Text.NewLine = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "new line"))
+	km.Text.Submit = key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "submit"))
+	km.Text.Next = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next"))
 
 	var body string
 	bodyForm := wire(huh.NewForm(huh.NewGroup(
 		huh.NewText().
 			Title("Changelog body").
-			Description("Markdown. This becomes the entry under the bump-level heading.").
+			Description("Markdown. Enter inserts a newline; ctrl+s submits; ctrl+e opens $EDITOR.").
 			CharLimit(0).
 			Value(&body),
-	)))
+	))).WithKeyMap(km)
 	if err := runHuhForm(bodyForm); err != nil {
 		return "", err
 	}

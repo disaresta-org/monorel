@@ -47,6 +47,20 @@ Validates: package exists in `monorel.toml`, bump level is `major|minor|patch`, 
 
 Writes to `.changeset/<name>.md`.
 
+### Body-prompt key bindings
+
+When the in-place body prompt is active (no `--editor`, no `--message`), the keys are:
+
+| Key | Action |
+|---|---|
+| `enter` | New line. |
+| `ctrl+s` | Submit the body and proceed. |
+| `ctrl+e` | Open `$VISUAL` / `$EDITOR` to compose the body, then return. |
+| `tab` / `shift+tab` | Next / previous field (within the form). |
+| `ctrl+c` | Cancel the changeset (exit code 130). |
+
+Multi-line markdown is the common case, so `enter` is rebound from huh's default "submit" to "new line." The same `ctrl+e` editor escape is available whether or not you passed `--editor` up front.
+
 ## `monorel plan`
 
 Compute the proposed releases without applying them. Reads `.changeset/*.md`, the configured packages, and the latest matching git tag per package.
