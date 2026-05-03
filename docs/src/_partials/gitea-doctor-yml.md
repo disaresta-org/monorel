@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.8.0
+      - uses: disaresta-org/monorel/ci/github@v0.11.0
         with:
           command: doctor
 ```

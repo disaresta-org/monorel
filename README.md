@@ -75,10 +75,15 @@ monorel ships a composite GitHub Action wrapper plus first-class support for Git
 The GitHub flow looks like this:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.7.0
+- uses: actions/setup-go@v5
+  with:
+    go-version-file: go.mod
+- uses: disaresta-org/monorel/ci/github@v0.11.0
   with:
     command: pr      # or 'release' for the post-merge tag + push + publish step
 ```
+
+`actions/setup-go` is required because monorel's apply step runs `go mod tidy` against a seeded local cache so the release commit's `go.sum` is canonically clean. See the [GitHub integration page](https://monorel.disaresta.com/integrations/github) for the full workflow.
 
 If your repo enforces required status checks on the default branch, the bot-created release PR's checks won't fire on the auto-injected token (anti-recursion). Switch to a PAT or GitHub App token. See [Tokens and required status checks](https://monorel.disaresta.com/integrations/github#tokens-and-required-status-checks).
 
