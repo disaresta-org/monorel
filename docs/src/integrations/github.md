@@ -42,8 +42,8 @@ The two workflow files below implement the lifecycle: `release-pr.yml` keeps the
 - Stages the `monorel/release` branch (for the `pr` command's speculative apply).
 - Invokes monorel with the configured command (`pr` or `release`).
 
-::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v1.0.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+::: tip Pinning the action wrapper
+monorel doesn't auto-publish a moving major-track tag (no `@v1` ref). Pin to an exact patch (`@v1.0.0` or whichever you've validated). Bump deliberately when a new monorel release lands.
 :::
 
 ### `release-pr.yml`: maintain the always-open release PR
