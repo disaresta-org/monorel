@@ -45,7 +45,7 @@ func runOfflineTidy(modDir string) error {
 }
 
 // offlineTidyEnv builds the explicit env slice for the tidy
-// subprocess. Variables NOT in the inherited list are dropped — see
+// subprocess. Variables NOT in the inherited list are dropped; see
 // runOfflineTidy's GoDoc for the rationale.
 func offlineTidyEnv() []string {
 	inherit := []string{

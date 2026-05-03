@@ -25,9 +25,9 @@ FROM golang:1.26-alpine
 # monorel shells out to `git` (clone state) and `go` (the release-time
 # `go mod tidy` pass against a seeded local cache; see issue #46).
 # Using golang:alpine as the runtime base keeps the toolchain on PATH
-# without a hand-rolled multi-stage copy of /usr/local/go. Adds ~150MB
-# vs the previous alpine:3.20 base; acceptable for a release tool that
-# runs once per merge.
+# without a hand-rolled multi-stage copy of /usr/local/go. The image
+# grows from alpine:3.20's ~10MB compressed to roughly 250MB
+# compressed; acceptable for a release tool that runs once per merge.
 RUN apk add --no-cache git ca-certificates && \
     update-ca-certificates 2>/dev/null || true
 COPY --from=build /out/monorel /usr/local/bin/monorel

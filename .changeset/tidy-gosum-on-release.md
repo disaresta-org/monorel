@@ -4,7 +4,7 @@
 
 `monorel apply` now runs `go mod tidy` (offline, against a seeded local module cache) in every released sub-module that requires an in-plan sibling, so the release commit's `go.sum` and `go.mod` are canonically clean across the repo. Closes #46.
 
-Before: pinning a sub-module's sibling-require version to `vX.Y.Z` (#42, #44) shifted the `go.sum` drift problem onto consumers — `main` was not `go mod tidy`-clean immediately after a release, and contributors with pre-push tidy hooks tripped on every release pull.
+Before: pinning a sub-module's sibling-require version to `vX.Y.Z` (#42, #44) shifted the `go.sum` drift problem onto consumers. `main` was not `go mod tidy`-clean immediately after a release, and contributors with pre-push tidy hooks tripped on every release pull.
 
 After: the apply step seeds the developer's Go module cache with the freshly-built release artifacts (`.info`, `.mod`, `.zip`, `.ziphash`), then execs `go mod tidy` with `GOPROXY=off GOSUMDB=off GOWORK=off GOFLAGS=` in each affected sub-module. Tidy resolves the seeded versions from the cache, walks the full transitive closure using the developer's existing cache, and writes correct `go.sum` entries (and any new `// indirect` lines) into the release commit. The cache seeds are removed via deferred cleanup whether the apply succeeds or fails.
 
@@ -21,4 +21,4 @@ New direct dependencies (promoted from indirect via existing `golang.org/x/mod`)
 **Pipeline-side note:** `go` must be on `PATH` at apply time.
 
 - **GitHub Actions / Gitea Actions**: add `actions/setup-go@v5` with `go-version-file: go.mod` ahead of the `disaresta-org/monorel/ci/github` action. GitHub-hosted runners include a recent Go binary, but pinning is safer than relying on the runner's pre-installed version. The example workflows in the README and under `examples/{github,gitea}/` have been updated.
-- **GitLab CI (Docker image)**: the `ghcr.io/disaresta-org/monorel` image's runtime base switched from `alpine:3.20` to `golang:1.26-alpine` so `go` is on `PATH` inside the container. Adds ~150MB to the image; pull once per runner and amortize over releases. Pin a Go version compatible with your modules' `go` directive by choosing the matching monorel image tag.
+- **GitLab CI (Docker image)**: the `ghcr.io/disaresta-org/monorel` image's runtime base switched from `alpine:3.20` to `golang:1.26-alpine` so `go` is on `PATH` inside the container. The image grows from roughly 10MB compressed to roughly 250MB; pull once per runner and amortize over releases. Pin a Go version compatible with your modules' `go` directive by choosing the matching monorel image tag.

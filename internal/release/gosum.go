@@ -18,7 +18,7 @@ import (
 // as tidy writes its output); only after every tidy succeeds does the
 // orchestrator stage the changes via opts.Repo.Add. On failure, the
 // working tree shows dirty go.mod / go.sum files but the git index
-// stays clean — the maintainer reverts with `git checkout` and
+// stays clean. The maintainer reverts with `git checkout` and
 // retries.
 //
 // Skipped when:

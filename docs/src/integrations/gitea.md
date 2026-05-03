@@ -114,7 +114,7 @@ Same trade-off as on GitHub: PATs are tied to a user; a service-account user is 
 
 ### `provider: unknown provider "gitea"`
 
-monorel binary is older than v0.6.0 (when the Gitea provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v0.6.0` or later.
+monorel binary is older than v0.6.0 (when the Gitea provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v0.11.0` or later.
 
 The error surfaces from the validator (`config.Validate`) when reading `monorel.toml`, so it'll fire on every command, not just network-touching ones.
 

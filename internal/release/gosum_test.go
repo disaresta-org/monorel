@@ -226,7 +226,7 @@ func TestTidy_CleanupRunsOnSuccess(t *testing.T) {
 
 // TestTidy_HardFailsOnTidyError: when tidy itself fails (A imports
 // a package that can't be resolved offline), the orchestrator
-// returns an error and stages NOTHING — the release commit doesn't
+// returns an error and stages NOTHING; the release commit doesn't
 // get half-tidied state.
 func TestTidy_HardFailsOnTidyError(t *testing.T) {
 	opts, _ := setupSubmoduleFixture(t, true)
@@ -258,7 +258,7 @@ func TestTidy_HardFailsOnTidyError(t *testing.T) {
 
 // TestTidy_PreservesUnrelatedExistingEntries: a sub-module's go.sum
 // that already has unrelated third-party deps survives the tidy
-// pass — those entries are not dropped.
+// pass: those entries are not dropped.
 func TestTidy_PreservesUnrelatedExistingEntries(t *testing.T) {
 	opts, _ := setupSubmoduleFixture(t, true)
 
