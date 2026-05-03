@@ -5,7 +5,7 @@ description: "monorel's Go library API surface for programmatic use: pure-functi
 
 # Library API
 
-monorel ships a Go library API alongside the CLI. From v0.2.0 onward, the following pure-function packages are public and SemVer-committed:
+monorel ships a Go library API alongside the CLI. The following pure-function packages are public, SemVer-committed from v1.0.0 onward, and have been stable in shape since v0.2.0:
 
 | Package | Purpose | Entry points |
 |---------|---------|--------------|
@@ -111,9 +111,7 @@ Side-effect-bearing packages should never be public commitments — every refact
 
 ## Stability
 
-From v0.2.0 forward, the public packages follow the same SemVer rules as the rest of monorel: additive changes (new types, new functions, new fields on existing types) are minor bumps; breaking changes (renames, removals, signature changes, field type changes) are major bumps.
-
-Pre-1.0 caveat: v0.x is still soft-locked. Breaking changes between v0.minor releases are possible if a design issue surfaces, but they will be called out in `CHANGELOG.md` with a migration path.
+From v1.0.0 onward, the public packages are SemVer-committed. Additive changes (new types, new functions, new fields on existing types) are minor bumps; breaking changes (renames, removals, signature changes, field type changes) are major bumps that ship as `monorel.disaresta.com/v2/...` per Go module convention.
 
 ## Quick example
 

@@ -92,6 +92,7 @@ gtag('config', '${gaMeasurementId}');`,
     outline: { level: [2, 3] },
     nav: [
       { text: 'Get Started', link: '/getting-started' },
+      { text: "What's New", link: '/whats-new' },
       {
         text: '<img alt="Go Reference" src="https://pkg.go.dev/badge/monorel.disaresta.com.svg" />',
         link: 'https://pkg.go.dev/monorel.disaresta.com',
@@ -109,6 +110,7 @@ gtag('config', '${gaMeasurementId}');`,
           { text: 'Getting Started', link: '/getting-started' },
           { text: 'Workflows', link: '/workflows' },
           { text: 'Design', link: '/design' },
+          { text: "What's New", link: '/whats-new' },
         ],
       },
       {

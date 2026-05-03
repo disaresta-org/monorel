@@ -101,7 +101,7 @@ PRs created via Gitea Actions' auto-injected `secrets.GITHUB_TOKEN` are subject 
 Fix: generate a personal access token at `/-/user/settings/applications` (or your Forgejo instance's equivalent) with `repository: write` + `user: read`. Add it as a repo secret (e.g. `MONOREL_GITEA_TOKEN`) and pass it to the action wrapper instead of the auto-injected token:
 
 ```yaml
-      - uses: disaresta-org/monorel/ci/github@v0.14.0
+      - uses: disaresta-org/monorel/ci/github@v1.0.0
         with:
           command: pr
         env:
@@ -114,7 +114,7 @@ Same trade-off as on GitHub: PATs are tied to a user; a service-account user is 
 
 ### `provider: unknown provider "gitea"`
 
-monorel binary is older than v0.6.0 (when the Gitea provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v0.11.0` or later.
+monorel binary is older than v0.6.0 (when the Gitea provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v1.0.0` or later.
 
 The error surfaces from the validator (`config.Validate`) when reading `monorel.toml`, so it'll fire on every command, not just network-touching ones.
 
