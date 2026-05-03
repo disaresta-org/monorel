@@ -404,6 +404,14 @@ func applyStable(opts Options, today string) error {
 		return err
 	}
 
+	// Run `go mod tidy` (offline, against a seeded local cache) in
+	// every released sub-module that requires an in-plan sibling, so
+	// the release commit's go.sum entries match what consumers will
+	// hash from the proxy after the tag pushes.
+	if err := tidySubmoduleGoSums(opts); err != nil {
+		return err
+	}
+
 	// Delete the consumed changesets. The planner's Consumed list
 	// dedupes multi-package changesets, so we hit each file once.
 	for _, cs := range opts.Plan.Consumed {

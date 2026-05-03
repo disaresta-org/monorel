@@ -13,9 +13,9 @@ Composite action that downloads the monorel binary for the runner's OS+arch and 
 
 The `release` command runs three monorel invocations in order:
 
-1. `monorel release` — local file mutations + commit + tag.
-2. `git push --follow-tags` — publish commits and tags to the remote.
-3. `monorel publish` — create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry.
+1. `monorel release`: local file mutations, commit, and tag.
+2. `git push --follow-tags`: publish commits and tags to the remote.
+3. `monorel publish`: create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry.
 
 The split exists because most providers validate that the tag exists on the remote before allowing a release to be created against it. Bundling 1 and 3 in one process would race that validation.
 
@@ -40,7 +40,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: disaresta-org/monorel/ci/github@v0.11.0
         with:
           command: pr
 ```
@@ -62,10 +65,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: disaresta-org/monorel/ci/github@v0.11.0
         with:
           command: release
 ```
+
+## Requirements
+
+- **`go` on `PATH`.** monorel's `apply` step runs `go mod tidy` (offline, against a seeded local cache) in every released sub-module that requires an in-plan sibling, so the release commit's `go.sum` is canonically clean for the proxy-published state. The runner needs a `go` binary whose version satisfies every released module's `go` directive; use `actions/setup-go@v5` with `go-version-file: go.mod` (or pin `go-version` explicitly) to install the right version. GitHub-hosted runners include a recent Go by default, but pinning is safer than relying on the runner's pre-installed version, especially when modules use a recent `go` directive.
 
 ## Notes
 

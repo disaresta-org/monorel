@@ -21,8 +21,19 @@ RUN CGO_ENABLED=0 go build \
     -ldflags="-s -w -X monorel.disaresta.com/internal/cli.Version=${VERSION}" \
     -o /out/monorel ./cmd/monorel
 
-FROM alpine:3.20
-# `monorel` shells out to git.
+FROM golang:1.26-alpine
+# monorel shells out to `git` (clone state) and `go` (the release-time
+# `go mod tidy` pass against a seeded local cache; see issue #46).
+# Using golang:alpine as the runtime base keeps the toolchain on PATH
+# without a hand-rolled multi-stage copy of /usr/local/go. The image
+# grows from alpine:3.20's ~10MB compressed to roughly 250MB
+# compressed; acceptable for a release tool that runs once per merge.
+#
+# `golang:1.26-alpine` is a movable tag: each rebuild picks up the
+# latest 1.26.x patch. The image at ghcr.io/disaresta-org/monorel:<v>
+# is itself immutable once published, so per-version reproducibility
+# holds. Bump the major.minor here when the project moves its Go
+# floor; rebuilds within a Go minor are forward-compatible.
 RUN apk add --no-cache git ca-certificates && \
     update-ca-certificates 2>/dev/null || true
 COPY --from=build /out/monorel /usr/local/bin/monorel

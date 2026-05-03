@@ -1,7 +1,7 @@
 ```yaml
 # .gitlab-ci.yml
 default:
-  image: ghcr.io/disaresta-org/monorel:0.6.0
+  image: ghcr.io/disaresta-org/monorel:0.11.0
 
 stages:
   - doctor
