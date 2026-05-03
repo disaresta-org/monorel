@@ -66,38 +66,67 @@ func tidySubmoduleGoSums(opts Options) error {
 		return err
 	}
 
-	// 4. Seed the cache with in-plan releases.
-	seeded, err := seedModuleCache(opts)
-	defer clearSeededEntries(seeded)
-	if err != nil {
-		return err
-	}
+	// 4. Iterate seed-and-tidy to fixpoint. Each iteration zips
+	//    every in-plan module's working tree, seeds the cache with
+	//    the resulting hashes, and runs offline tidy in each
+	//    affected sub-module. If any sub-module's go.sum was
+	//    mutated by the iteration's tidy, the working tree changed
+	//    too, so the next iteration re-seeds and re-tidies. The
+	//    loop converges when no go.sum is mutated; at that point
+	//    every recorded h1: matches the seeded hash, which matches
+	//    the working-tree hash, which is what `git archive` of the
+	//    published tag will produce.
+	//
+	//    Iteration cap defends against cycles/non-determinism. The
+	//    practical bound is the depth of the in-plan sibling dep
+	//    graph; a typical monorepo converges in 1-3 iterations.
+	const maxTidyIterations = 10
+	var seeded []seededEntry
+	defer func() { clearSeededEntries(seeded) }()
 
-	// 5. Run tidy in each affected sub-module. Hard-fail on the
-	//    first failure; staging happens only after all succeed.
-	for _, sub := range affected {
-		modDir := filepath.Join(opts.RepoDir, sub)
-		if err := runOfflineTidy(modDir); err != nil {
+	var lastDiffs map[string][2][]byte
+	for i := 0; i < maxTidyIterations; i++ {
+		clearSeededEntries(seeded)
+		seeded, err = seedModuleCache(opts)
+		if err != nil {
 			return err
 		}
-	}
 
-	// 6. Stage every (potentially) modified go.mod / go.sum.
-	for _, sub := range affected {
-		for _, name := range []string{"go.mod", "go.sum"} {
-			rel := filepath.Join(sub, name)
-			abs := filepath.Join(opts.RepoDir, rel)
-			if _, err := os.Stat(abs); os.IsNotExist(err) {
-				continue
-			} else if err != nil {
-				return fmt.Errorf("tidy: stat %s: %w", abs, err)
-			}
-			if err := opts.Repo.Add(rel); err != nil {
-				return fmt.Errorf("tidy: stage %s: %w", rel, err)
+		before, err := readGoSums(opts.RepoDir, affected)
+		if err != nil {
+			return err
+		}
+
+		for _, sub := range affected {
+			modDir := filepath.Join(opts.RepoDir, sub)
+			if err := runOfflineTidy(modDir); err != nil {
+				return err
 			}
 		}
+
+		after, err := readGoSums(opts.RepoDir, affected)
+		if err != nil {
+			return err
+		}
+
+		if !goSumsChanged(before, after) {
+			// Fixpoint reached.
+			return stageAffected(opts, affected)
+		}
+
+		// Capture the diff for diagnostic in case fixpoint never
+		// converges. Overwritten each iteration; we only emit the
+		// final iteration's diff if we exit via the cap.
+		lastDiffs = make(map[string][2][]byte, len(before))
+		for k := range before {
+			lastDiffs[k] = [2][]byte{before[k], after[k]}
+		}
 	}
-	return nil
+
+	return &errFixpointNotReached{
+		iterations: maxTidyIterations,
+		finalDiffs: lastDiffs,
+	}
 }
 
 // inPlanSiblings returns the set of import paths being released in
