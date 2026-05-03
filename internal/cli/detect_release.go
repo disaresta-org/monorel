@@ -46,7 +46,8 @@ custom CI scripts.`,
 func runDetectRelease(cmd *cobra.Command, _ []string) error {
 	rt, err := loadRuntime(cmd)
 	if err != nil {
-		return err
+		fmt.Fprintf(cmd.ErrOrStderr(), "detect-release: %v\n", err)
+		return ErrExit(2)
 	}
 
 	ctx := cmd.Context()

@@ -94,7 +94,7 @@ func runAuto(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 	switch res.Branch {
 	case orchestrator.AutoBranchRelease:
-		fmt.Fprintf(out, "Released %d package(s) at %s (detection source: %s):\n",
+		fmt.Fprintf(out, "Released %d package(s) at %s (detected by %s):\n",
 			len(res.Tags), short(res.CommitSHA), res.DetectionSource)
 		for _, tag := range res.Tags {
 			fmt.Fprintf(out, "  %s\n", tag)
@@ -109,7 +109,11 @@ func runAuto(cmd *cobra.Command, _ []string) error {
 			rt.Log.Info("Created release PR #%d: %s", res.PR.Number, res.PR.HTMLURL)
 		case orchestrator.ActionUpdated:
 			rt.Log.Info("Updated release PR #%d: %s", res.PR.Number, res.PR.HTMLURL)
+		default:
+			return fmt.Errorf("orchestrator returned unknown action %q", res.Action)
 		}
+	default:
+		return fmt.Errorf("orchestrator returned unknown branch %q", res.Branch)
 	}
 	return nil
 }
