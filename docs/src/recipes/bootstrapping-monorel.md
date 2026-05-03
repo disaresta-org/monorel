@@ -8,7 +8,7 @@ description: "How to ship monorel's first release before monorel exists. One-tim
 monorel releases itself with monorel from `v0.1.1` onward. The first release (`v0.1.0`) has to happen without monorel because the binary doesn't exist yet. This page documents that one-time bootstrap.
 
 ::: warning One-time only
-After `v0.1.0` ships, every subsequent release goes through `monorel release --publish` (locally or via the GitHub Action). Do not re-run this bootstrap on a healthy repo.
+After `v0.1.0` ships, every subsequent release goes through monorel's standard post-merge pipeline (`monorel tag`, `git push --follow-tags`, `monorel publish`), run locally or by the GitHub Action's `command: release`. Do not re-run this bootstrap on a healthy repo.
 :::
 
 ## What ships in v0.1.0
@@ -75,7 +75,7 @@ git push origin v0.1.0
 
 GoReleaser's auto-generated body is empty (`changelog.disable: true`). Paste the `## [0.1.0]` section from `CHANGELOG.md` into the GitHub Release body via the UI.
 
-(For `v0.1.1` onward, `monorel release --publish` writes the body automatically; this manual step is only for the bootstrap.)
+(For `v0.1.1` onward, `monorel publish` writes the body automatically; this manual step is only for the bootstrap.)
 
 ### 6. Verify the install path
 
@@ -99,6 +99,6 @@ From `v0.1.1` on:
 
 1. Author changesets via `monorel add`.
 2. CI runs `monorel preview --upsert` on push to main → release PR opens / updates.
-3. Merging the release PR runs `monorel release --publish` on the merge commit → tags pushed → binary-build workflow → archives attached.
+3. Merging the release PR runs the post-merge pipeline on the merge commit (`monorel tag` → `git push --follow-tags` → `monorel publish`) → binary-build workflow fires on the tag push → archives attached.
 
 The bootstrap workflow file (`build-release-binaries.yml`) is the only piece that survives the bootstrap; everything else converges on the `monorel`-driven flow.

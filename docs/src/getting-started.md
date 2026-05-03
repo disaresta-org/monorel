@@ -58,7 +58,7 @@ The [`examples/`](https://github.com/disaresta-org/monorel/tree/main/examples) d
 
 Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy into your repo.
 
-For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 25 sub-modules.
+For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 26 sub-modules.
 :::
 
 ## Wire up the GitHub Action

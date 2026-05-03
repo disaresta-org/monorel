@@ -108,9 +108,9 @@ Re-run it. `CreateRelease` is idempotent on the tag name: each tag the prior run
 
 The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/integrations/github#branch-protection)).
 
-**First, the universal trailers fallback usually recovers automatically.** Since v0.13, `monorel preview` writes a `<!-- monorel-trailers ... -->` HTML comment into the PR body whenever it opens or updates the always-open release PR. When `monorel tag` finds no `monorel-Release:` trailers on HEAD, it walks back to the merged PR via the provider's `FindPRByMergeCommit` lookup and parses trailers from that comment block. So even a force-applied squash-merge that rewrote the body still completes the release. Fixing the squash-merge setting is still recommended (one fewer round-trip, one fewer failure mode), but not urgent.
+**First, the universal trailers fallback usually recovers automatically.** Since v0.14, `monorel preview` writes a `<!-- monorel-trailers ... -->` HTML comment into the PR body whenever it opens or updates the always-open release PR. When `monorel tag` finds no `monorel-Release:` trailers on HEAD, it walks back to the merged PR via the provider's `FindPRByMergeCommit` lookup and parses trailers from that comment block. So even a force-applied squash-merge that rewrote the body still completes the release. Fixing the squash-merge setting is still recommended (one fewer round-trip, one fewer failure mode), but not urgent.
 
-The fallback fails only when **both** the commit body AND the PR body's comment block are absent. The latter happens when a contributor edited the PR body and removed the comment block before merge, or when an older `monorel preview` (pre-v0.13) wrote the body without the comment. In that case, hand-create the tags pointing at the merge commit:
+The fallback fails only when **both** the commit body AND the PR body's comment block are absent. The latter happens when a contributor edited the PR body and removed the comment block before merge, or when an older `monorel preview` (pre-v0.14) wrote the body without the comment. In that case, hand-create the tags pointing at the merge commit:
 
 ```sh
 git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m "Release <prefix> v<X.Y.Z>"

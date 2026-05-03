@@ -43,7 +43,7 @@ The two workflow files below implement the lifecycle: `release-pr.yml` keeps the
 - Invokes monorel with the configured command (`pr` or `release`).
 
 ::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.11.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.14.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
 :::
 
 ### `release-pr.yml`: maintain the always-open release PR
@@ -110,7 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.11.0
+      - uses: disaresta-org/monorel/ci/github@v0.14.0
         with:
           command: release
       - name: Capture root tag
@@ -201,7 +201,7 @@ Simplest path. Create a fine-grained PAT scoped to the target repo with these pe
 Add it as a repo secret (e.g. `MONOREL_PR_TOKEN`) and pass it to the action's `token` input:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.11.0
+- uses: disaresta-org/monorel/ci/github@v0.14.0
   with:
     command: pr
     token: ${{ secrets.MONOREL_PR_TOKEN }}
@@ -238,7 +238,7 @@ jobs:
         with:
           app-id: ${{ vars.MONOREL_APP_ID }}
           private-key: ${{ secrets.MONOREL_APP_PRIVATE_KEY }}
-      - uses: disaresta-org/monorel/ci/github@v0.11.0
+      - uses: disaresta-org/monorel/ci/github@v0.14.0
         with:
           command: pr
           token: ${{ steps.app-token.outputs.token }}

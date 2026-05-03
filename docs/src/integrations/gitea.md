@@ -101,7 +101,7 @@ PRs created via Gitea Actions' auto-injected `secrets.GITHUB_TOKEN` are subject 
 Fix: generate a personal access token at `/-/user/settings/applications` (or your Forgejo instance's equivalent) with `repository: write` + `user: read`. Add it as a repo secret (e.g. `MONOREL_GITEA_TOKEN`) and pass it to the action wrapper instead of the auto-injected token:
 
 ```yaml
-      - uses: disaresta-org/monorel/ci/github@v0.11.0
+      - uses: disaresta-org/monorel/ci/github@v0.14.0
         with:
           command: pr
         env:

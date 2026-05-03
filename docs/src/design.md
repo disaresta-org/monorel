@@ -41,7 +41,7 @@ The bot orchestrator stages a `monorel/release` branch off the default branch an
 
 ## Provider-neutral host seam
 
-`internal/provider.Client` is a six-method interface (`GetDefaultBranch`, `FindOpenReleasePR`, `CreatePR`, `UpdatePR`, `ClosePR`, `CreateRelease`). The factory dispatches by `config.ProviderConfig.Name` to a per-provider subpackage. GitHub today; GitLab / Gitea / Bitbucket / Forgejo by adding a subpackage.
+`internal/provider.Client` is a seven-method interface (`GetDefaultBranch`, `FindOpenReleasePR`, `FindPRByMergeCommit`, `CreatePR`, `UpdatePR`, `ClosePR`, `CreateRelease`). The factory dispatches by `config.ProviderConfig.Name` to a per-provider subpackage. GitHub, GitLab, Gitea / Forgejo, and Bitbucket Cloud are all built in; add a subpackage to support a host that isn't covered.
 
 **Why:** The interface is genuinely the slice of host operations monorel uses. Naming the abstraction `provider` (rather than `github`) is a small upfront cost that pays off the first time someone wants GitLab.
 

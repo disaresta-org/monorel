@@ -80,7 +80,7 @@ Side-effect-bearing packages should never be public commitments — every refact
 
 From v0.2.0 forward, the public packages follow the same SemVer rules as the rest of monorel: additive changes (new types, new functions, new fields on existing types) are minor bumps; breaking changes (renames, removals, signature changes, field type changes) are major bumps.
 
-Pre-1.0 caveat: v0.x is still soft-locked. Breaking changes between v0.minor releases are possible if a design issue surfaces, but they will be called out in `CHANGELOG.md` and `whats-new.md` with a migration path.
+Pre-1.0 caveat: v0.x is still soft-locked. Breaking changes between v0.minor releases are possible if a design issue surfaces, but they will be called out in `CHANGELOG.md` with a migration path.
 
 ## Quick example
 

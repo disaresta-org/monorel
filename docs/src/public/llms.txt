@@ -155,7 +155,7 @@ GitHub Actions / Gitea Actions: use the composite action.
 ```yaml
 - uses: actions/setup-go@v5
   with: { go-version-file: go.mod }   # required since v0.11; tidy needs `go` on PATH
-- uses: disaresta-org/monorel/ci/github@v0.11.0
+- uses: disaresta-org/monorel/ci/github@v0.14.0
   with:
     command: pr      # or "release" or "doctor"
 ```
