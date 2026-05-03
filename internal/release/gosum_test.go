@@ -1,12 +1,17 @@
 package release
 
 import (
+	"bytes"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/sumdb/dirhash"
+	xzip "golang.org/x/mod/zip"
 
 	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/config"
@@ -337,4 +342,159 @@ func TestTidy_OutOfPlanCacheMissingFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "go mod download") {
 		t.Errorf("error should hint at go mod download; got: %v", err)
 	}
+}
+
+// TestApply_RootChangesetDeletion_HashesMatchPublished pins the
+// regression for the loglayer-go v2.1.0 incident. The chore(release)
+// commit deletes consumed `.changeset/*.md` files. Those files live
+// inside the root module's source tree, so the root module's zip
+// hash differs between (a) the working tree at seed time (with the
+// changesets present) and (b) the chore(release) commit (without
+// them). Before the fix in Task 2, the affected sub-module's go.sum
+// would record (a)'s hash, which doesn't match what `git archive`
+// of the published tag produces.
+//
+// This test runs the full Apply pipeline and asserts that the
+// `h1:` for the in-plan root recorded in the affected sub-module's
+// go.sum equals the hash of `git archive` against the chore(release)
+// commit.
+func TestApply_RootChangesetDeletion_HashesMatchPublished(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("`go` not on PATH: %v", err)
+	}
+
+	repoDir := t.TempDir()
+	tmpModCache := t.TempDir()
+	t.Cleanup(func() {
+		filepath.WalkDir(tmpModCache, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			os.Chmod(path, 0o755)
+			return nil
+		})
+	})
+	t.Setenv("GOMODCACHE", tmpModCache)
+
+	// Layout:
+	//   <repoDir>/
+	//     go.mod              (module example.com/root, go 1.26)
+	//     root.go
+	//     .changeset/foo.md   (will be consumed by the plan)
+	//     sub/go.mod          (requires example.com/root)
+	//     sub/sub.go
+	mustWriteFile(t, filepath.Join(repoDir, "go.mod"),
+		"module example.com/root\n\ngo 1.26\n")
+	mustWriteFile(t, filepath.Join(repoDir, "root.go"),
+		"package root\n\nfunc Hello() string { return \"hi\" }\n")
+	mustWriteFile(t, filepath.Join(repoDir, ".changeset", "foo.md"),
+		"---\n\"root\": minor\n---\n\nbump\n")
+	mustWriteFile(t, filepath.Join(repoDir, "sub", "go.mod"),
+		"module example.com/sub\n\ngo 1.26\n\nrequire example.com/root v0.1.0\n")
+	mustWriteFile(t, filepath.Join(repoDir, "sub", "sub.go"),
+		"package sub\n\nimport \"example.com/root\"\n\nfunc Greet() string { return root.Hello() }\n")
+
+	repo := git.NewFake()
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"root": {TagPrefix: "", Path: "."},
+			"sub":  {TagPrefix: "sub", Path: "sub"},
+		},
+	}
+	rp := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{Config: cfg.Packages["root"], Tag: "v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["sub"], Tag: "sub/v0.1.0", Bump: semver.Minor},
+		},
+		Consumed: []*changeset.Changeset{{Name: "foo"}},
+	}
+
+	opts := Options{
+		Plan:         rp,
+		Config:       cfg,
+		Repo:         repo,
+		RepoDir:      repoDir,
+		ChangesetDir: filepath.Join(repoDir, ".changeset"),
+		Today:        "2026-05-03",
+	}
+
+	if _, err := Apply(opts); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// Read back the recorded hash for example.com/root in sub/go.sum.
+	subGoSum, err := os.ReadFile(filepath.Join(repoDir, "sub", "go.sum"))
+	if err != nil {
+		t.Fatalf("read sub/go.sum: %v", err)
+	}
+	recordedH1 := extractH1(t, subGoSum, "example.com/root v0.1.0")
+	if recordedH1 == "" {
+		t.Fatalf("sub/go.sum: missing h1: line for example.com/root v0.1.0\n%s", subGoSum)
+	}
+
+	// Compute what `git archive`'s hash would be against the working
+	// tree as of the chore(release) commit. Apply staged the deletion
+	// of .changeset/foo.md into the FakeRepo, so on disk it's still
+	// there. For the test to compare against the post-deletion shape,
+	// remove the file from the working tree manually here. (FakeRepo
+	// stages but doesn't commit; this is the test's stand-in for the
+	// real commit.)
+	if err := os.Remove(filepath.Join(repoDir, ".changeset", "foo.md")); err != nil {
+		t.Fatalf("remove staged-deleted changeset: %v", err)
+	}
+
+	expectedH1, err := dirhashOfRoot(repoDir)
+	if err != nil {
+		t.Fatalf("compute expected hash: %v", err)
+	}
+	if recordedH1 != expectedH1 {
+		t.Errorf("sub/go.sum recorded wrong h1: for example.com/root v0.1.0\n  recorded: %s\n  expected: %s",
+			recordedH1, expectedH1)
+	}
+}
+
+// extractH1 pulls the `h1:HASH=` value for the given "<module> <version>"
+// prefix from a go.sum file's bytes. Returns the empty string if the
+// line is absent.
+func extractH1(t *testing.T, goSum []byte, prefix string) string {
+	t.Helper()
+	want := []byte(prefix + " ")
+	for _, line := range bytes.Split(goSum, []byte("\n")) {
+		if !bytes.HasPrefix(line, want) {
+			continue
+		}
+		// Skip the /go.mod sub-hash; we want the full-zip hash.
+		if bytes.Contains(line, []byte("/go.mod ")) {
+			continue
+		}
+		// line looks like: example.com/root v0.1.0 h1:HASH=
+		parts := bytes.Fields(line)
+		if len(parts) < 3 {
+			continue
+		}
+		return string(parts[2])
+	}
+	return ""
+}
+
+// dirhashOfRoot computes Hash1 of the root module zip built from
+// repoDir, matching what `git archive` would produce for a published
+// version pointing at the working tree's current state. Used to
+// verify that monorel's recorded hash matches what consumers will
+// fetch.
+func dirhashOfRoot(repoDir string) (string, error) {
+	mv := module.Version{Path: "example.com/root", Version: "v0.1.0"}
+	tmpZip, err := os.CreateTemp("", "monorel-test-zip-*.zip")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmpZip.Name())
+	defer tmpZip.Close()
+	if err := xzip.CreateFromDir(tmpZip, mv, repoDir); err != nil {
+		return "", err
+	}
+	if err := tmpZip.Close(); err != nil {
+		return "", err
+	}
+	return dirhash.HashZip(tmpZip.Name(), dirhash.Hash1)
 }
