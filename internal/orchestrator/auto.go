@@ -86,8 +86,8 @@ type AutoResult struct {
 	// CommitSHA is HEAD's SHA at the moment Auto started.
 	CommitSHA string
 
-	// DetectionSource is the signal that decided Branch when
-	// Branch == AutoBranchRelease. Empty for AutoBranchFeature.
+	// DetectionSource is the signal that decided Branch.
+	// Populated for AutoBranchRelease; detect.SourceNone otherwise.
 	DetectionSource detect.Source
 
 	// Tags lists the tags created (release branch only).
@@ -188,6 +188,16 @@ func autoFeature(ctx context.Context, opts AutoOptions, headSHA, remote string) 
 		headBranch = DefaultHeadBranch
 	}
 
+	// Default Today once, before either consumer (release.Apply or
+	// orchestrator.Run) sees it. Both fall back to changelog.Today()
+	// independently when given "", and a UTC-midnight crossover
+	// between the two calls would otherwise produce different dates
+	// in the written CHANGELOG vs the rendered PR body.
+	today := opts.Today
+	if today == "" {
+		today = changelog.Today()
+	}
+
 	// Non-empty plan: stage on monorel/release, push, then upsert.
 	if !p.IsEmpty() {
 		baseBranch := opts.BaseBranch
@@ -212,7 +222,7 @@ func autoFeature(ctx context.Context, opts AutoOptions, headSHA, remote string) 
 			RepoDir:      opts.RepoDir,
 			ChangesetDir: opts.ChangesetDir,
 			PreState:     opts.PreState,
-			Today:        opts.Today,
+			Today:        today,
 		}); err != nil {
 			return nil, fmt.Errorf("auto: apply: %w", err)
 		}
@@ -220,11 +230,6 @@ func autoFeature(ctx context.Context, opts AutoOptions, headSHA, remote string) 
 		if err := opts.Repo.Push(remote, headBranch, true); err != nil {
 			return nil, fmt.Errorf("auto: push %s: %w", headBranch, err)
 		}
-	}
-
-	today := opts.Today
-	if today == "" {
-		today = changelog.Today()
 	}
 
 	res, err := Run(ctx, Options{

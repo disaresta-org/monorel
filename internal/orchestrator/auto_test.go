@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"monorel.disaresta.com/changeset"
@@ -130,6 +131,35 @@ func TestAuto_FeatureBranch_NonEmptyPlan(t *testing.T) {
 	if res.Action != ActionCreated {
 		t.Errorf("Action = %q, want %q (a release PR should have been opened)", res.Action, ActionCreated)
 	}
+
+	// Verify the apply step ran by checking HEAD's commit body has
+	// the monorel-Release: trailer (proves release.Apply was called
+	// with the right plan, not just that orchestrator.Run was).
+	msg, err := repo.HeadCommitMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg, "monorel-Release:") {
+		t.Errorf("HEAD commit message missing monorel-Release: trailer; apply was not called.\nGot: %s", msg)
+	}
+
+	// Verify the force-push happened (Push was called with force=true).
+	if !pushedRefForce(repo, "monorel/release") {
+		t.Errorf("Push of monorel/release with force=true not recorded; got pushes: %+v", repo.Pushes)
+	}
+}
+
+// pushedRefForce reports whether the fake recorded a force-push of
+// branch to any remote. git.Fake records pushes as
+// "<remote>:<ref>[:force]" strings, so we substring-match both the
+// branch name and the force suffix.
+func pushedRefForce(f *git.Fake, branch string) bool {
+	for _, p := range f.Pushes {
+		if strings.Contains(p, branch) && strings.Contains(p, "force") {
+			return true
+		}
+	}
+	return false
 }
 
 func TestAuto_DetectError(t *testing.T) {
@@ -153,3 +183,95 @@ func TestAuto_DetectError(t *testing.T) {
 }
 
 var errFakeBoom = errors.New("fake boom")
+
+// TestAuto_FeatureBranch_ErrorWraps verifies that the error wraps in
+// the non-empty-plan feature path are stable. Each case forces a
+// failure at a specific step and asserts the resulting error contains
+// the wrap prefix.
+//
+// Coverage is limited by the fakes' fault models. The provider fake's
+// FailNext is a closure (we can sequence with FailOnNth), so we can
+// reach GetDefaultBranch (the second provider call after detect's
+// FindPRByMergeCommit). The release.Apply wrap is reachable by passing
+// invalid Apply inputs (empty RepoDir) so Apply's own validation
+// fails before any repo op runs.
+//
+// The repo fake's FailNext is a one-shot error (no closure), so it
+// always consumes on the very first repo op (CurrentSHA in Auto's
+// preamble), which would only surface the "auto: read HEAD SHA" wrap.
+// Reaching the Fetch / CheckoutNewBranch / Push wraps would require
+// closure-style sequencing on git.Fake; those cases are dropped here
+// rather than misrepresent what's actually being tested.
+func TestAuto_FeatureBranch_ErrorWraps(t *testing.T) {
+	cases := []struct {
+		name        string
+		emptyRepo   bool // when true, pass RepoDir="" to force Apply's validation error
+		setup       func(repo *git.Fake, pf *provider.Fake)
+		wantWrapped string
+	}{
+		{
+			name: "GetDefaultBranch fails",
+			setup: func(_ *git.Fake, pf *provider.Fake) {
+				// 1st provider call: detect.FindPRByMergeCommit (succeed).
+				// 2nd provider call: autoFeature.GetDefaultBranch (fail).
+				pf.FailNext = provider.FailOnNth(2, errFakeBoom)
+			},
+			wantWrapped: "auto: get default branch",
+		},
+		{
+			name:      "Apply fails",
+			emptyRepo: true,
+			setup: func(_ *git.Fake, _ *provider.Fake) {
+				// No fake-fault arming: Apply's own validation rejects
+				// the empty RepoDir, surfacing the "auto: apply:" wrap.
+			},
+			wantWrapped: "auto: apply",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := git.NewFake()
+			stageAndCommit(t, repo, "feat: add login\n") // non-release HEAD
+
+			pf := provider.NewFake()
+			pf.DefaultBranch = "main"
+
+			cfg := &config.Config{
+				Packages: map[string]config.PackageConfig{
+					"pkg-a": {Path: "pkg-a", TagPrefix: "pkg-a", Changelog: "pkg-a/CHANGELOG.md"},
+				},
+			}
+			cs := []*changeset.Changeset{{
+				Name: "fresh",
+				Bumps: map[string]semver.BumpLevel{
+					"pkg-a": semver.Minor,
+				},
+				Body: "Add login.",
+			}}
+
+			tc.setup(repo, pf)
+
+			repoDir := t.TempDir()
+			if tc.emptyRepo {
+				repoDir = ""
+			}
+
+			_, err := Auto(context.Background(), AutoOptions{
+				Config:       cfg,
+				Repo:         repo,
+				Provider:     pf,
+				RepoDir:      repoDir,
+				ChangesetDir: t.TempDir(),
+				Changesets:   cs,
+				Tags:         nil,
+			})
+			if err == nil {
+				t.Fatalf("expected wrapped error containing %q", tc.wantWrapped)
+			}
+			if !strings.Contains(err.Error(), tc.wantWrapped) {
+				t.Errorf("err = %q; should contain %q", err.Error(), tc.wantWrapped)
+			}
+		})
+	}
+}
