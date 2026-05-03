@@ -24,7 +24,6 @@ var ErrRateLimited = errors.New("bitbucket: rate limited (HTTP 429); retry after
 
 // errorResponse is Bitbucket's error envelope shape.
 type errorResponse struct {
-	Type  string `json:"type"`
 	Error struct {
 		Message string `json:"message"`
 		Detail  string `json:"detail"`

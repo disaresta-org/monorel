@@ -3,6 +3,7 @@ package bitbucket
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,26 +12,33 @@ import (
 
 func TestNew_RejectsMissingEmail(t *testing.T) {
 	_, err := New(context.Background(), Options{Workspace: "ws", Repo: "r", Token: "t"})
-	if err == nil {
-		t.Fatal("expected error for missing email")
+	if !errors.Is(err, ErrMissingEmail) {
+		t.Fatalf("err = %v, want ErrMissingEmail", err)
 	}
 }
 
 func TestNew_RejectsMissingToken(t *testing.T) {
 	_, err := New(context.Background(), Options{Workspace: "ws", Repo: "r", Email: "e@x.com"})
-	if err == nil {
-		t.Fatal("expected error for missing token")
+	if !errors.Is(err, ErrMissingToken) {
+		t.Fatalf("err = %v, want ErrMissingToken", err)
 	}
 }
 
 func TestNew_RejectsMissingWorkspaceOrRepo(t *testing.T) {
-	for _, tc := range []Options{
-		{Repo: "r", Email: "e@x.com", Token: "t"},
-		{Workspace: "ws", Email: "e@x.com", Token: "t"},
-	} {
-		if _, err := New(context.Background(), tc); err == nil {
-			t.Errorf("expected error for %+v", tc)
-		}
+	cases := []struct {
+		name string
+		opts Options
+	}{
+		{"missing-workspace", Options{Repo: "r", Email: "e@x.com", Token: "t"}},
+		{"missing-repo", Options{Workspace: "ws", Email: "e@x.com", Token: "t"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := New(context.Background(), tc.opts)
+			if !errors.Is(err, ErrMissingWorkspaceRepo) {
+				t.Errorf("err = %v, want ErrMissingWorkspaceRepo", err)
+			}
+		})
 	}
 }
 
@@ -39,8 +47,8 @@ func TestNew_RejectsNonEmptyHost(t *testing.T) {
 		Workspace: "ws", Repo: "r", Host: "self-hosted",
 		Email: "e@x.com", Token: "t",
 	})
-	if err == nil {
-		t.Fatal("expected error for non-empty Host (Cloud-only)")
+	if !errors.Is(err, ErrHostNotSupported) {
+		t.Fatalf("err = %v, want ErrHostNotSupported", err)
 	}
 }
 
