@@ -58,9 +58,11 @@ func (p *bbPullRequest) toProviderPR() *provider.PullRequest {
 	return pr
 }
 
-func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*provider.PullRequest, error) {
+// firstPRMatching runs a BBQL query against /pullrequests and
+// returns the first match, (nil, nil) for an empty result.
+func (c *client) firstPRMatching(ctx context.Context, bbql string) (*provider.PullRequest, error) {
 	q := url.Values{}
-	q.Set("q", fmt.Sprintf(`state="OPEN" AND source.branch.name=%q`, headBranch))
+	q.Set("q", bbql)
 	resp, err := c.do(ctx, "GET", c.repoBase()+"/pullrequests", q, nil)
 	if err != nil {
 		return nil, err
@@ -75,6 +77,10 @@ func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*pro
 		return nil, nil
 	}
 	return body.Values[0].toProviderPR(), nil
+}
+
+func (c *client) FindOpenReleasePR(ctx context.Context, headBranch string) (*provider.PullRequest, error) {
+	return c.firstPRMatching(ctx, fmt.Sprintf(`state="OPEN" AND source.branch.name=%q`, headBranch))
 }
 
 func (c *client) CreatePR(ctx context.Context, opts provider.CreatePROptions) (*provider.PullRequest, error) {

@@ -8,6 +8,9 @@ import (
 // resolveUsername returns the Bitbucket username associated with the
 // configured email + token. Probes /2.0/user on first call and caches
 // the result; concurrent first calls share the probe via sync.Once.
+//
+// First-call errors (transient 5xx, context canceled, etc.) are
+// cached for the client's lifetime. Restart monorel to retry.
 func (c *client) resolveUsername(ctx context.Context) (string, error) {
 	c.identityOnce.Do(func() {
 		resp, err := c.do(ctx, "GET", "/user", nil, nil)

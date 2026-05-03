@@ -57,8 +57,9 @@ func (c *client) do(ctx context.Context, method, path string, query url.Values, 
 	return resp, nil
 }
 
-// decodeJSON reads resp.Body, JSON-decodes into out, and closes the
-// body. Convenience for the common one-shot pattern.
+// decodeJSON closes resp.Body. If out is non-nil, it JSON-decodes
+// the body into out before closing. Convenience for the common
+// one-shot pattern.
 func decodeJSON(resp *http.Response, out any) error {
 	defer resp.Body.Close()
 	if out == nil {

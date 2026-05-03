@@ -270,7 +270,7 @@ func TestFindOpenReleasePR(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.Number != 7 || got.State != "open" {
+	if got == nil || got.Number != 7 || got.State != "open" || got.MergedSHA != "" {
 		t.Errorf("got %+v", got)
 	}
 }
@@ -346,36 +346,85 @@ func TestCreatePR(t *testing.T) {
 }
 
 func TestUpdatePR(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			t.Errorf("method = %s, want PUT", r.Method)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintln(w, `{
-			"id": 7, "state":"OPEN", "title":"new title", "summary":{"raw":"new body"},
-			"source":{"branch":{"name":"monorel/release"}},
-			"links":{"html":{"href":"https://bitbucket.org/ws/r/pull-requests/7"}}
-		}`)
-	}))
-	defer srv.Close()
-
-	c, _ := New(context.Background(), Options{Workspace: "ws", Repo: "r", Email: "e@x.com", Token: "t"})
-	bc := c.(*client)
-	bc.baseURL = srv.URL
-
-	title := "new title"
-	body := "new body"
-	got, err := c.UpdatePR(context.Background(), 7, provider.UpdatePROptions{Title: &title, Body: &body})
-	if err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		name      string
+		opts      provider.UpdatePROptions
+		wantBody  bool
+		wantTitle bool
+	}{
+		{"both", makeUpdateOpts("new title", "new description"), true, true},
+		{"title-only", makeUpdateOptsTitleOnly("new title"), false, true},
+		{"body-only", makeUpdateOptsBodyOnly("new description"), true, false},
 	}
-	if got.Title != "new title" {
-		t.Errorf("got %q", got.Title)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "PUT" {
+					t.Errorf("method = %s, want PUT", r.Method)
+				}
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatalf("decode: %v", err)
+				}
+				if tc.wantTitle {
+					if _, ok := body["title"]; !ok {
+						t.Error("expected title in patch")
+					}
+				} else if _, ok := body["title"]; ok {
+					t.Error("unexpected title in patch")
+				}
+				if tc.wantBody {
+					if _, ok := body["description"]; !ok {
+						t.Error("expected description in patch (Bitbucket field name)")
+					}
+					if _, ok := body["body"]; ok {
+						t.Error("patch should use description, not body")
+					}
+				} else if _, ok := body["description"]; ok {
+					t.Error("unexpected description in patch")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintln(w, `{
+					"id": 7, "state":"OPEN", "title":"x", "summary":{"raw":"x"},
+					"source":{"branch":{"name":"monorel/release"}},
+					"links":{"html":{"href":"https://bitbucket.org/ws/r/pull-requests/7"}}
+				}`)
+			}))
+			defer srv.Close()
+
+			c, _ := New(context.Background(), Options{Workspace: "ws", Repo: "r", Email: "e@x.com", Token: "t"})
+			bc := c.(*client)
+			bc.baseURL = srv.URL
+			if _, err := c.UpdatePR(context.Background(), 7, tc.opts); err != nil {
+				t.Fatalf("UpdatePR: %v", err)
+			}
+		})
+	}
+}
+
+func makeUpdateOpts(title, body string) provider.UpdatePROptions {
+	return provider.UpdatePROptions{Title: &title, Body: &body}
+}
+func makeUpdateOptsTitleOnly(title string) provider.UpdatePROptions {
+	return provider.UpdatePROptions{Title: &title}
+}
+func makeUpdateOptsBodyOnly(body string) provider.UpdatePROptions {
+	return provider.UpdatePROptions{Body: &body}
+}
+
+func TestUpdatePR_NothingToChange(t *testing.T) {
+	c, _ := New(context.Background(), Options{Workspace: "ws", Repo: "r", Email: "e@x.com", Token: "t"})
+	_, err := c.UpdatePR(context.Background(), 7, provider.UpdatePROptions{})
+	if err == nil {
+		t.Fatal("expected error when both Title and Body are nil")
 	}
 }
 
 func TestClosePR(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
 		if r.URL.Path != "/repositories/ws/r/pullrequests/7/decline" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
@@ -439,7 +488,7 @@ func TestFindPRByMergeCommit_Bitbucket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.Number != 42 || got.MergedSHA != "abc123" {
+	if got == nil || got.Number != 42 || got.State != "closed" || got.MergedSHA != "abc123" {
 		t.Errorf("got %+v", got)
 	}
 }
