@@ -395,6 +395,7 @@ func TestApply_RootChangesetDeletion_HashesMatchPublished(t *testing.T) {
 		"package sub\n\nimport \"example.com/root\"\n\nfunc Greet() string { return root.Hello() }\n")
 
 	repo := git.NewFake()
+	repo.Dir = repoDir
 	cfg := &config.Config{
 		Packages: map[string]config.PackageConfig{
 			"root": {TagPrefix: "", Path: "."},
@@ -434,12 +435,10 @@ func TestApply_RootChangesetDeletion_HashesMatchPublished(t *testing.T) {
 
 	// Compute what `git archive`'s hash would be against the working
 	// tree as of the chore(release) commit. Apply staged the deletion
-	// of .changeset/foo.md into the FakeRepo, so on disk it's still
-	// there. For the test to compare against the post-deletion shape,
-	// remove the file from the working tree manually here. (FakeRepo
-	// stages but doesn't commit; this is the test's stand-in for the
-	// real commit.)
-	if err := os.Remove(filepath.Join(repoDir, ".changeset", "foo.md")); err != nil {
+	// of .changeset/foo.md via Repo.Remove (which, with repo.Dir set,
+	// physically removes the file). If the file is already gone (the
+	// fixed path: deletion runs before tidy), this is a no-op.
+	if err := os.Remove(filepath.Join(repoDir, ".changeset", "foo.md")); err != nil && !os.IsNotExist(err) {
 		t.Fatalf("remove staged-deleted changeset: %v", err)
 	}
 

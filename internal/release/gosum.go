@@ -27,9 +27,12 @@ import (
 //   - opts.PreState != nil (pre-release mode; applyPrerelease
 //     doesn't rewrite go.mod, so go.sum can't drift).
 //
-// Called from applyStable AFTER rewriteSubmoduleGoMods and BEFORE
-// the consumed-changesets deletion so all the file changes land in
-// the same release commit.
+// Called from applyStable AFTER rewriteSubmoduleGoMods AND AFTER
+// the consumed-changesets deletion. The deletion is upstream of the
+// seed step so the working tree already has its final commit shape;
+// otherwise the seed's hash wouldn't match what `git archive` of
+// the published tag produces. See
+// docs/superpowers/specs/2026-05-03-cacheseed-fixpoint-and-release-pipeline-fixes-design.md.
 func tidySubmoduleGoSums(opts Options) error {
 	if opts.PreState != nil {
 		return nil
