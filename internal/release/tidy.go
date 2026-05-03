@@ -97,7 +97,9 @@ func offlineTidyEnv() []string {
 // inPlan is the set of module import paths being released in the
 // current plan. Entries in go.sum whose module path matches a key
 // in inPlan are skipped: those modules will be seeded by the caller's
-// seedModuleCache step, not fetched from the proxy.
+// seedModuleCache step, not fetched from the proxy. Both full-zip
+// entries and /go.mod-only entries are processed; /go.mod-only entries
+// represent modules needed for graph resolution but not imported.
 //
 // If no go.sum exists in modDir, the function returns without running
 // the download command. A missing go.sum means tidy hasn't yet
@@ -116,8 +118,11 @@ func primeModuleCache(modDir string, inPlan map[string]string) error {
 	}
 
 	// Collect module@version pairs from go.sum, excluding in-plan
-	// modules (which will be seeded by the caller) and /go.mod entries
-	// (the per-module download fetches the .mod file automatically).
+	// modules (which will be seeded by the caller).
+	// /go.mod-only entries (modules pruned from the build list but
+	// needed for graph resolution) are included: strip the /go.mod
+	// suffix to get the bare version, then deduplicate against any
+	// full-zip entry for the same module@version.
 	var targets []string
 	seen := make(map[string]bool)
 	for _, line := range strings.Split(string(goSumBytes), "\n") {
@@ -131,10 +136,11 @@ func primeModuleCache(modDir string, inPlan map[string]string) error {
 		}
 		modPath := parts[0]
 		modVer := parts[1]
-		// Skip /go.mod entries; `go mod download mod@ver` fetches both.
-		if strings.HasSuffix(modVer, "/go.mod") {
-			continue
-		}
+		// Strip /go.mod suffix to get the bare version used as the
+		// download target. Deduplication via `seen` ensures we don't
+		// enqueue a module twice when both the /go.mod and full-zip
+		// entries are present.
+		modVer = strings.TrimSuffix(modVer, "/go.mod")
 		// Skip in-plan modules; seedModuleCache handles those.
 		if _, ok := inPlan[modPath]; ok {
 			continue

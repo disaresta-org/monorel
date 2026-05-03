@@ -683,3 +683,93 @@ func TestTidySubmoduleGoSums_FixpointNotReached_SurfacesDiagnosticError(t *testi
 		t.Errorf("error message missing diff payload: %q", msg)
 	}
 }
+
+// TestTidySubmoduleGoSums_PrimesThirdPartyDeps_FromColdCache pins
+// the regression for the fresh-CI-runner case. An affected
+// sub-module requires a third-party module not in monorel.toml's
+// managed set. With a fresh GOMODCACHE (default for
+// setupSubmoduleFixture), offline tidy with GOPROXY=off would fail
+// without the prime-cache step. With it, tidy succeeds because the
+// cache is populated before tidy runs.
+func TestTidySubmoduleGoSums_PrimesThirdPartyDeps_FromColdCache(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("`go` not on PATH: %v", err)
+	}
+	if testing.Short() {
+		t.Skip("network-bound: requires GOPROXY reachability for go mod download")
+	}
+
+	repoDir := t.TempDir()
+	tmpModCache := t.TempDir()
+	t.Cleanup(func() {
+		filepath.WalkDir(tmpModCache, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			os.Chmod(path, 0o755)
+			return nil
+		})
+	})
+	t.Setenv("GOMODCACHE", tmpModCache)
+
+	// a/ requires example.com/b (in-plan, will be seeded) AND
+	// gopkg.in/yaml.v3 (third-party). Without primeModuleCache,
+	// tidy under GOPROXY=off would fail on yaml.v3 since it's not
+	// in the fresh GOMODCACHE.
+	mustWriteFile(t, filepath.Join(repoDir, "a/go.mod"),
+		"module example.com/a\n\ngo 1.26\n\nrequire (\n\texample.com/b v0.1.0\n\tgopkg.in/yaml.v3 v3.0.1\n)\n")
+	mustWriteFile(t, filepath.Join(repoDir, "a/a.go"),
+		"package a\n\nimport (\n\t\"example.com/b\"\n\t_ \"gopkg.in/yaml.v3\"\n)\n\nfunc Greet() string { return b.Hello() }\n")
+	// Pre-populate a's go.sum with the yaml.v3 hashes (including its
+	// transitive dep check.v1's go.mod hash) so tidy can verify all
+	// entries without reaching the network during the offline tidy
+	// pass. Hashes are the public proxy hashes for these versions.
+	mustWriteFile(t, filepath.Join(repoDir, "a/go.sum"),
+		"gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=\n"+
+			"gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=\n"+
+			"gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=\n")
+
+	mustWriteFile(t, filepath.Join(repoDir, "b/go.mod"),
+		"module example.com/b\n\ngo 1.26\n")
+	mustWriteFile(t, filepath.Join(repoDir, "b/b.go"),
+		"package b\n\nfunc Hello() string { return \"hi\" }\n")
+
+	repo := git.NewFake()
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"a": {TagPrefix: "a", Path: "a"},
+			"b": {TagPrefix: "b", Path: "b"},
+		},
+	}
+	rp := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{Config: cfg.Packages["a"], Tag: "a/v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["b"], Tag: "b/v0.1.0", Bump: semver.Minor},
+		},
+	}
+
+	opts := Options{
+		Plan:         rp,
+		Config:       cfg,
+		Repo:         repo,
+		RepoDir:      repoDir,
+		ChangesetDir: filepath.Join(repoDir, ".changeset"),
+		Today:        "2026-05-03",
+	}
+
+	if err := tidySubmoduleGoSums(opts); err != nil {
+		t.Fatalf("tidySubmoduleGoSums: %v", err)
+	}
+
+	// Sanity: a/go.sum now has both example.com/b and yaml.v3 entries.
+	aGoSum, err := os.ReadFile(filepath.Join(repoDir, "a", "go.sum"))
+	if err != nil {
+		t.Fatalf("read a/go.sum: %v", err)
+	}
+	if !bytes.Contains(aGoSum, []byte("example.com/b v0.1.0")) {
+		t.Errorf("a/go.sum: missing example.com/b v0.1.0:\n%s", aGoSum)
+	}
+	if !bytes.Contains(aGoSum, []byte("gopkg.in/yaml.v3 v3.0.1")) {
+		t.Errorf("a/go.sum: missing gopkg.in/yaml.v3 v3.0.1:\n%s", aGoSum)
+	}
+}
