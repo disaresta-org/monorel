@@ -60,7 +60,7 @@ When multiple changesets target the same package, monorel uses the **strongest**
 
 ## Pre-release mode
 
-`monorel pre enter <channel>` writes `.changeset/pre.json` with the channel name and an empty per-package counter map. While pre-release mode is active:
+`monorel pre enter <channel>` writes `.changeset/pre.json` with the channel name, an empty per-package counter map, and a `schemaVersion` (currently `1`) so future on-disk format changes are detected rather than silently misread. While pre-release mode is active:
 
 - `monorel release` appends `-<channel>.N` to each released version (e.g. `v1.7.0-rc.0`).
 - `.changeset/*.md` files are NOT deleted between releases.
