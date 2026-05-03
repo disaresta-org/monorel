@@ -1,9 +1,11 @@
 package release
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/mod/module"
 )
@@ -225,4 +227,88 @@ func managedImportPaths(opts Options) map[string]bool {
 		out[mf.Module.Mod.Path] = true
 	}
 	return out
+}
+
+// readGoSums reads the go.sum bytes for every sub-module path in
+// affected. Missing files are recorded as nil byte slices (a
+// sub-module that hasn't yet been tidied may not have a go.sum
+// file). Used by [tidySubmoduleGoSums]'s fixpoint loop to detect
+// whether the most recent tidy iteration mutated any go.sum.
+func readGoSums(repoDir string, affected []string) (map[string][]byte, error) {
+	out := make(map[string][]byte, len(affected))
+	for _, sub := range affected {
+		path := filepath.Join(repoDir, sub, "go.sum")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				out[sub] = nil
+				continue
+			}
+			return nil, fmt.Errorf("readGoSums: %s: %w", path, err)
+		}
+		out[sub] = b
+	}
+	return out, nil
+}
+
+// goSumsChanged reports whether before and after differ on any key.
+// Caller passes snapshots from [readGoSums]; both maps must have the
+// same key set.
+func goSumsChanged(before, after map[string][]byte) bool {
+	for k, b := range before {
+		if !bytes.Equal(b, after[k]) {
+			return true
+		}
+	}
+	return false
+}
+
+// stageAffected stages each affected sub-module's go.mod and go.sum
+// in the repo. Idempotent: missing files are skipped; non-Stat
+// failures bubble up. Used by [tidySubmoduleGoSums] after the
+// fixpoint loop converges.
+func stageAffected(opts Options, affected []string) error {
+	for _, sub := range affected {
+		for _, name := range []string{"go.mod", "go.sum"} {
+			rel := filepath.Join(sub, name)
+			abs := filepath.Join(opts.RepoDir, rel)
+			if _, err := os.Stat(abs); os.IsNotExist(err) {
+				continue
+			} else if err != nil {
+				return fmt.Errorf("tidy: stat %s: %w", abs, err)
+			}
+			if err := opts.Repo.Add(rel); err != nil {
+				return fmt.Errorf("tidy: stage %s: %w", rel, err)
+			}
+		}
+	}
+	return nil
+}
+
+// errFixpointNotReached is returned by [tidySubmoduleGoSums] when
+// the seed-and-tidy loop fails to converge within maxTidyIterations.
+// The error carries the per-iteration go.sum diffs as a diagnostic
+// payload so the maintainer can see exactly which sub-module's
+// go.sum kept changing across iterations. This typically indicates
+// a monorel bug (cycle, non-determinism); the message hints the
+// maintainer to file an issue.
+type errFixpointNotReached struct {
+	iterations int
+	finalDiffs map[string][2][]byte // per sub-module: [0]=before, [1]=after for the last iteration
+}
+
+func (e *errFixpointNotReached) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "tidy did not converge after %d iterations; this indicates a monorel bug.\n",
+		e.iterations)
+	fmt.Fprintf(&b, "Please file an issue at https://github.com/disaresta-org/monorel/issues with the following diffs:\n\n")
+	for sub, ba := range e.finalDiffs {
+		if bytes.Equal(ba[0], ba[1]) {
+			continue
+		}
+		fmt.Fprintf(&b, "==> %s/go.sum (last iteration's diff):\n", sub)
+		fmt.Fprintf(&b, "BEFORE:\n%s\n", ba[0])
+		fmt.Fprintf(&b, "AFTER:\n%s\n", ba[1])
+	}
+	return b.String()
 }
