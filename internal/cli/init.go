@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 	loglayer "go.loglayer.dev/v2"
@@ -129,7 +130,7 @@ func doInit(log *loglayer.LogLayer, opts initOptions) error {
 	if owner == "" || repo == "" {
 		detectedOwner, detectedRepo, err := detectGitRemote(opts.dir)
 		if err != nil {
-			return fmt.Errorf("could not auto-detect owner/repo from git origin: %w (pass --owner/--repo)", err)
+			return autoDetectError(opts.dir, err)
 		}
 		if owner == "" {
 			owner = detectedOwner
@@ -188,16 +189,66 @@ type initPkg struct {
 	Changelog string
 }
 
+// errNotInGitRepo and errNoOriginRemote distinguish the two
+// failure modes detectGitRemote hits. autoDetectError wraps each
+// with a tailored next-step hint for the user.
+var (
+	errNotInGitRepo   = errors.New("not inside a git repository")
+	errNoOriginRemote = errors.New("git repository has no origin remote configured")
+)
+
 // detectGitRemote runs `git config --get remote.origin.url` in dir
 // and parses the result. See parseGitRemote for supported URL shapes.
+//
+// Returns errNotInGitRepo when dir isn't inside a git work tree, and
+// errNoOriginRemote when it is but no `origin` remote is configured.
+// Either errors.Is check is wrapped with a fixup hint by
+// autoDetectError before reaching the user.
 func detectGitRemote(dir string) (owner, repo string, err error) {
+	inside := exec.Command("git", "rev-parse", "--is-inside-work-tree")
+	inside.Dir = dir
+	if err := inside.Run(); err != nil {
+		return "", "", errNotInGitRepo
+	}
+
 	c := exec.Command("git", "config", "--get", "remote.origin.url")
 	c.Dir = dir
 	raw, err := c.Output()
 	if err != nil {
-		return "", "", fmt.Errorf("read git origin: %w", err)
+		return "", "", errNoOriginRemote
 	}
 	return parseGitRemote(strings.TrimSpace(string(raw)))
+}
+
+// autoDetectError formats a detectGitRemote failure into an
+// actionable error: it names the specific failure mode and shows the
+// exact flag invocation that would skip auto-detection. The error
+// is returned (not logged) because it carries multi-line formatting
+// the cli transport's sanitizer would collapse, and main.go's
+// top-level error printer keeps the line breaks intact.
+func autoDetectError(dir string, cause error) error {
+	hint := "To skip auto-detection, pass owner and repo explicitly:\n\n  monorel init --owner=<your-org> --repo=<your-repo>"
+	switch {
+	case errors.Is(cause, errNotInGitRepo):
+		return fmt.Errorf("%w: %s\n\nEither run `monorel init` from inside an existing git checkout (or run `git init` first), or %s",
+			cause, dir, lcfirst(hint))
+	case errors.Is(cause, errNoOriginRemote):
+		return fmt.Errorf("%w (%s)\n\nEither configure a remote (`git remote add origin <url>`), or %s",
+			cause, dir, lcfirst(hint))
+	default:
+		return fmt.Errorf("auto-detect owner/repo from git origin failed: %w\n\n%s", cause, hint)
+	}
+}
+
+// lcfirst lowercases the first rune of s. Used to splice a sentence
+// fragment into the middle of a "Either X, or <hint>" template.
+func lcfirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	r[0] = unicode.ToLower(r[0])
+	return string(r)
 }
 
 // parseGitRemote covers the URL shapes git emits in the wild:
