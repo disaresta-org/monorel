@@ -9,6 +9,35 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.14.0] - 2026-05-03
+
+### Minor Changes
+
+- monorel now supports Bitbucket Cloud (`provider.name = "bitbucket"`) alongside GitHub, Gitea / Forgejo, and GitLab. The `internal/provider/bitbucket/` package implements the `provider.Client` interface against Bitbucket's REST API v2 (hand-rolled `net/http`; no new direct deps).
+
+  Auth uses two environment variables: `BITBUCKET_EMAIL` (Atlassian account email) and `BITBUCKET_TOKEN` (Atlassian API token with Bitbucket scopes). The Bitbucket username for git over HTTPS is probed from `/2.0/user` and cached on the client.
+
+  Bitbucket Cloud has no first-class Release concept, so `monorel publish` is a no-op on Bitbucket; per-package `CHANGELOG.md` is the canonical release-notes source.
+
+  Plus a defensive recovery mechanism that benefits every provider: `monorel preview` now appends a `<!-- monorel-trailers ... -->` HTML comment to the PR body. `monorel tag` falls back to that block when the merge commit body lacks `monorel-Release:` trailers (e.g. because of a squash-merge that rewrote the body). The fallback uses the new `provider.Client.FindPRByMergeCommit` method, implemented by every provider.
+
+  See [Bitbucket integration](/integrations/bitbucket).
+- Fix `cacheseed` writing the wrong h1: hash for released sub-modules
+  (would silently produce broken go.sum entries on every release; see
+  [`loglayer/loglayer-go`'s v2.1.0 incident](https://github.com/loglayer/loglayer-go/pull/76)).
+  Reorder `applyStable` so all working-tree mutations happen before
+  the seed step, and replace the single-pass seed-and-tidy with
+  iterate-to-fixpoint to handle cross-sibling dep chains.
+
+  Add a `go mod download` priming step before offline tidy so fresh
+  CI runners (with empty `GOMODCACHE`) can resolve third-party deps.
+  The `GOPROXY=off` invariant during tidy is preserved.
+
+  Document the `actions/setup-go` prerequisite (sub-modules with
+  `go 1.25.0` directives need a 1.25+ runner since `GOTOOLCHAIN=local`
+  during tidy blocks auto-download) and the `chore(release):`-commit
+  skip filter recipe. See [issue #54](https://github.com/disaresta-org/monorel/issues/54).
+
 ## [0.13.0] - 2026-05-03
 
 ### Minor Changes
