@@ -244,7 +244,7 @@ Splits from `monorel tag` because most providers validate that the tag exists on
 
 Pre-release-mode lifecycle. Channel is any non-empty SemVer-compatible identifier (`rc`, `beta`, `alpha`). Switching channels requires `pre exit` first; entering a new channel while one is already active is rejected.
 
-## Library API (public packages from v0.2.0+)
+## Library API (public packages)
 
 Pure-function packages, no I/O. Consumers can embed them into custom tooling.
 
@@ -391,7 +391,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
-      - uses: disaresta-org/monorel/ci/github@v0.14.0
+      - uses: disaresta-org/monorel/ci/github@v1.0.0
         with: { command: pr }
 ```
 
@@ -414,18 +414,18 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
-      - uses: disaresta-org/monorel/ci/github@v0.14.0
+      - uses: disaresta-org/monorel/ci/github@v1.0.0
         with: { command: release }
 ```
 
-`actions/setup-go` is required since v0.11: `monorel apply` runs `go mod tidy` against the released sub-modules so the release commit's `go.sum` is canonically clean.
+`actions/setup-go` is required: `monorel apply` runs `go mod tidy` against the released sub-modules so the release commit's `go.sum` is canonically clean.
 
 ### Gitea Actions / Forgejo
 
 Same composite action; pass `GITEA_TOKEN` for the secret.
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.14.0
+- uses: disaresta-org/monorel/ci/github@v1.0.0
   with: { command: pr }
   env:
     GITEA_TOKEN: ${{ secrets.MONOREL_GITEA_TOKEN }}
@@ -437,7 +437,7 @@ Use the published Docker image (bundles `git` and the Go toolchain).
 
 ```yaml
 default:
-  image: ghcr.io/disaresta-org/monorel:0.11.0
+  image: ghcr.io/disaresta-org/monorel:1.0.0
 
 stages: [doctor, release-pr, release]
 
@@ -487,7 +487,7 @@ Bitbucket Cloud-only (`bitbucket.org`); Bitbucket Data Center / Server is not su
 
 ```yaml
 # bitbucket-pipelines.yml
-image: ghcr.io/disaresta-org/monorel:0.14.0
+image: ghcr.io/disaresta-org/monorel:1.0.0
 
 pipelines:
   branches:
@@ -656,6 +656,5 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - `monorel.disaresta.com/faq`: frequently asked questions.
 - `monorel.disaresta.com/glossary`: canonical terminology.
 - `monorel.disaresta.com/recipes/migration-from-release-please`: walkthrough for repos already using release-please.
-- `monorel.disaresta.com/recipes/bootstrapping-monorel`: notes on the chicken-and-egg of monorel releasing itself.
 
 Source: https://github.com/disaresta-org/monorel.

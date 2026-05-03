@@ -42,8 +42,8 @@ The two workflow files below implement the lifecycle: `release-pr.yml` keeps the
 - Stages the `monorel/release` branch (for the `pr` command's speculative apply).
 - Invokes monorel with the configured command (`pr` or `release`).
 
-::: tip Pre-1.0 pinning
-monorel hasn't shipped a moving major-track tag yet (no `@v0` or `@v1` ref). Pin to an exact patch (`@v0.14.0` or whichever you've validated) until that ships. Bump deliberately when a new monorel release lands.
+::: tip Pinning the action wrapper
+monorel doesn't auto-publish a moving major-track tag (no `@v1` ref). Pin to an exact patch (`@v1.0.0` or whichever you've validated). Bump deliberately when a new monorel release lands.
 :::
 
 ### `release-pr.yml`: maintain the always-open release PR
@@ -75,7 +75,7 @@ The `release` command runs three monorel invocations in order on the merge commi
 
 The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
-The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
+The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` to trigger the workflow manually if a release commit ever needs to be re-run.
 
 ### `doctor.yml`: pre-merge sanity check (recommended)
 
@@ -90,7 +90,7 @@ A separate workflow that runs `monorel doctor` against every PR. Today's only bu
 | Input | Default | Description |
 |-------|---------|-------------|
 | `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`), `release` (post-merge: `monorel tag` + push + `monorel publish`), or `doctor` (run `monorel doctor`; exit non-zero on error-severity findings). |
-| `version` | `latest` | Pin a specific monorel version, e.g. `v0.11.0`. |
+| `version` | `latest` | Pin a specific monorel version, e.g. `v1.0.0`. |
 | `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. The `doctor` command needs no token; `contents: read` alone is sufficient. Override with a PAT or App token via `secrets.<name>` syntax. |
 | `config` | `monorel.toml` | Path to the config file. |
 
@@ -110,7 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: disaresta-org/monorel/ci/github@v0.14.0
+      - uses: disaresta-org/monorel/ci/github@v1.0.0
         with:
           command: release
       - name: Capture root tag
@@ -201,7 +201,7 @@ Simplest path. Create a fine-grained PAT scoped to the target repo with these pe
 Add it as a repo secret (e.g. `MONOREL_PR_TOKEN`) and pass it to the action's `token` input:
 
 ```yaml
-- uses: disaresta-org/monorel/ci/github@v0.14.0
+- uses: disaresta-org/monorel/ci/github@v1.0.0
   with:
     command: pr
     token: ${{ secrets.MONOREL_PR_TOKEN }}
@@ -238,7 +238,7 @@ jobs:
         with:
           app-id: ${{ vars.MONOREL_APP_ID }}
           private-key: ${{ secrets.MONOREL_APP_PRIVATE_KEY }}
-      - uses: disaresta-org/monorel/ci/github@v0.14.0
+      - uses: disaresta-org/monorel/ci/github@v1.0.0
         with:
           command: pr
           token: ${{ steps.app-token.outputs.token }}

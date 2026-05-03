@@ -22,7 +22,7 @@ Distributing signed binaries for macOS and Windows requires paid developer certi
 ```sh
 docker pull ghcr.io/disaresta-org/monorel:latest
 # or pin a version
-docker pull ghcr.io/disaresta-org/monorel:0.11.0
+docker pull ghcr.io/disaresta-org/monorel:1.0.0
 ```
 
 ## Run a command

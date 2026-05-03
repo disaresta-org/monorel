@@ -35,7 +35,7 @@ The bot orchestrator stages a `monorel/release` branch off the default branch an
 
 ## Pure-function planner
 
-[`plan.Plan(cfg, changesets, tags, pre)`](https://pkg.go.dev/monorel.disaresta.com/plan#Plan) is a pure function: no I/O, no side effects, deterministic output for identical inputs. The CLI, the orchestrator, and the release applier all consume its output; none of them re-derive versions from changesets independently. From v0.2.0, the package is part of monorel's public API surface so external consumers (custom orchestrators, IDE plugins, audit tools) can call it directly.
+[`plan.Plan(cfg, changesets, tags, pre)`](https://pkg.go.dev/monorel.disaresta.com/plan#Plan) is a pure function: no I/O, no side effects, deterministic output for identical inputs. The CLI, the orchestrator, and the release applier all consume its output; none of them re-derive versions from changesets independently. The package is part of monorel's public API surface so external consumers (custom orchestrators, IDE plugins, audit tools) can call it directly.
 
 **Why:** Exhaustive table-driven tests are cheap. The planner is the load-bearing logic of the tool, and "pure function over plain data" is the cheapest way to give it the test coverage that matches its blast radius.
 

@@ -134,7 +134,7 @@ monorel pre exit              # remove pre.json
 # all accumulated changesets consumed.
 ```
 
-## Library API (public Go packages from v0.2.0+)
+## Library API (public Go packages)
 
 These are pure-function packages (no I/O); the CLI / orchestrator wires them into the release pipeline. Useful for embedding monorel's planner into custom tooling.
 
@@ -154,19 +154,19 @@ GitHub Actions / Gitea Actions: use the composite action.
 
 ```yaml
 - uses: actions/setup-go@v5
-  with: { go-version-file: go.mod }   # required since v0.11; tidy needs `go` on PATH
-- uses: disaresta-org/monorel/ci/github@v0.14.0
+  with: { go-version-file: go.mod }   # required: tidy needs `go` on PATH
+- uses: disaresta-org/monorel/ci/github@v1.0.0
   with:
     command: pr      # or "release" or "doctor"
 ```
 
 Two workflows: `release-pr.yml` (fires on push to main, runs `command: pr`) and `release.yml` (fires on `chore(release):` merge commits, runs `command: release`).
 
-GitLab CI: use the published Docker image at `ghcr.io/disaresta-org/monorel:0.11.0`. The image bundles `git` and the Go toolchain.
+GitLab CI: use the published Docker image at `ghcr.io/disaresta-org/monorel:1.0.0`. The image bundles `git` and the Go toolchain.
 
 ```yaml
 default:
-  image: ghcr.io/disaresta-org/monorel:0.11.0
+  image: ghcr.io/disaresta-org/monorel:1.0.0
 release-pr:
   rules: [{ if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH' }]
   script:

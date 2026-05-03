@@ -1,6 +1,6 @@
 ```yaml
 # bitbucket-pipelines.yml
-image: ghcr.io/disaresta-org/monorel:0.14.0
+image: ghcr.io/disaresta-org/monorel:1.0.0
 
 pipelines:
   branches:
