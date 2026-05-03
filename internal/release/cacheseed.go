@@ -27,9 +27,10 @@ type seededEntry struct {
 // seedModuleCache writes the four cache files (.info, .mod, .zip,
 // .ziphash) for every in-plan released package into the developer's
 // Go module cache, in the layout `go mod tidy` expects when running
-// offline. Returns a cleanup closure that removes only these specific
-// entries; callers `defer cleanup()` so the cleanup runs whether the
-// orchestrator succeeds or fails.
+// offline. Returns a slice of [seededEntry] tracking every file
+// written; callers pass it to [clearSeededEntries] to remove the
+// entries when done. The slice is populated even on error (whatever
+// was written before the failure) so cleanup can still run.
 //
 // The cleanup is best-effort: per-entry remove failures are not
 // returned, since cache entries are content-addressed and a stale
@@ -38,20 +39,10 @@ type seededEntry struct {
 // Skips packages whose Path doesn't contain a go.mod (e.g. a
 // pure-changelog package), and packages whose go.mod parse fails
 // (those bubble out of the rewriter earlier).
-func seedModuleCache(opts Options) (cleanup func(), err error) {
+func seedModuleCache(opts Options) (seeded []seededEntry, err error) {
 	mc, err := goModCache()
 	if err != nil {
-		return func() {}, fmt.Errorf("seed module cache: %w", err)
-	}
-
-	var seeded []seededEntry
-	cleanup = func() {
-		for _, e := range seeded {
-			_ = os.Remove(e.infoPath)
-			_ = os.Remove(e.modPath)
-			_ = os.Remove(e.zipPath)
-			_ = os.Remove(e.zipHashPath)
-		}
+		return nil, fmt.Errorf("seed module cache: %w", err)
 	}
 
 	// Use the current time for the .info Time field. The actual
@@ -69,12 +60,12 @@ func seedModuleCache(opts Options) (cleanup func(), err error) {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return cleanup, fmt.Errorf("seed module cache: read %s: %w", modFilePath, err)
+			return seeded, fmt.Errorf("seed module cache: read %s: %w", modFilePath, err)
 		}
 
 		mf, err := readModFile(modFilePath)
 		if err != nil {
-			return cleanup, fmt.Errorf("seed module cache: %w", err)
+			return seeded, fmt.Errorf("seed module cache: %w", err)
 		}
 		if mf == nil {
 			continue
@@ -87,16 +78,31 @@ func seedModuleCache(opts Options) (cleanup func(), err error) {
 
 		entry, err := writeCacheEntry(mc, mv, modDir, modBytes, now)
 		// Append unconditionally: writeCacheEntry returns its
-		// (partially-populated) entry on error too, and cleanup
-		// must be able to remove whatever it wrote before failing.
-		// Empty fields in entry round-trip safely through os.Remove.
+		// (partially-populated) entry on error too, and the caller
+		// uses the slice to clean up whatever was written before
+		// failure. Empty fields in entry round-trip safely through
+		// os.Remove via clearSeededEntries.
 		seeded = append(seeded, entry)
 		if err != nil {
-			return cleanup, fmt.Errorf("seed module cache for %s@%s: %w", mv.Path, mv.Version, err)
+			return seeded, fmt.Errorf("seed module cache for %s@%s: %w", mv.Path, mv.Version, err)
 		}
 	}
 
-	return cleanup, nil
+	return seeded, nil
+}
+
+// clearSeededEntries removes every cache file in entries. Called by
+// the orchestrator at the end of [tidySubmoduleGoSums] (and between
+// iterations of the fixpoint loop). Best-effort: per-file remove
+// failures are silently ignored, since cache entries are
+// content-addressed and a stale leftover is inert.
+func clearSeededEntries(entries []seededEntry) {
+	for _, e := range entries {
+		_ = os.Remove(e.infoPath)
+		_ = os.Remove(e.modPath)
+		_ = os.Remove(e.zipPath)
+		_ = os.Remove(e.zipHashPath)
+	}
 }
 
 // writeCacheEntry produces the four cache files for one (module,

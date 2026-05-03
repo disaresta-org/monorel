@@ -1,12 +1,19 @@
 package release
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/sumdb/dirhash"
+	xzip "golang.org/x/mod/zip"
 
 	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/config"
@@ -336,5 +343,433 @@ func TestTidy_OutOfPlanCacheMissingFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "go mod download") {
 		t.Errorf("error should hint at go mod download; got: %v", err)
+	}
+}
+
+// TestApply_RootChangesetDeletion_HashesMatchPublished pins the
+// regression for the loglayer-go v2.1.0 incident. The chore(release)
+// commit deletes consumed `.changeset/*.md` files. Those files live
+// inside the root module's source tree, so the root module's zip
+// hash differs between (a) the working tree at seed time (with the
+// changesets present) and (b) the chore(release) commit (without
+// them). Before the fix in Task 2, the affected sub-module's go.sum
+// would record (a)'s hash, which doesn't match what `git archive`
+// of the published tag produces.
+//
+// This test runs the full Apply pipeline and asserts that the
+// `h1:` for the in-plan root recorded in the affected sub-module's
+// go.sum equals the hash of `git archive` against the chore(release)
+// commit.
+func TestApply_RootChangesetDeletion_HashesMatchPublished(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("`go` not on PATH: %v", err)
+	}
+
+	repoDir := t.TempDir()
+	tmpModCache := t.TempDir()
+	t.Cleanup(func() {
+		filepath.WalkDir(tmpModCache, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			os.Chmod(path, 0o755)
+			return nil
+		})
+	})
+	t.Setenv("GOMODCACHE", tmpModCache)
+
+	// Layout:
+	//   <repoDir>/
+	//     go.mod              (module example.com/root, go 1.26)
+	//     root.go
+	//     .changeset/foo.md   (will be consumed by the plan)
+	//     sub/go.mod          (requires example.com/root)
+	//     sub/sub.go
+	mustWriteFile(t, filepath.Join(repoDir, "go.mod"),
+		"module example.com/root\n\ngo 1.26\n")
+	mustWriteFile(t, filepath.Join(repoDir, "root.go"),
+		"package root\n\nfunc Hello() string { return \"hi\" }\n")
+	mustWriteFile(t, filepath.Join(repoDir, ".changeset", "foo.md"),
+		"---\n\"root\": minor\n---\n\nbump\n")
+	mustWriteFile(t, filepath.Join(repoDir, "sub", "go.mod"),
+		"module example.com/sub\n\ngo 1.26\n\nrequire example.com/root v0.1.0\n")
+	mustWriteFile(t, filepath.Join(repoDir, "sub", "sub.go"),
+		"package sub\n\nimport \"example.com/root\"\n\nfunc Greet() string { return root.Hello() }\n")
+
+	repo := git.NewFake()
+	repo.Dir = repoDir
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"root": {TagPrefix: "", Path: "."},
+			"sub":  {TagPrefix: "sub", Path: "sub"},
+		},
+	}
+	rp := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{Config: cfg.Packages["root"], Tag: "v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["sub"], Tag: "sub/v0.1.0", Bump: semver.Minor},
+		},
+		Consumed: []*changeset.Changeset{{Name: "foo"}},
+	}
+
+	opts := Options{
+		Plan:         rp,
+		Config:       cfg,
+		Repo:         repo,
+		RepoDir:      repoDir,
+		ChangesetDir: filepath.Join(repoDir, ".changeset"),
+		Today:        "2026-05-03",
+	}
+
+	if _, err := Apply(opts); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// Read back the recorded hash for example.com/root in sub/go.sum.
+	subGoSum, err := os.ReadFile(filepath.Join(repoDir, "sub", "go.sum"))
+	if err != nil {
+		t.Fatalf("read sub/go.sum: %v", err)
+	}
+	recordedH1 := extractH1(t, subGoSum, "example.com/root v0.1.0")
+	if recordedH1 == "" {
+		t.Fatalf("sub/go.sum: missing h1: line for example.com/root v0.1.0\n%s", subGoSum)
+	}
+
+	// Compute what `git archive`'s hash would be against the working
+	// tree as of the chore(release) commit. Apply staged the deletion
+	// of .changeset/foo.md via Repo.Remove (which, with repo.Dir set,
+	// physically removes the file). If the file is already gone (the
+	// fixed path: deletion runs before tidy), this is a no-op.
+	if err := os.Remove(filepath.Join(repoDir, ".changeset", "foo.md")); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove staged-deleted changeset: %v", err)
+	}
+
+	expectedH1, err := dirhashOfRoot(repoDir)
+	if err != nil {
+		t.Fatalf("compute expected hash: %v", err)
+	}
+	if recordedH1 != expectedH1 {
+		t.Errorf("sub/go.sum recorded wrong h1: for example.com/root v0.1.0\n  recorded: %s\n  expected: %s",
+			recordedH1, expectedH1)
+	}
+}
+
+// extractH1 pulls the `h1:HASH=` value for the given "<module> <version>"
+// prefix from a go.sum file's bytes. Returns the empty string if the
+// line is absent.
+func extractH1(t *testing.T, goSum []byte, prefix string) string {
+	t.Helper()
+	want := []byte(prefix + " ")
+	for _, line := range bytes.Split(goSum, []byte("\n")) {
+		if !bytes.HasPrefix(line, want) {
+			continue
+		}
+		// Skip the /go.mod sub-hash; we want the full-zip hash.
+		if bytes.Contains(line, []byte("/go.mod ")) {
+			continue
+		}
+		// line looks like: example.com/root v0.1.0 h1:HASH=
+		parts := bytes.Fields(line)
+		if len(parts) < 3 {
+			continue
+		}
+		return string(parts[2])
+	}
+	return ""
+}
+
+// dirhashOfRoot computes Hash1 of the root module zip built from
+// repoDir, matching what `git archive` would produce for a published
+// version pointing at the working tree's current state. Used to
+// verify that monorel's recorded hash matches what consumers will
+// fetch.
+func dirhashOfRoot(repoDir string) (string, error) {
+	mv := module.Version{Path: "example.com/root", Version: "v0.1.0"}
+	tmpZip, err := os.CreateTemp("", "monorel-test-zip-*.zip")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmpZip.Name())
+	defer tmpZip.Close()
+	if err := xzip.CreateFromDir(tmpZip, mv, repoDir); err != nil {
+		return "", err
+	}
+	if err := tmpZip.Close(); err != nil {
+		return "", err
+	}
+	return dirhash.HashZip(tmpZip.Name(), dirhash.Hash1)
+}
+
+// TestApply_CrossSiblingCascade_HashesConvergeToPublished pins the
+// regression for the cross-sibling cascade variant of the wrong-h1:
+// bug. Three in-plan modules A, B, C: A is the root; B requires A
+// and is required by C; C requires both A and B. Single-pass
+// seed-and-tidy would record B's pre-tidy hash in C's go.sum, since
+// B's own tidy modifies B's go.sum after C's tidy ran against the
+// seeded (pre-modification) hash.
+//
+// The fixpoint loop converges: every recorded h1: equals the hash
+// of `git archive` against the published commit.
+func TestApply_CrossSiblingCascade_HashesConvergeToPublished(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("`go` not on PATH: %v", err)
+	}
+
+	repoDir := t.TempDir()
+	tmpModCache := t.TempDir()
+	t.Cleanup(func() {
+		filepath.WalkDir(tmpModCache, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			os.Chmod(path, 0o755)
+			return nil
+		})
+	})
+	t.Setenv("GOMODCACHE", tmpModCache)
+
+	// Modules:
+	//   a/  (example.com/a, no deps)
+	//   b/  (example.com/b, requires a)
+	//   c/  (example.com/c, requires a AND b)
+	mustWriteFile(t, filepath.Join(repoDir, "a/go.mod"),
+		"module example.com/a\n\ngo 1.26\n")
+	mustWriteFile(t, filepath.Join(repoDir, "a/a.go"),
+		"package a\n\nfunc Hello() string { return \"a\" }\n")
+
+	mustWriteFile(t, filepath.Join(repoDir, "b/go.mod"),
+		"module example.com/b\n\ngo 1.26\n\nrequire example.com/a v0.1.0\n")
+	mustWriteFile(t, filepath.Join(repoDir, "b/b.go"),
+		"package b\n\nimport \"example.com/a\"\n\nfunc Hello() string { return a.Hello() + \"-b\" }\n")
+
+	mustWriteFile(t, filepath.Join(repoDir, "c/go.mod"),
+		"module example.com/c\n\ngo 1.26\n\nrequire (\n\texample.com/a v0.1.0\n\texample.com/b v0.1.0\n)\n")
+	mustWriteFile(t, filepath.Join(repoDir, "c/c.go"),
+		"package c\n\nimport (\n\t\"example.com/a\"\n\t\"example.com/b\"\n)\n\nfunc Hello() string { return a.Hello() + \"-\" + b.Hello() }\n")
+
+	repo := git.NewFake()
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"a": {TagPrefix: "a", Path: "a"},
+			"b": {TagPrefix: "b", Path: "b"},
+			"c": {TagPrefix: "c", Path: "c"},
+		},
+	}
+	rp := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{Config: cfg.Packages["a"], Tag: "a/v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["b"], Tag: "b/v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["c"], Tag: "c/v0.1.0", Bump: semver.Minor},
+		},
+	}
+
+	opts := Options{
+		Plan:         rp,
+		Config:       cfg,
+		Repo:         repo,
+		RepoDir:      repoDir,
+		ChangesetDir: filepath.Join(repoDir, ".changeset"),
+		Today:        "2026-05-03",
+	}
+
+	if _, err := Apply(opts); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// Compute expected hashes after Apply has staged everything
+	// (including b's go.sum mutations and c's go.sum mutations).
+	// `dirhash` over each module's directory matches what
+	// `git archive` of the eventual tag will produce.
+	expectedA, err := dirhashOfModule(repoDir, "a", "example.com/a", "v0.1.0")
+	if err != nil {
+		t.Fatalf("hash a: %v", err)
+	}
+	expectedB, err := dirhashOfModule(repoDir, "b", "example.com/b", "v0.1.0")
+	if err != nil {
+		t.Fatalf("hash b: %v", err)
+	}
+
+	// c/go.sum should record A's actual hash AND B's actual hash.
+	cGoSum, err := os.ReadFile(filepath.Join(repoDir, "c", "go.sum"))
+	if err != nil {
+		t.Fatalf("read c/go.sum: %v", err)
+	}
+	if got := extractH1(t, cGoSum, "example.com/a v0.1.0"); got != expectedA {
+		t.Errorf("c/go.sum recorded wrong h1: for example.com/a v0.1.0\n  got:  %s\n  want: %s\n  full go.sum:\n%s",
+			got, expectedA, cGoSum)
+	}
+	if got := extractH1(t, cGoSum, "example.com/b v0.1.0"); got != expectedB {
+		t.Errorf("c/go.sum recorded wrong h1: for example.com/b v0.1.0\n  got:  %s\n  want: %s\n  full go.sum:\n%s",
+			got, expectedB, cGoSum)
+	}
+
+	// b/go.sum should record A's actual hash.
+	bGoSum, err := os.ReadFile(filepath.Join(repoDir, "b", "go.sum"))
+	if err != nil {
+		t.Fatalf("read b/go.sum: %v", err)
+	}
+	if got := extractH1(t, bGoSum, "example.com/a v0.1.0"); got != expectedA {
+		t.Errorf("b/go.sum recorded wrong h1: for example.com/a v0.1.0\n  got:  %s\n  want: %s",
+			got, expectedA)
+	}
+}
+
+// dirhashOfModule computes Hash1 of a sub-module's zip built from
+// repoDir/sub. Like dirhashOfRoot but for an arbitrary sub-module.
+func dirhashOfModule(repoDir, sub, importPath, version string) (string, error) {
+	mv := module.Version{Path: importPath, Version: version}
+	tmpZip, err := os.CreateTemp("", "monorel-test-zip-*.zip")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmpZip.Name())
+	defer tmpZip.Close()
+	if err := xzip.CreateFromDir(tmpZip, mv, filepath.Join(repoDir, sub)); err != nil {
+		return "", err
+	}
+	if err := tmpZip.Close(); err != nil {
+		return "", err
+	}
+	return dirhash.HashZip(tmpZip.Name(), dirhash.Hash1)
+}
+
+// TestTidySubmoduleGoSums_FixpointNotReached_SurfacesDiagnosticError
+// pins the diagnostic path. Inject a hook that mutates an affected
+// sub-module's go.sum on every iteration so the loop never
+// converges; assert it returns errFixpointNotReached after
+// maxTidyIterations and the message includes the per-iteration
+// diff payload.
+func TestTidySubmoduleGoSums_FixpointNotReached_SurfacesDiagnosticError(t *testing.T) {
+	opts, _ := setupSubmoduleFixture(t, true /* aRequiresB */)
+
+	// Inject non-determinism: append a unique line to a/go.sum
+	// after each tidy iteration. The next iteration's "before"
+	// snapshot will see the appended line; tidy may or may not
+	// remove it (depending on whether it parses as a valid sum
+	// line); either way, before != after, so the loop never
+	// converges.
+	originalHook := tidyHook
+	t.Cleanup(func() { tidyHook = originalHook })
+	tidyHook = func(iteration int) error {
+		path := filepath.Join(opts.RepoDir, "a", "go.sum")
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = fmt.Fprintf(f, "# fixpoint-test marker iteration=%d\n", iteration)
+		return err
+	}
+
+	err := tidySubmoduleGoSums(opts)
+	if err == nil {
+		t.Fatal("tidySubmoduleGoSums: want errFixpointNotReached, got nil")
+	}
+	var fpErr *errFixpointNotReached
+	if !errors.As(err, &fpErr) {
+		t.Fatalf("tidySubmoduleGoSums: want *errFixpointNotReached, got %T: %v", err, err)
+	}
+	if fpErr.iterations != 10 {
+		t.Errorf("iterations: got %d, want 10", fpErr.iterations)
+	}
+	msg := fpErr.Error()
+	if !strings.Contains(msg, "did not converge after 10 iterations") {
+		t.Errorf("error message missing convergence header: %q", msg)
+	}
+	if !strings.Contains(msg, "monorel/issues") {
+		t.Errorf("error message missing issue-filing hint: %q", msg)
+	}
+	if !strings.Contains(msg, "BEFORE:") || !strings.Contains(msg, "AFTER:") {
+		t.Errorf("error message missing diff payload: %q", msg)
+	}
+}
+
+// TestTidySubmoduleGoSums_PrimesThirdPartyDeps_FromColdCache pins
+// the regression for the fresh-CI-runner case. An affected
+// sub-module requires a third-party module not in monorel.toml's
+// managed set. With a fresh GOMODCACHE (default for
+// setupSubmoduleFixture), offline tidy with GOPROXY=off would fail
+// without the prime-cache step. With it, tidy succeeds because the
+// cache is populated before tidy runs.
+func TestTidySubmoduleGoSums_PrimesThirdPartyDeps_FromColdCache(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("`go` not on PATH: %v", err)
+	}
+	if testing.Short() {
+		t.Skip("network-bound: requires GOPROXY reachability for go mod download")
+	}
+
+	repoDir := t.TempDir()
+	tmpModCache := t.TempDir()
+	t.Cleanup(func() {
+		filepath.WalkDir(tmpModCache, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			os.Chmod(path, 0o755)
+			return nil
+		})
+	})
+	t.Setenv("GOMODCACHE", tmpModCache)
+
+	// a/ requires example.com/b (in-plan, will be seeded) AND
+	// gopkg.in/yaml.v3 (third-party). Without primeModuleCache,
+	// tidy under GOPROXY=off would fail on yaml.v3 since it's not
+	// in the fresh GOMODCACHE.
+	mustWriteFile(t, filepath.Join(repoDir, "a/go.mod"),
+		"module example.com/a\n\ngo 1.26\n\nrequire (\n\texample.com/b v0.1.0\n\tgopkg.in/yaml.v3 v3.0.1\n)\n")
+	mustWriteFile(t, filepath.Join(repoDir, "a/a.go"),
+		"package a\n\nimport (\n\t\"example.com/b\"\n\t_ \"gopkg.in/yaml.v3\"\n)\n\nfunc Greet() string { return b.Hello() }\n")
+	// Pre-populate a's go.sum with the yaml.v3 hashes (including its
+	// transitive dep check.v1's go.mod hash) so tidy can verify all
+	// entries without reaching the network during the offline tidy
+	// pass. Hashes are the public proxy hashes for these versions.
+	mustWriteFile(t, filepath.Join(repoDir, "a/go.sum"),
+		"gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=\n"+
+			"gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=\n"+
+			"gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=\n")
+
+	mustWriteFile(t, filepath.Join(repoDir, "b/go.mod"),
+		"module example.com/b\n\ngo 1.26\n")
+	mustWriteFile(t, filepath.Join(repoDir, "b/b.go"),
+		"package b\n\nfunc Hello() string { return \"hi\" }\n")
+
+	repo := git.NewFake()
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"a": {TagPrefix: "a", Path: "a"},
+			"b": {TagPrefix: "b", Path: "b"},
+		},
+	}
+	rp := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{Config: cfg.Packages["a"], Tag: "a/v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["b"], Tag: "b/v0.1.0", Bump: semver.Minor},
+		},
+	}
+
+	opts := Options{
+		Plan:         rp,
+		Config:       cfg,
+		Repo:         repo,
+		RepoDir:      repoDir,
+		ChangesetDir: filepath.Join(repoDir, ".changeset"),
+		Today:        "2026-05-03",
+	}
+
+	if err := tidySubmoduleGoSums(opts); err != nil {
+		t.Fatalf("tidySubmoduleGoSums: %v", err)
+	}
+
+	// Sanity: a/go.sum now has both example.com/b and yaml.v3 entries.
+	aGoSum, err := os.ReadFile(filepath.Join(repoDir, "a", "go.sum"))
+	if err != nil {
+		t.Fatalf("read a/go.sum: %v", err)
+	}
+	if !bytes.Contains(aGoSum, []byte("example.com/b v0.1.0")) {
+		t.Errorf("a/go.sum: missing example.com/b v0.1.0:\n%s", aGoSum)
+	}
+	if !bytes.Contains(aGoSum, []byte("gopkg.in/yaml.v3 v3.0.1")) {
+		t.Errorf("a/go.sum: missing gopkg.in/yaml.v3 v3.0.1:\n%s", aGoSum)
 	}
 }

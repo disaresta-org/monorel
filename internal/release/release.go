@@ -407,8 +407,13 @@ func configFromPlan(p *plan.ReleasePlan) *config.Config {
 }
 
 // applyStable writes CHANGELOG entries, rewrites go.mod files for
-// the released sub-modules, deletes consumed changesets, and stages
-// everything. Caller does the commit.
+// the released sub-modules, deletes consumed changesets, then runs
+// offline tidy in every affected sub-module, and stages everything.
+// The deletion happens before tidy so the seed step inside tidy
+// hashes the working tree in its final commit shape (not a
+// transient state with changesets still present); see
+// docs/superpowers/specs/2026-05-03-cacheseed-fixpoint-and-release-pipeline-fixes-design.md.
+// Caller does the commit.
 func applyStable(opts Options, today string) error {
 	for _, r := range opts.Plan.Releases {
 		entry := buildEntry(r, today)
@@ -434,21 +439,25 @@ func applyStable(opts Options, today string) error {
 		return err
 	}
 
+	// Delete the consumed changesets BEFORE seeding/tidy. The
+	// `.changeset/*.md` files live inside the root module's source
+	// tree; running tidy's seed step against a working tree that
+	// still has them produces a hash that doesn't match the
+	// chore(release) commit's hash (which lands without them). See
+	// docs/superpowers/specs/2026-05-03-cacheseed-fixpoint-and-release-pipeline-fixes-design.md.
+	for _, cs := range opts.Plan.Consumed {
+		rel := filepath.Join(".changeset", cs.Name+".md")
+		if err := opts.Repo.Remove(rel); err != nil {
+			return fmt.Errorf("release: remove %s: %w", rel, err)
+		}
+	}
+
 	// Run `go mod tidy` (offline, against a seeded local cache) in
 	// every released sub-module that requires an in-plan sibling, so
 	// the release commit's go.sum entries match what consumers will
 	// hash from the proxy after the tag pushes.
 	if err := tidySubmoduleGoSums(opts); err != nil {
 		return err
-	}
-
-	// Delete the consumed changesets. The planner's Consumed list
-	// dedupes multi-package changesets, so we hit each file once.
-	for _, cs := range opts.Plan.Consumed {
-		rel := filepath.Join(".changeset", cs.Name+".md")
-		if err := opts.Repo.Remove(rel); err != nil {
-			return fmt.Errorf("release: remove %s: %w", rel, err)
-		}
 	}
 	return nil
 }

@@ -3,6 +3,8 @@ package git
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -58,6 +60,13 @@ type Fake struct {
 	// regardless of which one. Single-shot: cleared after firing.
 	// Used to test error-handling paths in higher layers.
 	FailNext error
+
+	// Dir, when non-empty, is the repository root. When set,
+	// [Fake.Remove] also physically deletes the named paths from disk
+	// (mirroring `git rm -f`). Tests that verify working-tree state
+	// after Remove should set Dir; tests that only inspect Removed
+	// can leave it empty.
+	Dir string
 }
 
 // FakeCommit is one recorded commit on a [Fake].
@@ -162,11 +171,22 @@ func (f *Fake) Add(paths ...string) error {
 }
 
 // Remove implements [Repo.Remove]. Records the paths in Removed.
+// When [Fake.Dir] is set, also physically removes each path from
+// the working tree (mirroring `git rm -f`). Missing files are
+// silently skipped.
 func (f *Fake) Remove(paths ...string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.take(); err != nil {
 		return err
+	}
+	if f.Dir != "" {
+		for _, p := range paths {
+			abs := filepath.Join(f.Dir, p)
+			if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("git fake remove %s: %w", p, err)
+			}
+		}
 	}
 	f.Removed = append(f.Removed, paths...)
 	return nil

@@ -13,6 +13,7 @@ export default defineConfig({
   srcDir: 'src',
   appearance: 'force-dark',
   sitemap: { hostname: baseUrl },
+  ignoreDeadLinks: [/ci\/github\/README/],
   async transformHead({ pageData }) {
     const head: HeadConfig[] = [
       // Google Analytics (gtag.js)

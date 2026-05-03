@@ -40,7 +40,7 @@ monorel init
 #    examples/{github,gitea,gitlab}/ into your repo
 
 # 4. Author a changeset on a feature branch
-monorel add --package "transports/foo:minor" --message "Adds Lazy() helper."
+monorel add
 git commit && gh pr create
 
 # 5. Merge the PR. The release-pr workflow opens (or updates) an
