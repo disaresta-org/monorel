@@ -9,6 +9,25 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.10.0] - 2026-05-03
+
+### Minor Changes
+
+- `monorel` now drives all CLI output through a structured logger. Three new persistent flags compose the output:
+
+  - `--color=auto|always|never` controls ANSI color (auto detects whether stdout is a TTY).
+  - `-v` / `-vv` increase verbosity: `-v` enables debug messages, `-vv` also appends key/value fields after each line.
+  - `-q` / `--quiet` suppresses info and warn output, leaving only errors.
+
+  Status and plan tables now render via the logger's table support, so column alignment stays consistent across terminals and pipes.
+- The release-time `go.mod` rewriter now pins sibling requires for managed packages outside the current release plan, not just packages being released.
+
+  Before: releasing a single sub-module that required another monorel-managed sibling would leave the sibling's require at whatever the dev `go.mod` specified (typically a placeholder pseudo-version), because the rewriter only built its sibling map from packages in the current plan. This forced contributors to include the root module in every recovery release just to seed the sibling map (see [loglayer/loglayer-go#70](https://github.com/loglayer/loglayer-go/pull/70)).
+
+  After: the rewriter walks every package declared in `monorel.toml`. In-plan packages pin to their planned version; out-of-plan packages pin to their latest existing stable tag (resolved through `plan.LatestStableTagVersion`, newly exported). Out-of-plan siblings with no existing tag (or only pre-release tags) leave the require alone instead of failing the release.
+
+  Closes #43.
+
 ## [0.9.0] - 2026-05-02
 
 ### Minor Changes
