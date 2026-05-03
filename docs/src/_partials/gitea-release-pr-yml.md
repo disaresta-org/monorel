@@ -8,7 +8,12 @@ permissions:
   pull-requests: write
 jobs:
   release-pr:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    # Skip on the release PR's own merge commit so the workflow
+    # doesn't churn the just-merged PR. Require BOTH the
+    # chore(release): subject prefix AND the monorel-Release: trailer
+    # in the body: a feature PR titled `chore(release): X` would also
+    # match a subject-only check, leaving the release PR un-upserted.
+    if: ${{ !(startsWith(github.event.head_commit.message, 'chore(release):') && contains(github.event.head_commit.message, 'monorel-Release:')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

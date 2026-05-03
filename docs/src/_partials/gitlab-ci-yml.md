@@ -19,11 +19,15 @@ doctor:
     - monorel doctor
 
 # Maintain the always-open release MR. Fires on every push to the
-# default branch except the chore(release): merge commit.
+# default branch except the release-cut commit. Require BOTH the
+# chore(release): subject prefix AND a monorel-Release: trailer in
+# the body to identify the release commit; a feature MR titled
+# `chore(release): X` would otherwise match a subject-only check
+# and silently skip the release-PR upsert.
 release-pr:
   stage: release-pr
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE !~ /^chore\(release\):/
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && ($CI_COMMIT_TITLE !~ /^chore\(release\):/ || $CI_COMMIT_MESSAGE !~ /monorel-Release:/)
   variables:
     GITLAB_TOKEN: $MONOREL_GITLAB_TOKEN
   script:
@@ -37,11 +41,15 @@ release-pr:
     - git push -f "https://oauth2:${MONOREL_GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" monorel/release
     - monorel preview --upsert
 
-# Cut the release after the always-open MR is merged.
+# Cut the release after the always-open MR is merged. Require BOTH
+# the chore(release): subject prefix AND a monorel-Release: trailer
+# in the body; subject prefix alone is not sufficient (a feature MR
+# titled `chore(release): X` would match and trip monorel tag with
+# `no monorel-Release: trailer`).
 release:
   stage: release
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^chore\(release\):/
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^chore\(release\):/ && $CI_COMMIT_MESSAGE =~ /monorel-Release:/
   variables:
     GITLAB_TOKEN: $MONOREL_GITLAB_TOKEN
   script:
