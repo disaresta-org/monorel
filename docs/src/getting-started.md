@@ -120,7 +120,7 @@ monorel add \
   --message "Reshape the Foo Config; pass-through fix in the root."
 ```
 
-Or run `monorel add` with no flags for an interactive prompt (multi-select, per-package level, multi-line body).
+Or run `monorel add` with no flags for an interactive prompt (multi-select, per-package level, multi-line body). Pass `--editor` (or `-e`) to compose the body in `$VISUAL` / `$EDITOR` instead of the in-place text field; useful when the body is multi-paragraph markdown. `--editor` and `--message` are mutually exclusive.
 
 Commit the changeset on your feature branch, open the PR, and merge it as you would any other PR.
 
