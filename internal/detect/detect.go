@@ -21,8 +21,12 @@
 package detect
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"strings"
 
+	"monorel.disaresta.com/internal/git"
 	"monorel.disaresta.com/internal/provider"
 )
 
@@ -75,10 +79,48 @@ type Result struct {
 // optimization, not a contract guarantee.
 var ErrProviderRequired = errors.New("detect: Provider is required")
 
-// Skeleton-commit shims so staticcheck doesn't flag the unexported
-// constants as unused before [IsReleaseMerge] (the only consumer)
-// lands in the next commit. Removed there.
-var (
-	_ = releaseHeadBranch
-	_ = trailerMarker
-)
+// IsReleaseMerge reports whether HEAD is the merge commit of monorel's
+// always-open release PR. See package doc for the signal contract.
+//
+// Required arguments:
+//   - ctx is forwarded to the provider's FindPRByMergeCommit call.
+//   - repo reads HEAD's commit message; pass nil and the function
+//     returns an error.
+//   - prov is the configured provider client; nil returns
+//     [ErrProviderRequired].
+//   - sha is HEAD's commit SHA. Empty is allowed but only the trailer
+//     signal can match (the API call needs a SHA).
+//
+// On success, callers should branch on Result.IsRelease.
+//
+// On error, the caller can choose between propagating (the CLI exits 2
+// in that case) and falling back to a different policy. Errors are
+// always provider-side; the trailer check itself only fails if reading
+// HEAD's commit message fails.
+func IsReleaseMerge(ctx context.Context, repo git.Repo, prov provider.Client, sha string) (*Result, error) {
+	if prov == nil {
+		return nil, ErrProviderRequired
+	}
+
+	// Trailer signal (no network).
+	msg, err := repo.HeadCommitMessage()
+	if err != nil {
+		return nil, fmt.Errorf("detect: read HEAD commit message: %w", err)
+	}
+	if strings.Contains(msg, trailerMarker) {
+		return &Result{IsRelease: true, Source: SourceTrailer}, nil
+	}
+
+	// API signal. Empty SHA is a programmer error in practice, but
+	// the provider implementations all return (nil, nil) for unknown
+	// SHAs, so we forward without an extra guard.
+	pr, err := prov.FindPRByMergeCommit(ctx, sha)
+	if err != nil {
+		return nil, fmt.Errorf("detect: find PR for SHA %q: %w", sha, err)
+	}
+	if pr != nil && pr.HeadRef == releaseHeadBranch {
+		return &Result{IsRelease: true, Source: SourceAPI, PR: pr}, nil
+	}
+
+	return &Result{IsRelease: false, Source: SourceNone}, nil
+}
