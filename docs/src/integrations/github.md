@@ -75,7 +75,7 @@ The `release` command runs three monorel invocations in order on the merge commi
 
 The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
 
-The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` for the bootstrap path before monorel-driven releases are wired up (see the [bootstrap recipe](/recipes/bootstrapping-monorel)).
+The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` to trigger the workflow manually if a release commit ever needs to be re-run.
 
 ### `doctor.yml`: pre-merge sanity check (recommended)
 

@@ -5,7 +5,7 @@ description: "monorel's Go library API surface for programmatic use: pure-functi
 
 # Library API
 
-monorel ships a Go library API alongside the CLI. The following pure-function packages are public, SemVer-committed from v1.0.0 onward, and have been stable in shape since v0.2.0:
+monorel ships a Go library API alongside the CLI. The following pure-function packages are public and SemVer-committed from v1.0.0 onward:
 
 | Package | Purpose | Entry points |
 |---------|---------|--------------|

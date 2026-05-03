@@ -244,7 +244,7 @@ Splits from `monorel tag` because most providers validate that the tag exists on
 
 Pre-release-mode lifecycle. Channel is any non-empty SemVer-compatible identifier (`rc`, `beta`, `alpha`). Switching channels requires `pre exit` first; entering a new channel while one is already active is rejected.
 
-## Library API (public packages from v0.2.0+)
+## Library API (public packages)
 
 Pure-function packages, no I/O. Consumers can embed them into custom tooling.
 
@@ -418,7 +418,7 @@ jobs:
         with: { command: release }
 ```
 
-`actions/setup-go` is required since v0.11: `monorel apply` runs `go mod tidy` against the released sub-modules so the release commit's `go.sum` is canonically clean.
+`actions/setup-go` is required: `monorel apply` runs `go mod tidy` against the released sub-modules so the release commit's `go.sum` is canonically clean.
 
 ### Gitea Actions / Forgejo
 
@@ -656,6 +656,5 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - `monorel.disaresta.com/faq`: frequently asked questions.
 - `monorel.disaresta.com/glossary`: canonical terminology.
 - `monorel.disaresta.com/recipes/migration-from-release-please`: walkthrough for repos already using release-please.
-- `monorel.disaresta.com/recipes/bootstrapping-monorel`: notes on the chicken-and-egg of monorel releasing itself.
 
 Source: https://github.com/disaresta-org/monorel.

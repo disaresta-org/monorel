@@ -145,7 +145,6 @@ gtag('config', '${gaMeasurementId}');`,
         items: [
           { text: 'Running in Docker', link: '/docker' },
           { text: 'Migrating from release-please', link: '/recipes/migration-from-release-please' },
-          { text: 'Bootstrapping monorel itself', link: '/recipes/bootstrapping-monorel' },
         ],
       },
     ],

@@ -7,10 +7,6 @@ description: "Wire up monorel against a GitLab project: configuration, tokens, G
 
 monorel's GitLab provider talks to GitLab.com or any self-hosted GitLab Community / Enterprise Edition instance via the standard GitLab REST API. Tested against GitLab.com via `gitlab.com/gitlab-org/api/client-go` (the official Go SDK).
 
-::: info Available in v0.7+
-The GitLab provider landed in monorel v0.7.0. Earlier versions support `github` and `gitea` only.
-:::
-
 ::: tip Example
 Working reference setup at [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab). Copy the files you need.
 :::
@@ -104,7 +100,7 @@ For complex setups (cross-project pipelines, dynamic environments), consider rep
 
 ### `provider: unknown provider "gitlab"`
 
-monorel binary is older than v0.7.0 (when the GitLab provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
+monorel binary doesn't recognize the `gitlab` provider name. Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
 
 ### `gitlab: build client: ...`
 

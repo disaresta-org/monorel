@@ -142,7 +142,7 @@ Bitbucket calls these "branch restrictions." Two points:
 
 ### `provider: unknown provider "bitbucket"`
 
-monorel binary is older than v0.14.0 (when the Bitbucket provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
+monorel binary doesn't recognize the `bitbucket` provider name. Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
 
 ### `bitbucket: probe username: 401 Unauthorized`
 

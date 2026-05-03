@@ -7,10 +7,6 @@ description: "Wire up monorel against a Gitea or Forgejo repository: configurati
 
 monorel's Gitea provider talks to any Gitea or Forgejo instance via the standard Gitea REST API. [Forgejo](https://forgejo.org/) is a Gitea fork that maintains API compatibility, so the same provider implementation covers both; point `provider.host` at whichever instance you're targeting. Tested against Gitea 1.23 via the `code.gitea.io/sdk/gitea` SDK.
 
-::: info Available in v0.6+
-The Gitea provider landed in monorel v0.6.0. Earlier versions only support GitHub.
-:::
-
 ::: tip Example
 Working reference setup at [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea). Copy the files you need.
 :::
@@ -114,7 +110,7 @@ Same trade-off as on GitHub: PATs are tied to a user; a service-account user is 
 
 ### `provider: unknown provider "gitea"`
 
-monorel binary is older than v0.6.0 (when the Gitea provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v1.0.0` or later.
+monorel binary doesn't recognize the `gitea` provider name. Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or pin the action wrapper to `@v1.0.0` or later.
 
 The error surfaces from the validator (`config.Validate`) when reading `monorel.toml`, so it'll fire on every command, not just network-touching ones.
 
