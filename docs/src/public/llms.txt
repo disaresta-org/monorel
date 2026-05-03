@@ -72,33 +72,33 @@ Bump levels: `major`, `minor`, `patch`. A package can appear in multiple changes
 
 ## Commands
 
-`monorel init` — scaffold `monorel.toml` + `.changeset/README.md`. Walks every `go.mod` under cwd; reads `git config remote.origin.url` for owner/repo.
+`monorel init`: scaffold `monorel.toml` + `.changeset/README.md`. Walks every `go.mod` under cwd; reads `git config remote.origin.url` for owner/repo.
 
-`monorel add` — author a changeset. Interactive by default (multi-select packages, per-package level, in-place text body). Flags:
+`monorel add`: author a changeset. Interactive by default (multi-select packages, per-package level, in-place text body). Flags:
 - `-p, --package <name>:<level>`: non-interactive mode; repeatable.
 - `-m, --message <text>`: changeset body.
 - `-e, --editor`: open `$VISUAL` / `$EDITOR` for the body. Mutually exclusive with `--message`.
 - `--name <name>`: override the auto-generated `<adj>-<noun>` filename.
 
-`monorel validate` — schema + filesystem checks. `--strict` treats warnings as failures. `--check-tags` validates the local tag namespace too. `--json` for machine-readable output.
+`monorel validate`: schema + filesystem checks. `--strict` treats warnings as failures. `--check-tags` validates the local tag namespace too. `--json` for machine-readable output.
 
-`monorel doctor` — diagnostic checks beyond schema (today: stale-branch + revived-changeset). Non-zero exit on error-severity findings. `--json` for machine output.
+`monorel doctor`: diagnostic checks beyond schema. Today the only built-in check is `revived-changeset` (a `.changeset/*.md` file currently on disk that a previous `chore(release):` commit deleted, typically a stale-branch + squash-merge revival). Non-zero exit on error-severity findings. `--json` for machine output.
 
-`monorel plan` — print the release plan that would be applied right now. Pure read; no mutation. `--json` for machine output.
+`monorel plan`: print the release plan that would be applied right now. Pure read; no mutation. `--json` for machine output.
 
-`monorel status` — pending changesets summary.
+`monorel status`: pending changesets summary.
 
-`monorel apply` — write CHANGELOGs, rewrite sub-module `go.mod` (strip dev replaces, pin sibling requires), tidy sub-module `go.sum` via offline `go mod tidy`, delete consumed `.changeset/*.md`, single commit with `monorel-Release:` body trailers. **No tag creation.** Used by CI's release-pr.yml on a staging branch.
+`monorel apply`: write CHANGELOGs, rewrite sub-module `go.mod` (strip dev replaces, pin sibling requires), tidy sub-module `go.sum` via offline `go mod tidy`, delete consumed `.changeset/*.md`, single commit with `monorel-Release:` body trailers. **No tag creation.** Used by CI's release-pr.yml on a staging branch.
 
-`monorel preview` — render the release plan as PR-body markdown. `--upsert` updates / opens the always-open release PR.
+`monorel preview`: render the release plan as PR-body markdown. `--upsert` updates / opens the always-open release PR.
 
-`monorel tag` — read HEAD's `monorel-Release:` trailers, create per-package annotated tags. Used by CI's release.yml on the merge commit.
+`monorel tag`: read HEAD's `monorel-Release:` trailers, create per-package annotated tags. Used by CI's release.yml on the merge commit.
 
-`monorel publish` — create one provider release per tag at HEAD. Body sourced from each package's CHANGELOG entry. Pre-release tags get the provider's pre-release flag.
+`monorel publish`: create one provider release per tag at HEAD. Body sourced from each package's CHANGELOG entry. Pre-release tags get the provider's pre-release flag.
 
-`monorel release` — `apply` + `tag` in one process. Local one-shot path; CI uses the apply+tag split.
+`monorel release`: `apply` + `tag` in one process. Local one-shot path; CI uses the apply+tag split.
 
-`monorel pre enter <channel>` / `monorel pre exit` / `monorel pre status` — pre-release-mode lifecycle. Channel is any SemVer-compatible identifier (`rc`, `beta`, `alpha`).
+`monorel pre enter <channel>` / `monorel pre exit` / `monorel pre status`: pre-release-mode lifecycle. Channel is any SemVer-compatible identifier (`rc`, `beta`, `alpha`).
 
 ## Files monorel reads and writes
 

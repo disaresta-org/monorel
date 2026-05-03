@@ -16,7 +16,7 @@ Every monorel subcommand, indexed by lifecycle phase + runner + purpose.
 | First-time setup | `monorel init` | Maintainer (local) | Scaffold `monorel.toml` from go.mod files + git origin. |
 | First-time setup | `monorel validate` | Maintainer (local) or PR-time CI | Confirm the config loads and paths exist. |
 | Daily contributor flow | `monorel add` | Contributor (local) | Author a `.changeset/<name>.md` for the current PR. |
-| Daily contributor flow | `monorel doctor` | PR-time CI (optional) | Diagnose stale-branch + revived-changeset issues; non-zero exit fails the PR. |
+| Daily contributor flow | `monorel doctor` | PR-time CI (optional) | Diagnose revived-changeset issues (typically caused by stale-branch + squash-merge); non-zero exit fails the PR. |
 | Daily contributor flow | `monorel apply` | `release-pr.yml` (CI) | Stage the file changes the next release will produce (CHANGELOGs, go.mod / go.sum tidies, consumed-changeset removals) into a single commit on the staging branch. |
 | Daily contributor flow | `monorel preview --upsert` | `release-pr.yml` (CI) | Open or update the always-open release PR with the rendered plan. |
 | Cutting a release | `monorel tag` | `release.yml` (CI) | Read the merge commit's `monorel-Release:` trailers, create one annotated tag per released package. |
@@ -53,7 +53,7 @@ Local inspection:
 monorel plan                # what would the next release ship?
 monorel status              # what changesets are pending?
 monorel validate            # is the config still loadable?
-monorel doctor              # diagnose stale-branch / revival issues
+monorel doctor              # diagnose revived-changeset issues
 ```
 
 Local one-shot release (no CI):
