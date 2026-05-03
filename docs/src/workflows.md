@@ -159,28 +159,9 @@ How a beta / rc window works. Multiple pre-release cuts accumulate changes; a si
 
 Switching channels (e.g. `rc` → `beta`) requires `monorel pre exit` first; entering a new channel while one is active is rejected. The next stable release applies all accumulated changesets cumulatively, so escalating-severity changes during the pre-release window are reflected correctly.
 
-## Command map
-
-Every command shown in the diagrams above, indexed by phase and runner. The diagrams describe what happens; this table answers "which command, when, by whom?":
-
-| Phase | Command | Run by | Purpose |
-|---|---|---|---|
-| First-time setup | `monorel init` | Maintainer (local) | Scaffold `monorel.toml` from go.mod files + git origin. |
-| First-time setup | `monorel validate` | Maintainer (local) or PR-time CI | Confirm the config loads and paths exist. |
-| Daily contributor flow | `monorel add` | Contributor (local) | Author a `.changeset/<name>.md` for the current PR. |
-| Daily contributor flow | `monorel doctor` | PR-time CI (optional) | Diagnose stale-branch + revived-changeset issues; non-zero exit fails the PR. |
-| Daily contributor flow | `monorel apply` | `release-pr.yml` (CI) | Stage the file changes the next release will produce (CHANGELOGs, go.mod / go.sum tidies, consumed-changeset removals) into a single commit on the staging branch. |
-| Daily contributor flow | `monorel preview --upsert` | `release-pr.yml` (CI) | Open or update the always-open release PR with the rendered plan. |
-| Cutting a release | `monorel tag` | `release.yml` (CI) | Read the merge commit's `monorel-Release:` trailers, create one annotated tag per released package. |
-| Cutting a release | `monorel publish` | `release.yml` (CI) | Create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry. |
-| Pre-release cycle | `monorel pre enter <channel>` | Maintainer (local) | Switch into pre-release mode for the named channel. |
-| Pre-release cycle | `monorel pre exit` | Maintainer (local) | Leave pre-release mode; the next release is stable. |
-| Local one-shot release | `monorel release` | Maintainer (local) | `monorel apply` + `monorel tag` in one process. Skips the always-open-PR pattern; useful for local releases without CI. |
-
-Inside the `disaresta-org/monorel/ci/github` action, `command: pr` runs the `monorel apply` + `git push -f` + `monorel preview --upsert` sequence; `command: release` runs `monorel tag` + `git push --follow-tags` + `monorel publish`. The action wrapper exists so workflow files don't have to spell out each step.
-
 ## See also
 
+- [Cheat Sheet](/cheat-sheet) for an at-a-glance index of every command by lifecycle phase + runner, common one-liners, and the files monorel reads and writes.
 - [Changesets](/changesets) for the `.changeset/<name>.md` file format.
 - [GitHub Action](/integrations/github) for the workflow YAML and token setup.
 - [FAQ](/faq) for the questions that come up after the first release.
