@@ -190,6 +190,22 @@ func (f *Fake) ClosePR(_ context.Context, number int) error {
 	return nil
 }
 
+// FindPRByMergeCommit implements [Client.FindPRByMergeCommit].
+func (f *Fake) FindPRByMergeCommit(_ context.Context, sha string) (*PullRequest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return nil, err
+	}
+	for _, pr := range f.PRs {
+		if pr.MergedSHA == sha {
+			cp := *pr
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
 // CreateRelease implements [Client.CreateRelease].
 func (f *Fake) CreateRelease(_ context.Context, opts CreateReleaseOptions) (*Release, error) {
 	f.mu.Lock()

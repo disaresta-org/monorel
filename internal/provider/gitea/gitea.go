@@ -192,6 +192,34 @@ func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseO
 	}, nil
 }
 
+// FindPRByMergeCommit implements [provider.Client.FindPRByMergeCommit].
+//
+// Gitea has no single "list PRs for commit" endpoint; the supported
+// pattern is to list closed PRs and filter by merge_commit_sha. The
+// loop pages through results until a match or until the SDK reports
+// no NextPage.
+func (c *client) FindPRByMergeCommit(_ context.Context, sha string) (*provider.PullRequest, error) {
+	page := 1
+	for {
+		prs, resp, err := c.gt.ListRepoPullRequests(c.owner, c.repo, gtsdk.ListPullRequestsOptions{
+			ListOptions: gtsdk.ListOptions{Page: page, PageSize: 50},
+			State:       gtsdk.StateClosed,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("gitea: list PRs %s/%s: %w", c.owner, c.repo, err)
+		}
+		for _, pr := range prs {
+			if pr.MergedCommitID != nil && *pr.MergedCommitID == sha {
+				return convertPR(pr), nil
+			}
+		}
+		if resp == nil || resp.NextPage == 0 {
+			return nil, nil
+		}
+		page = resp.NextPage
+	}
+}
+
 // convertPR maps a Gitea SDK PullRequest into the provider-neutral
 // shape. Returns nil when src is nil so callers can pass through
 // nil-from-FindOpenReleasePR cleanly.
@@ -208,6 +236,9 @@ func convertPR(src *gtsdk.PullRequest) *provider.PullRequest {
 	}
 	if src.Head != nil {
 		pr.HeadRef = src.Head.Ref
+	}
+	if src.MergedCommitID != nil {
+		pr.MergedSHA = *src.MergedCommitID
 	}
 	return pr
 }
