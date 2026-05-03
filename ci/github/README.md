@@ -13,9 +13,9 @@ Composite action that downloads the monorel binary for the runner's OS+arch and 
 
 The `release` command runs three monorel invocations in order:
 
-1. `monorel release` — local file mutations + commit + tag.
-2. `git push --follow-tags` — publish commits and tags to the remote.
-3. `monorel publish` — create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry.
+1. `monorel release`: local file mutations, commit, and tag.
+2. `git push --follow-tags`: publish commits and tags to the remote.
+3. `monorel publish`: create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry.
 
 The split exists because most providers validate that the tag exists on the remote before allowing a release to be created against it. Bundling 1 and 3 in one process would race that validation.
 

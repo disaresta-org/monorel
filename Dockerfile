@@ -28,6 +28,12 @@ FROM golang:1.26-alpine
 # without a hand-rolled multi-stage copy of /usr/local/go. The image
 # grows from alpine:3.20's ~10MB compressed to roughly 250MB
 # compressed; acceptable for a release tool that runs once per merge.
+#
+# `golang:1.26-alpine` is a movable tag: each rebuild picks up the
+# latest 1.26.x patch. The image at ghcr.io/disaresta-org/monorel:<v>
+# is itself immutable once published, so per-version reproducibility
+# holds. Bump the major.minor here when the project moves its Go
+# floor; rebuilds within a Go minor are forward-compatible.
 RUN apk add --no-cache git ca-certificates && \
     update-ca-certificates 2>/dev/null || true
 COPY --from=build /out/monorel /usr/local/bin/monorel

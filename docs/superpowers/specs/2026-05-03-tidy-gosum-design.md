@@ -17,7 +17,7 @@ Path B-fat (local hash compute + module-cache injection + offline `go mod tidy`)
 
 ### Why offline tidy and not local-only hash compute
 
-Local hash compute (Path B-thin) handles only the direct sibling-pin case: it adds the two `h1:` lines for each in-plan sibling a sub-module's `go.mod` requires. It cannot handle transitive drift — if the released sibling's `go.mod` adds a new transitive dep `X`, the dependent sub-module's `go.mod` would also need a new `// indirect` line and `go.sum` would need entries for `X` (and possibly `X`'s own transitive closure). Reimplementing Go's MVS to compute these locally is high-risk; the algorithm is load-bearing for the toolchain and any subtle disagreement produces silently-broken modules.
+Local hash compute (Path B-thin) handles only the direct sibling-pin case: it adds the two `h1:` lines for each in-plan sibling a sub-module's `go.mod` requires. It cannot handle transitive drift. If the released sibling's `go.mod` adds a new transitive dep `X`, the dependent sub-module's `go.mod` would also need a new `// indirect` line and `go.sum` would need entries for `X` (and possibly `X`'s own transitive closure). Reimplementing Go's MVS to compute these locally is high-risk; the algorithm is load-bearing for the toolchain and any subtle disagreement produces silently-broken modules.
 
 Path B-fat sidesteps this by letting Go itself do the resolution offline. We seed the local module cache with the freshly-built release artifacts for each in-plan sibling, then shell out to `go mod tidy` with `GOPROXY=off GOSUMDB=off`. Tidy resolves the seeded versions from the cache, walks the full transitive closure using the developer's already-cached deps (populated by `go test ./...` before the release), and writes canonically-correct `go.mod` and `go.sum`. We inherit zero MVS risk, full transitive coverage, and no proxy lag.
 
@@ -54,10 +54,10 @@ seedModuleCache(opts Options, releases []plan.PackageRelease) (cleanup func() er
 
 For each released sibling at version `vX.Y.Z`, write three files to `$(go env GOMODCACHE)/cache/download/<module>/@v/`:
 
-- `vX.Y.Z.info` — JSON `{"Version":"vX.Y.Z","Time":"<commit-iso8601>"}`. Time defaults to the current commit's timestamp.
-- `vX.Y.Z.mod` — exact bytes of the rewritten `go.mod`.
-- `vX.Y.Z.zip` — built via `golang.org/x/mod/zip.CreateFromDir(zipFile, module.Version{Path, Version}, modDir)`.
-- `vX.Y.Z.ziphash` — `h1:` line written via `dirhash.HashZip` on the zip file. Tidy verifies module zips against this; without it, tidy refuses to load.
+- `vX.Y.Z.info`: JSON `{"Version":"vX.Y.Z","Time":"<commit-iso8601>"}`. Time defaults to the current commit's timestamp.
+- `vX.Y.Z.mod`: exact bytes of the rewritten `go.mod`.
+- `vX.Y.Z.zip`: built via `golang.org/x/mod/zip.CreateFromDir(zipFile, module.Version{Path, Version}, modDir)`.
+- `vX.Y.Z.ziphash`: the `h1:` line written via `dirhash.HashZip` on the zip file. Tidy verifies module zips against this; without it, tidy refuses to load.
 
 Returns a `cleanup` closure that removes only the entries this seed wrote (tracked by absolute path). Designed for `defer cleanup()` in the caller; the cleanup is best-effort and logs but doesn't return an error if a remove fails (the leftover entries are content-addressed and inert).
 
@@ -108,13 +108,13 @@ applyStable
   └── (existing) delete consumed changesets
 ```
 
-The result: a single release commit containing CHANGELOG writes, rewritten go.mod files, tidied go.mod/go.sum files, and the consumed-changesets removal — all coherent, all in one atomic mutation.
+The result: a single release commit containing CHANGELOG writes, rewritten go.mod files, tidied go.mod/go.sum files, and the consumed-changesets removal, all coherent, all in one atomic mutation.
 
 ## Error handling
 
 Hard-fail across the board. If any single sub-module's tidy fails, the whole apply aborts with a wrapped error naming the affected sub-module. Rationale:
 
-- A partial tidy means some sub-modules are clean and some aren't. The release commit, if allowed to proceed, would be inconsistent across the repo — worse than no commit at all.
+- A partial tidy means some sub-modules are clean and some aren't. The release commit, if allowed to proceed, would be inconsistent across the repo, which is worse than no commit at all.
 - Tidy failures are almost always operator errors (cache not populated, the developer didn't run tests first). Surfacing the failure early lets the maintainer fix the root cause and retry; per-sub-module isolation would silently propagate the drift problem onto post-merge.
 - The caller (cobra's `RunE`) already returns errors to `cmd/monorel/main.go`'s top-level printer; no special handling needed.
 
@@ -139,7 +139,7 @@ The smarter rewriter (#44) pins sibling requires for managed packages outside th
 
 The pre-flight cache check surfaces the missing-cache case before tidy runs (see `tidy.go`'s pre-flight section above), giving the maintainer a precise fix instead of generic "missing module" output from tidy.
 
-We do not pre-fetch out-of-plan siblings via the live proxy. Pre-fetching would re-introduce a proxy roundtrip — small, but conceptually inconsistent with "fully offline at apply time."
+We do not pre-fetch out-of-plan siblings via the live proxy. Pre-fetching would re-introduce a proxy roundtrip; small, but conceptually inconsistent with "fully offline at apply time."
 
 ## Tidy mutation surprise
 
@@ -147,7 +147,7 @@ We do not pre-fetch out-of-plan siblings via the live proxy. Pre-fetching would 
 
 We accept this. Reasons:
 
-1. The bump is canonically correct — it's what the maintainer would get by manually running `go mod tidy` after the release. Pre-empting it produces a commit that's *less* tidy by the toolchain's own definition.
+1. The bump is canonically correct: it's what the maintainer would get by manually running `go mod tidy` after the release. Pre-empting it produces a commit that's *less* tidy by the toolchain's own definition.
 2. `go mod tidy -e` doesn't actually suppress version bumps; `-e` only changes how *errors* are reported. There's no flag to lock transitive versions.
 3. Maintainers who want a strictly byte-identical re-publish can revert any unwanted bump in a separate commit before merging the release PR. The maintainer-facing changelog (`monorel preview`'s rendered plan) makes the bump visible.
 
@@ -185,9 +185,9 @@ If a future operator needs to disable the tidy pass (e.g. a CI runner without `g
 
 Adds:
 
-- `golang.org/x/mod/zip` — direct.
-- `golang.org/x/mod/sumdb/dirhash` — direct.
-- `golang.org/x/mod/module` — direct.
+- `golang.org/x/mod/zip`: direct.
+- `golang.org/x/mod/sumdb/dirhash`: direct.
+- `golang.org/x/mod/module`: direct.
 
 All three are already indirect deps via `golang.org/x/mod/modfile` (used by the rewriter). Promotion only.
 
@@ -218,5 +218,5 @@ Splitting into three files keeps each unit at a comfortable size and makes the s
 
 - **Operator without `go` on PATH at release time.** Today's release pipelines run `go test` first, so `go` is always on PATH; any future runner that doesn't have it would need to add it. Surface a clear error if `exec.LookPath("go")` fails: "tidy step requires `go` on PATH; install Go or set `Options.SkipGoSumTidy`" (forward-compatible language even if the option doesn't exist yet).
 - **Cache pollution if cleanup fails.** Cache entries are content-addressed; leftover files are inert. The cleanup logs but doesn't fail; if a future user reports stale cache entries, we have logs to chase.
-- **Tidy mutates files we didn't expect.** Tidy is the source of truth — if it touches a file other than `go.mod` / `go.sum`, that's a Go behavior change we'd want to surface. The integration tests catch this by comparing the staged file set against the expected set.
+- **Tidy mutates files we didn't expect.** Tidy is the source of truth; if it touches a file other than `go.mod` / `go.sum`, that's a Go behavior change we'd want to surface. The integration tests catch this by comparing the staged file set against the expected set.
 - **Subtle hash mismatch with the proxy.** Zero MVS reimplementation, so subtle disagreement is extremely unlikely. The `golang.org/x/mod/zip` and `dirhash` packages are owned by the Go team and used by the toolchain itself; any divergence would surface in the toolchain first.
