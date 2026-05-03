@@ -1,0 +1,16 @@
+# monorel configuration. See https://monorel.disaresta.com/configuration
+
+[provider]
+name  = "bitbucket"
+owner = "your-workspace"   # bitbucket workspace slug
+repo  = "your-repo"
+
+[packages."your-repo"]
+tag_prefix = ""
+path       = "."
+changelog  = "CHANGELOG.md"
+
+[packages."transports/foo"]
+tag_prefix = "transports/foo"
+path       = "transports/foo"
+changelog  = "transports/foo/CHANGELOG.md"
