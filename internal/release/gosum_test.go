@@ -497,3 +497,136 @@ func dirhashOfRoot(repoDir string) (string, error) {
 	}
 	return dirhash.HashZip(tmpZip.Name(), dirhash.Hash1)
 }
+
+// TestApply_CrossSiblingCascade_HashesConvergeToPublished pins the
+// regression for the cross-sibling cascade variant of the wrong-h1:
+// bug. Three in-plan modules A, B, C: A is the root; B requires A
+// and is required by C; C requires both A and B. Single-pass
+// seed-and-tidy would record B's pre-tidy hash in C's go.sum, since
+// B's own tidy modifies B's go.sum after C's tidy ran against the
+// seeded (pre-modification) hash.
+//
+// The fixpoint loop converges: every recorded h1: equals the hash
+// of `git archive` against the published commit.
+func TestApply_CrossSiblingCascade_HashesConvergeToPublished(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skipf("`go` not on PATH: %v", err)
+	}
+
+	repoDir := t.TempDir()
+	tmpModCache := t.TempDir()
+	t.Cleanup(func() {
+		filepath.WalkDir(tmpModCache, func(path string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			os.Chmod(path, 0o755)
+			return nil
+		})
+	})
+	t.Setenv("GOMODCACHE", tmpModCache)
+
+	// Modules:
+	//   a/  (example.com/a, no deps)
+	//   b/  (example.com/b, requires a)
+	//   c/  (example.com/c, requires a AND b)
+	mustWriteFile(t, filepath.Join(repoDir, "a/go.mod"),
+		"module example.com/a\n\ngo 1.26\n")
+	mustWriteFile(t, filepath.Join(repoDir, "a/a.go"),
+		"package a\n\nfunc Hello() string { return \"a\" }\n")
+
+	mustWriteFile(t, filepath.Join(repoDir, "b/go.mod"),
+		"module example.com/b\n\ngo 1.26\n\nrequire example.com/a v0.1.0\n")
+	mustWriteFile(t, filepath.Join(repoDir, "b/b.go"),
+		"package b\n\nimport \"example.com/a\"\n\nfunc Hello() string { return a.Hello() + \"-b\" }\n")
+
+	mustWriteFile(t, filepath.Join(repoDir, "c/go.mod"),
+		"module example.com/c\n\ngo 1.26\n\nrequire (\n\texample.com/a v0.1.0\n\texample.com/b v0.1.0\n)\n")
+	mustWriteFile(t, filepath.Join(repoDir, "c/c.go"),
+		"package c\n\nimport (\n\t\"example.com/a\"\n\t\"example.com/b\"\n)\n\nfunc Hello() string { return a.Hello() + \"-\" + b.Hello() }\n")
+
+	repo := git.NewFake()
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"a": {TagPrefix: "a", Path: "a"},
+			"b": {TagPrefix: "b", Path: "b"},
+			"c": {TagPrefix: "c", Path: "c"},
+		},
+	}
+	rp := &plan.ReleasePlan{
+		Releases: []plan.PackageRelease{
+			{Config: cfg.Packages["a"], Tag: "a/v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["b"], Tag: "b/v0.1.0", Bump: semver.Minor},
+			{Config: cfg.Packages["c"], Tag: "c/v0.1.0", Bump: semver.Minor},
+		},
+	}
+
+	opts := Options{
+		Plan:         rp,
+		Config:       cfg,
+		Repo:         repo,
+		RepoDir:      repoDir,
+		ChangesetDir: filepath.Join(repoDir, ".changeset"),
+		Today:        "2026-05-03",
+	}
+
+	if _, err := Apply(opts); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// Compute expected hashes after Apply has staged everything
+	// (including b's go.sum mutations and c's go.sum mutations).
+	// `dirhash` over each module's directory matches what
+	// `git archive` of the eventual tag will produce.
+	expectedA, err := dirhashOfModule(repoDir, "a", "example.com/a", "v0.1.0")
+	if err != nil {
+		t.Fatalf("hash a: %v", err)
+	}
+	expectedB, err := dirhashOfModule(repoDir, "b", "example.com/b", "v0.1.0")
+	if err != nil {
+		t.Fatalf("hash b: %v", err)
+	}
+
+	// c/go.sum should record A's actual hash AND B's actual hash.
+	cGoSum, err := os.ReadFile(filepath.Join(repoDir, "c", "go.sum"))
+	if err != nil {
+		t.Fatalf("read c/go.sum: %v", err)
+	}
+	if got := extractH1(t, cGoSum, "example.com/a v0.1.0"); got != expectedA {
+		t.Errorf("c/go.sum recorded wrong h1: for example.com/a v0.1.0\n  got:  %s\n  want: %s\n  full go.sum:\n%s",
+			got, expectedA, cGoSum)
+	}
+	if got := extractH1(t, cGoSum, "example.com/b v0.1.0"); got != expectedB {
+		t.Errorf("c/go.sum recorded wrong h1: for example.com/b v0.1.0\n  got:  %s\n  want: %s\n  full go.sum:\n%s",
+			got, expectedB, cGoSum)
+	}
+
+	// b/go.sum should record A's actual hash.
+	bGoSum, err := os.ReadFile(filepath.Join(repoDir, "b", "go.sum"))
+	if err != nil {
+		t.Fatalf("read b/go.sum: %v", err)
+	}
+	if got := extractH1(t, bGoSum, "example.com/a v0.1.0"); got != expectedA {
+		t.Errorf("b/go.sum recorded wrong h1: for example.com/a v0.1.0\n  got:  %s\n  want: %s",
+			got, expectedA)
+	}
+}
+
+// dirhashOfModule computes Hash1 of a sub-module's zip built from
+// repoDir/sub. Like dirhashOfRoot but for an arbitrary sub-module.
+func dirhashOfModule(repoDir, sub, importPath, version string) (string, error) {
+	mv := module.Version{Path: importPath, Version: version}
+	tmpZip, err := os.CreateTemp("", "monorel-test-zip-*.zip")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmpZip.Name())
+	defer tmpZip.Close()
+	if err := xzip.CreateFromDir(tmpZip, mv, filepath.Join(repoDir, sub)); err != nil {
+		return "", err
+	}
+	if err := tmpZip.Close(); err != nil {
+		return "", err
+	}
+	return dirhash.HashZip(tmpZip.Name(), dirhash.Hash1)
+}

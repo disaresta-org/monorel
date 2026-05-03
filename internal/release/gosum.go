@@ -97,6 +97,19 @@ func tidySubmoduleGoSums(opts Options) error {
 			return err
 		}
 
+		// Remove existing go.sum files before each tidy pass so the
+		// re-seed's new hashes take effect without triggering a
+		// SECURITY ERROR from Go's local go.sum verification. Tidy
+		// recreates go.sum from the seeded cache entries; the fixpoint
+		// check then compares the freshly-written go.sum against the
+		// pre-deletion snapshot.
+		for _, sub := range affected {
+			goSumPath := filepath.Join(opts.RepoDir, sub, "go.sum")
+			if err := os.Remove(goSumPath); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("tidy: remove %s before re-tidy: %w", goSumPath, err)
+			}
+		}
+
 		for _, sub := range affected {
 			modDir := filepath.Join(opts.RepoDir, sub)
 			if err := runOfflineTidy(modDir); err != nil {
