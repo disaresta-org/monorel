@@ -40,6 +40,10 @@ Interactive (human author): omit --package and answer the prompts.`,
 		"Changeset body (the changelog entry text). May be empty.")
 	cmd.Flags().String("name", "",
 		"Override the auto-generated changeset filename (without .md).")
+	cmd.Flags().BoolP("editor", "e", false,
+		"Open $EDITOR (or $VISUAL) for the changelog body instead of the "+
+			"in-place text prompt. Falls back to vi / nano on Unix and "+
+			"notepad on Windows when neither env var is set.")
 	return cmd
 }
 
@@ -52,6 +56,13 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 	pkgFlags, _ := cmd.Flags().GetStringArray("package")
 	message, _ := cmd.Flags().GetString("message")
 	name, _ := cmd.Flags().GetString("name")
+	useEditor, _ := cmd.Flags().GetBool("editor")
+
+	if useEditor && message != "" {
+		return errors.New("--editor and --message are mutually exclusive")
+	}
+
+	huhEligible := isReaderTTY(cmd.InOrStdin()) && isWriterTTY(cmd.ErrOrStderr())
 
 	var bumps map[string]semver.BumpLevel
 	if len(pkgFlags) > 0 {
@@ -59,22 +70,42 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-	} else if isReaderTTY(cmd.InOrStdin()) && isWriterTTY(cmd.ErrOrStderr()) {
+	} else if huhEligible {
 		// Real human at a terminal: drive a huh form (multi-select +
-		// per-package bump select + multi-line text). Falls through
-		// to the bufio path on piped/redirected stdio so scripted use
+		// per-package bump select). Falls through to the bufio path
+		// on piped/redirected stdio so scripted use
 		// (echo "1\nminor\n..." | monorel add) keeps working.
 		//
 		// Gate is on stdin + stderr (not stdout) because huh's
 		// underlying tea program writes the form UI to stderr by
 		// default; checking stdout would falsely allow `monorel add
 		// 2>/tmp/log` (form invisible).
-		bumps, message, err = promptHuh(cmd.InOrStdin(), cmd.ErrOrStderr(), rt.Config)
+		bumps, err = promptHuhPackagesAndBumps(cmd.InOrStdin(), cmd.ErrOrStderr(), rt.Config)
 		if err != nil {
 			return err
 		}
 	} else {
 		bumps, message, err = promptInteractive(cmd.InOrStdin(), cmd.OutOrStdout(), rt.Config)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Body acquisition. Order of preference:
+	//   1. --editor: open $EDITOR (regardless of how bumps were picked).
+	//   2. --message already set or promptInteractive returned a body: use it.
+	//   3. huhEligible and we used huh for bumps: run the huh body prompt.
+	switch {
+	case useEditor:
+		message, err = promptViaEditor("", "")
+		if err != nil {
+			return err
+		}
+	case message != "":
+		// already set; nothing to do.
+	case huhEligible && len(pkgFlags) == 0:
+		// We took the huh path for bumps; ask for the body the same way.
+		message, err = promptHuhBody(cmd.InOrStdin(), cmd.ErrOrStderr())
 		if err != nil {
 			return err
 		}
@@ -237,11 +268,10 @@ func isWriterTTY(w io.Writer) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
 
-// promptHuh runs the huh-driven form for `monorel add`: a multi-select
-// over package names, then a Select per chosen package for the bump
-// level, then a Text field for the changelog body. Each form is run
-// independently so the bump-level questions can be generated from the
-// multi-select's result.
+// promptHuhPackagesAndBumps runs the package multi-select and the
+// per-package bump-level forms; it does NOT ask for the body (callers
+// route that through promptHuhBody, promptViaEditor, or the
+// --message flag).
 //
 // in/out are wired into each form via WithInput/WithOutput so callers
 // (tests, embedded use cases) can drive the form deterministically
@@ -251,10 +281,10 @@ func isWriterTTY(w io.Writer) bool {
 // huh.ErrUserAborted (Ctrl-C) is mapped to ErrExit(130) so main()
 // returns a clean SIGINT exit code without printing "Error: user
 // aborted".
-func promptHuh(in io.Reader, out io.Writer, cfg *config.Config) (map[string]semver.BumpLevel, string, error) {
+func promptHuhPackagesAndBumps(in io.Reader, out io.Writer, cfg *config.Config) (map[string]semver.BumpLevel, error) {
 	names := cfg.PackageNames()
 	if len(names) == 0 {
-		return nil, "", errors.New("monorel.toml declares no packages")
+		return nil, errors.New("monorel.toml declares no packages")
 	}
 
 	options := make([]huh.Option[string], 0, len(names))
@@ -279,7 +309,7 @@ func promptHuh(in io.Reader, out io.Writer, cfg *config.Config) (map[string]semv
 			Value(&picked),
 	)))
 	if err := runHuhForm(pickForm); err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	bumps := make(map[string]semver.BumpLevel, len(picked))
@@ -300,14 +330,22 @@ func promptHuh(in io.Reader, out io.Writer, cfg *config.Config) (map[string]semv
 				Value(&level),
 		)))
 		if err := runHuhForm(bumpForm); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		l, err := semver.ParseBumpLevel(level)
 		if err != nil {
-			return nil, "", fmt.Errorf("%s: %w", name, err)
+			return nil, fmt.Errorf("%s: %w", name, err)
 		}
 		bumps[name] = l
 	}
+	return bumps, nil
+}
+
+// promptHuhBody runs the in-place text body prompt. Separate from
+// promptHuhPackagesAndBumps so callers using --editor can replace
+// just this step without skipping the package/bump prompts.
+func promptHuhBody(in io.Reader, out io.Writer) (string, error) {
+	wire := func(f *huh.Form) *huh.Form { return f.WithInput(in).WithOutput(out) }
 
 	var body string
 	bodyForm := wire(huh.NewForm(huh.NewGroup(
@@ -318,9 +356,9 @@ func promptHuh(in io.Reader, out io.Writer, cfg *config.Config) (map[string]semv
 			Value(&body),
 	)))
 	if err := runHuhForm(bodyForm); err != nil {
-		return nil, "", err
+		return "", err
 	}
-	return bumps, strings.TrimSpace(body), nil
+	return strings.TrimSpace(body), nil
 }
 
 // runHuhForm runs a huh.Form, translating huh.ErrUserAborted into

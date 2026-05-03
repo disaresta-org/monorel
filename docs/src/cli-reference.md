@@ -31,15 +31,19 @@ monorel add \
 
 # Interactive (prompts for packages, levels, body)
 monorel add
+
+# Mix: pick packages non-interactively, write the body in $EDITOR
+monorel add --package "transports/zerolog:minor" --editor
 ```
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `-p, --package <name>:<level>` | string (repeatable) | Package and bump level. Triggers non-interactive mode when given. |
-| `-m, --message <text>` | string | Changeset body (the changelog entry). May be empty. |
+| `-p, --package <name>:<level>` | string (repeatable) | Package and bump level. Triggers non-interactive package selection when given. |
+| `-m, --message <text>` | string | Changeset body (the changelog entry). May be empty. Mutually exclusive with `--editor`. |
+| `-e, --editor` | bool | Open `$VISUAL` (then `$EDITOR`, then `vi`/`nano`/`notepad`) for the changelog body. Lines beginning with `#` are stripped on save. Mutually exclusive with `--message`. |
 | `--name <name>` | string | Override the auto-generated changeset filename (default: random `<adj>-<noun>`). Lowercase letters, digits, hyphens only. |
 
-Validates: package exists in `monorel.toml`, bump level is `major|minor|patch`, no duplicate package across `--package` flags.
+Validates: package exists in `monorel.toml`, bump level is `major|minor|patch`, no duplicate package across `--package` flags, `--editor` and `--message` not both set.
 
 Writes to `.changeset/<name>.md`.
 

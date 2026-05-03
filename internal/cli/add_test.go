@@ -155,6 +155,60 @@ func TestAddCmd_BadLevel(t *testing.T) {
 	}
 }
 
+func TestAddCmd_EditorFlag_WritesBodyFromEditor(t *testing.T) {
+	f := newFixture(t, twoPackageTOML, nil, nil)
+
+	// Stage a fake editor that produces a known body. Setting EDITOR
+	// here drives resolveEditor() → readAndStripComments path.
+	editor := fakeEditor(t, "Edited via $EDITOR.\n\nSecond paragraph.")
+	t.Setenv("EDITOR", editor)
+	t.Setenv("VISUAL", "") // make sure VISUAL doesn't shadow the test EDITOR
+
+	stdout, _, err := runCmd(t,
+		"add",
+		"--config", f.configPath,
+		"--package", "foo:patch",
+		"--name", "editor-cat",
+		"--editor",
+	)
+	if err != nil {
+		t.Fatalf("add --editor: %v", err)
+	}
+	if !strings.Contains(stdout, ".changeset/editor-cat.md") {
+		t.Errorf("output should mention written path: %s", stdout)
+	}
+
+	path := filepath.Join(f.r.Dir, ".changeset", "editor-cat.md")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, err := changeset.Parse(bytes.NewReader(raw), "editor-cat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cs.Body != "Edited via $EDITOR.\n\nSecond paragraph." {
+		t.Errorf("body = %q, want editor output", cs.Body)
+	}
+}
+
+func TestAddCmd_EditorAndMessageAreMutuallyExclusive(t *testing.T) {
+	f := newFixture(t, twoPackageTOML, nil, nil)
+	_, _, err := runCmd(t,
+		"add",
+		"--config", f.configPath,
+		"--package", "foo:patch",
+		"--editor",
+		"--message", "via flag",
+	)
+	if err == nil {
+		t.Fatal("expected error when --editor and --message are both passed")
+	}
+	if !strings.Contains(err.Error(), "--editor and --message") {
+		t.Errorf("error should name both flags; got: %v", err)
+	}
+}
+
 func TestAddCmd_InvalidName(t *testing.T) {
 	f := newFixture(t, twoPackageTOML, nil, nil)
 	_, _, err := runCmd(t,
