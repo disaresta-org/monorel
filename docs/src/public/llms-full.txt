@@ -1,0 +1,598 @@
+# monorel: Comprehensive LLM Reference
+
+> A changesets-style release tool for multi-module Go monorepos. Bare `vX.Y.Z` tags for the root module, `<path>/vX.Y.Z` tags for sub-modules. Authors declare release intent in per-PR `.changeset/<name>.md` files; an always-open release PR aggregates the plan; merging it creates per-package tags and provider releases. Module path: `monorel.disaresta.com`. GitHub: `github.com/disaresta-org/monorel`.
+
+This is the comprehensive reference. For the concise index see [llms.txt](https://monorel.disaresta.com/llms.txt).
+
+## Installation
+
+```sh
+go install monorel.disaresta.com/cmd/monorel@latest
+```
+
+Pre-built binaries: `https://github.com/disaresta-org/monorel/releases`. Docker: `ghcr.io/disaresta-org/monorel:<version>` (bundles `git` and the Go toolchain). GitHub Actions / Gitea Actions: composite action at `disaresta-org/monorel/ci/github@<version>` (downloads the binary for the runner OS+arch).
+
+## Why monorel
+
+The Go ecosystem doesn't have a release tool that handles the canonical Go monorepo layout cleanly:
+
+- **Main module at the repo root** with bare `vX.Y.Z` tags. `go install <module>@v1.2.3` requires this.
+- **Sub-modules in subdirectories** with `<path>/vX.Y.Z` tags. `go get <module>/transports/foo@v1.2.3` requires this.
+
+The off-the-shelf options each have a sharp edge for this layout:
+
+- **release-please** works with friction. Squash-merge strips Conventional Commits footers; full-history scans leak footers into newly-registered packages; `exclude-paths` doesn't cover every attribution leak. All recoverable, but recovery means manual `release-as` cleanup, manual tag deletes, manual manifest fixes.
+- **Knope** doesn't fit the bare-tag root convention; per-package tag prefixes are mandatory.
+- **changesets** (the JS ecosystem tool) works conceptually but is JS-native. Adapting it to Go requires synthetic `package.json` per Go module, a manual bridge between npm versions and git tags, and a JS toolchain in the release path.
+
+monorel takes the changesets *idea* (per-PR intent files, named affected packages, bump levels) and ships it as a Go-native CLI. Class of "release tool got confused" failures becomes structurally impossible because nothing is inferred from commit messages.
+
+## Quick Start
+
+```sh
+# 1. Install
+go install monorel.disaresta.com/cmd/monorel@latest
+
+# 2. Scaffold (in a git repo with at least one go.mod and a configured origin)
+monorel init
+monorel validate
+
+# 3. Author a changeset for your PR
+monorel add
+# (interactive: pick packages, pick levels, write body)
+
+# 4. Commit and push
+git commit -am "feat: add Lazy() helper"
+git push
+
+# 5. CI's release-pr.yml opens the always-open release PR.
+#    Merge it to ship.
+```
+
+## monorel.toml
+
+The configuration file at the repo root. Top-level provider info plus one `[packages."<name>"]` block per managed module.
+
+```toml
+# Layout: bare vX.Y.Z tags for the root, <path>/vX.Y.Z for sub-modules.
+
+[provider]
+name  = "github"             # one of "github" / "gitea" / "gitlab"
+owner = "acme"
+repo  = "widget"
+host  = ""                   # set for self-hosted Gitea / Forgejo / GitLab Enterprise
+
+# Root module: bare-tag (no prefix).
+[packages."go.example.com/widget"]
+tag_prefix = ""              # empty -> tags as vX.Y.Z
+path       = "."             # repo root
+changelog  = "CHANGELOG.md"
+
+# Sub-module under transports/foo.
+[packages."transports/foo"]
+tag_prefix = "transports/foo"   # tags as transports/foo/vX.Y.Z
+path       = "transports/foo"
+changelog  = "transports/foo/CHANGELOG.md"
+```
+
+Field reference:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `provider.name` | string | yes | `github` / `gitea` / `gitlab`. |
+| `provider.owner` | string | yes | Repository owner (org or user). |
+| `provider.repo` | string | yes | Repository name (no `.git` suffix). |
+| `provider.host` | string | no | For self-hosted instances; defaults to the provider's public host. |
+| `[packages."<key>"].tag_prefix` | string | yes | Tag namespace; empty for the bare-tag root. Tag shape is `<tag_prefix>/v<version>` or `v<version>` when empty. |
+| `[packages."<key>"].path` | string | yes | Repo-relative path to the package's directory (`.` for the root). |
+| `[packages."<key>"].changelog` | string | yes | Repo-relative path to the per-package CHANGELOG file. |
+
+The `<key>` in `[packages."<key>"]` is the name authors use in changeset frontmatter; it doesn't have to match the Go import path or tag prefix (though by convention it often does).
+
+## Changeset file format (`.changeset/<name>.md`)
+
+YAML frontmatter naming packages + bump levels, then the markdown body.
+
+```markdown
+---
+"transports/foo": minor
+"go.example.com/widget": patch
+---
+
+Adds Lazy() helper for deferred field evaluation. Pass-through fix in the root.
+```
+
+Bump levels: `major`, `minor`, `patch`. A package can appear in multiple changesets:
+
+- The strongest bump across them wins. Three changesets all bumping `transports/foo` (one `patch`, one `minor`, one `major`) produce a single `major` release.
+- All three bodies appear in the rendered CHANGELOG, bucketed by the level THAT changeset requested for THIS package.
+
+A single changeset can target multiple packages with different bump levels (as in the example above). The body is the same in both rendered CHANGELOGs.
+
+Filenames: `[a-z0-9]+(-[a-z0-9]+)*` (lowercase letters, digits, hyphens; no leading / trailing / consecutive hyphens). Auto-generated as `<adjective>-<noun>` (`quick-otter`, `dapper-koala`) from a 70 × 80 wordlist; override with `monorel add --name`.
+
+Reserved filenames in `.changeset/` (NOT changesets): `pre.json`, `README.md`, `.gitkeep`, `config.json`. Skipped on load.
+
+## Pre-release mode (`.changeset/pre.json`)
+
+```json
+{
+  "mode": "pre",
+  "channel": "rc",
+  "counters": {
+    "transports/foo": 0,
+    "go.example.com/widget": 0
+  }
+}
+```
+
+Created by `monorel pre enter <channel>`; deleted by `monorel pre exit`. While the file exists:
+
+- `monorel apply` / `monorel release` append `-<channel>.<counter>` to each released version (e.g. `v1.7.0-rc.0`).
+- `.changeset/*.md` files are NOT deleted between releases.
+- CHANGELOG entries are NOT written between releases.
+- Per-package counters in `pre.json` increment.
+
+Each pre-release sees the cumulative bump from ALL pending changesets, so escalating severity during the window is reflected. The next stable release after `monorel pre exit` consumes all accumulated changesets and writes a single CHANGELOG entry per affected package.
+
+## Commands
+
+### `monorel init`
+
+Scaffold `monorel.toml` + `.changeset/README.md`. Walks every `go.mod` under cwd; reads `git config remote.origin.url` for owner/repo. Exits with a precise, actionable error when the working directory isn't inside a git repo OR has no `origin` remote configured (suggests `git init` / `git remote add origin <url>` / `--owner=<org> --repo=<name>`).
+
+Flags: `--force` overwrites an existing `monorel.toml` (preserves provider/owner/repo from the existing file unless overridden); `--owner=<org>`, `--repo=<name>`, `--provider=<name>` skip auto-detection.
+
+### `monorel add`
+
+Author a `.changeset/<name>.md`. Interactive by default: a multi-select for packages, then a per-package bump-level select, then a body field.
+
+Flags:
+- `-p, --package <name>:<level>`: non-interactive package selection. Repeatable.
+- `-m, --message <text>`: changeset body. May be empty when explicitly passed.
+- `-e, --editor`: open `$VISUAL` / `$EDITOR` for the body. Mutually exclusive with `--message`. Editor resolution order: `$VISUAL` → `$EDITOR` → `vi` / `nano` (Unix) or `notepad` (Windows). Lines beginning with `#` are stripped on save (so `# Heading` markdown is dropped; use `## Heading` or higher). An empty body aborts (the editor placeholder text says so; the code enforces it).
+- `--name <name>`: override the auto-generated filename.
+
+Body-prompt key bindings (when the in-place huh body field is active):
+
+| Key | Action |
+|---|---|
+| `enter` | New line. |
+| `ctrl+s` | Submit. |
+| `ctrl+e` | Open `$VISUAL` / `$EDITOR` (escape from the in-place prompt to a real editor). |
+| `tab` / `shift+tab` | Next / previous field. |
+| `ctrl+c` | Cancel (exit code 130). |
+
+### `monorel validate`
+
+Schema and filesystem checks against `monorel.toml` + `.changeset/*.md`. Returns structured findings (errors and warnings). Exit codes: 0 on no findings (or warnings without `--strict`); 1 on any error; 2 on warnings only with `--strict`.
+
+Flags: `--json` for machine output; `--strict` treats warnings as failures; `--check-tags` validates the local tag namespace too (every tag matching a package's prefix must parse as semver).
+
+Checks performed:
+
+- Schema: provider fields, package fields, no duplicate tag prefixes.
+- Filesystem: every package's path exists, no two packages share a path, every changelog's parent directory exists.
+- Changesets: every `.changeset/*.md` parses cleanly and only names packages declared in `monorel.toml`.
+- Tags (opt-in): every tag matching a package's prefix parses as valid semver. Non-semver tags surface as warnings.
+
+### `monorel doctor`
+
+Diagnostic checks beyond schema validation. Today: `revived-changeset` (a `.changeset/*.md` file currently on disk that a previous `chore(release):` commit deleted; common when a contributor branched from main BEFORE the release commit and squash-merged later). Non-zero exit on error-severity findings; `--json` for machine output.
+
+### `monorel plan`
+
+Print the release plan that would be applied right now. Pure read; no mutation. Useful before running `monorel apply`. `--json` for machine output.
+
+Output (text):
+
+```
+transports/foo  v1.6.0 -> v1.7.0  (minor)
+  - 2 changeset(s)
+go.example.com/widget  v2.0.0 -> v2.0.1  (patch)
+  - 1 changeset(s)
+```
+
+### `monorel status`
+
+Pending changesets summary; reports counts and lists files.
+
+### `monorel apply`
+
+Stage the file changes the next release will produce, into a single commit. Used by CI's release-pr.yml on a fresh `monorel/release` staging branch.
+
+What it does (in order, all in one commit):
+
+1. For each package in the plan: write a Keep-a-Changelog entry to `<package>/<changelog>`. New entries are inserted above the latest existing entry; older entries are preserved verbatim.
+2. For each released sub-module's `go.mod`: strip dev-only sibling `replace` directives, pin sibling `require` lines to the planned version (handles in-plan AND out-of-plan managed siblings; the latter pin to their latest existing tag).
+3. For each released sub-module that requires an in-plan sibling: run `go mod tidy` (offline, against a seeded local cache) so `go.sum` is canonically clean. `go.mod` may also pick up new `// indirect` lines if the sibling's bumped version has new transitive deps.
+4. Delete the consumed `.changeset/*.md` files.
+5. Make a single commit. Subject: `chore(release): <name1> <ver1>, <name2> <ver2>, ...` (or `chore(release): <name> <ver> (pre-release)` in pre mode). Body: one `monorel-Release: <name> <version>` trailer per released package, plus `monorel-PreRelease: true|false`.
+
+Pre-release mode skips steps 1, 3, 4 (CHANGELOGs not written, go.sum not tidied since go.mod isn't rewritten, changesets not deleted) and increments the counters in `.changeset/pre.json` instead.
+
+`monorel apply` does NOT create tags. That's `monorel tag`'s job.
+
+Requires `go` on `PATH` for the offline-tidy step (uses `go mod tidy` with `GOPROXY=off GOSUMDB=off GOWORK=off GOFLAGS= GOTOOLCHAIN=local`).
+
+### `monorel preview`
+
+Render the release plan as PR-body markdown. With `--upsert`, opens or updates the always-open release PR via the configured provider. Detects "no changesets pending" and closes any open release PR.
+
+### `monorel tag`
+
+Read HEAD's `monorel-Release:` trailers, look each released package up in `monorel.toml`, and create one annotated git tag per package at HEAD. Used by CI's release.yml on the `chore(release):` merge commit.
+
+Errors out (no mutation) if HEAD's commit has no `monorel-Release:` trailers (it's not a release commit), if a trailer names a package that no longer exists in `monorel.toml`, or if any derived tag already exists in the repo.
+
+Push is the caller's responsibility; this command does not push.
+
+### `monorel publish`
+
+Read tags pointing at HEAD, match each to a configured package, and create one provider release per tag using the matching CHANGELOG entry as the release notes. Pre-release tags get the provider's pre-release flag.
+
+Splits from `monorel tag` because most providers validate that the tag exists on the remote BEFORE allowing a release to be created against it. Always run as: `monorel tag` → `git push --follow-tags` → `monorel publish`.
+
+### `monorel release`
+
+`monorel apply` + `monorel tag` in one process. Convenience for one-shot local releases that don't need the always-open-PR pattern.
+
+### `monorel pre enter <channel>` / `monorel pre exit` / `monorel pre status`
+
+Pre-release-mode lifecycle. Channel is any non-empty SemVer-compatible identifier (`rc`, `beta`, `alpha`). Switching channels requires `pre exit` first; entering a new channel while one is already active is rejected.
+
+## Library API (public packages from v0.2.0+)
+
+Pure-function packages, no I/O. Consumers can embed them into custom tooling.
+
+### `monorel.disaresta.com/config`
+
+```go
+import "monorel.disaresta.com/config"
+
+cfg, err := config.Load("monorel.toml")
+// cfg.Provider.Name, cfg.Provider.Owner, cfg.Provider.Repo, cfg.Provider.Host
+// cfg.Packages map[string]config.PackageConfig
+// cfg.PackageNames() []string  // sorted
+
+pkg := cfg.Packages["transports/foo"]
+// pkg.TagPrefix, pkg.Path, pkg.Changelog
+// pkg.TagFor("v1.0.0") -> "transports/foo/v1.0.0"
+// pkg.FullTagPrefix() -> "transports/foo/v" (or "v" for the bare-tag root)
+```
+
+### `monorel.disaresta.com/changeset`
+
+```go
+import "monorel.disaresta.com/changeset"
+
+cs, err := changeset.Parse(reader, "name")  // reads frontmatter + body
+// cs.Name, cs.Bumps map[string]semver.BumpLevel, cs.Body string
+
+cs.WriteFile(".changeset/")  // writes <name>.md
+
+list, err := changeset.LoadAll(".changeset/")  // every *.md file in the dir
+
+name := changeset.RandomName()       // "<adj>-<noun>"
+ok := changeset.IsValidName("name")  // [a-z0-9]+(-[a-z0-9]+)*
+```
+
+### `monorel.disaresta.com/plan` (the load-bearing logic)
+
+```go
+import "monorel.disaresta.com/plan"
+
+p, err := plan.Plan(cfg, changesets, tags, pre)
+// p.Releases []plan.PackageRelease
+//   .Name, .Config, .From, .To, .Bump, .Tag, .Changesets, .Initial, .Prerelease, .PrereleaseCounter
+// p.Consumed []*changeset.Changeset (deduped across multi-package changesets)
+// p.IsEmpty() bool
+
+ver, ok := plan.LatestStableTagVersion(tags, pkg)  // helper: highest semver-stable tag for pkg
+```
+
+`plan.Plan` is the heart of monorel. Pure function; no side effects. Determinism: sorted output, repeated calls with same inputs produce identical output.
+
+### `monorel.disaresta.com/semver`
+
+```go
+import "monorel.disaresta.com/semver"
+
+semver.Patch / semver.Minor / semver.Major (BumpLevel constants)
+semver.Max(a, b)
+semver.ParseBumpLevel("minor") -> BumpLevel
+
+semver.Apply("v1.2.3", semver.Minor) -> "v1.3.0"
+semver.InitialFromBump(semver.Major) -> "v1.0.0"
+semver.ApplyPrerelease("v1.7.0", "rc", 0) -> "v1.7.0-rc.0"
+semver.IsValid("v1.2.3") bool
+semver.IsPrerelease("v1.0.0-rc.1") bool
+semver.Compare(a, b) (int, error)
+```
+
+### `monorel.disaresta.com/changelog`
+
+```go
+import "monorel.disaresta.com/changelog"
+
+entry := &changelog.Entry{Version: "v1.7.0", Date: "2026-05-03"}
+entry.Major = []string{"Reshape Foo Config."}
+entry.Minor = []string{"Adds Lazy() helper."}
+entry.Patch = []string{"Fix typo in error message."}
+entry.IsEmpty() bool
+
+changelog.WriteFile("transports/foo/CHANGELOG.md", entry)
+// new entry inserted above the latest existing entry; older entries preserved
+```
+
+### `monorel.disaresta.com/validate`
+
+```go
+import "monorel.disaresta.com/validate"
+
+findings := validate.Run(validate.Inputs{
+    ConfigPath: "monorel.toml",
+    CheckTags:  false,
+    ListTags:   nil,
+})
+// findings []validate.Finding{Severity, Code, Message, Package, Path}
+validate.HasErrors(findings) bool
+validate.HasWarnings(findings) bool
+```
+
+### `monorel.disaresta.com/doctor`
+
+```go
+import "monorel.disaresta.com/doctor"
+
+findings, err := doctor.Run(doctor.Options{
+    RepoDir: ".",
+    GitLog:  func(grep string) ([]string, error) { ... },
+})
+// findings []doctor.Finding{Severity, CheckName, Path, Message}
+```
+
+The release applier (`internal/release`), orchestrator (`internal/orchestrator`), provider clients (`internal/provider`), and CLI (`internal/cli`) are NOT public.
+
+## CI pipelines
+
+### GitHub Actions (canonical)
+
+Two workflows. `.github/workflows/release-pr.yml`:
+
+```yaml
+name: release-pr
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  release-pr:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - uses: disaresta-org/monorel/ci/github@v0.11.0
+        with: { command: pr }
+```
+
+`.github/workflows/release.yml`:
+
+```yaml
+name: release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - uses: disaresta-org/monorel/ci/github@v0.11.0
+        with: { command: release }
+```
+
+`actions/setup-go` is required since v0.11: `monorel apply` runs `go mod tidy` against the released sub-modules so the release commit's `go.sum` is canonically clean.
+
+### Gitea Actions / Forgejo
+
+Same composite action; pass `GITEA_TOKEN` for the secret.
+
+```yaml
+- uses: disaresta-org/monorel/ci/github@v0.11.0
+  with: { command: pr }
+  env:
+    GITEA_TOKEN: ${{ secrets.MONOREL_GITEA_TOKEN }}
+```
+
+### GitLab CI
+
+Use the published Docker image (bundles `git` and the Go toolchain).
+
+```yaml
+default:
+  image: ghcr.io/disaresta-org/monorel:0.11.0
+
+stages: [doctor, release-pr, release]
+
+doctor:
+  stage: doctor
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - monorel doctor
+
+release-pr:
+  stage: release-pr
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE !~ /^chore\(release\):/
+  variables:
+    GITLAB_TOKEN: $MONOREL_GITLAB_TOKEN
+  script:
+    - git config user.name  "monorel-bot[automation]"
+    - git config user.email "monorel-bot@users.noreply.example.com"
+    - git fetch origin "$CI_DEFAULT_BRANCH"
+    - git checkout -B monorel/release "origin/$CI_DEFAULT_BRANCH"
+    - apply_out=$(monorel apply); echo "$apply_out"
+    - |
+      if echo "$apply_out" | grep -qF "Nothing to apply."; then exit 0; fi
+    - git push -f "https://oauth2:${MONOREL_GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" monorel/release
+    - monorel preview --upsert
+
+release:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^chore\(release\):/
+  variables:
+    GITLAB_TOKEN: $MONOREL_GITLAB_TOKEN
+  script:
+    - git config user.name  "monorel-bot[automation]"
+    - git config user.email "monorel-bot@users.noreply.example.com"
+    - monorel tag
+    - git push --follow-tags "https://oauth2:${MONOREL_GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    - monorel publish
+```
+
+GitLab requires the project's merge method set to **Fast-forward** (Settings → Merge requests) so the `monorel-Release:` body trailers reach `main` post-merge.
+
+### Composite-action commands
+
+The `disaresta-org/monorel/ci/github` action wraps the multi-step sequences into single inputs:
+
+| `command:` | Runs |
+|---|---|
+| `pr` | `monorel apply` → `git push -f origin HEAD:monorel/release` (if there's something to apply) → `monorel preview --upsert`. |
+| `release` | `monorel tag` → `git push --follow-tags` → `monorel publish`. |
+| `doctor` | `monorel doctor`. |
+
+## Provider auth
+
+| Provider | Env var(s) | Token type | Scopes |
+|---|---|---|---|
+| GitHub | `GITHUB_TOKEN` or `GH_TOKEN` | The auto-injected `secrets.GITHUB_TOKEN` works by default. | `contents: write`, `pull-requests: write`. |
+| GitHub (with branch protection) | Personal Access Token or App token | PRs created by the auto token don't trigger required-status-check workflows (anti-recursion). | Same scopes. |
+| Gitea / Forgejo | `GITEA_TOKEN` | PAT generated at `/-/user/settings/applications`. | `repository: write`, `user: read`. |
+| GitLab | `GITLAB_TOKEN` | Personal or project access token. | `api`. |
+
+The `doctor` command needs no token; `contents: read` alone is sufficient.
+
+## Files monorel reads and writes
+
+| Path | Read by | Written by | Purpose |
+|---|---|---|---|
+| `monorel.toml` | every command | `monorel init` | Per-package config. |
+| `.changeset/<name>.md` | `apply`, `release`, `plan`, `status`, `preview` | `monorel add` (created); `monorel apply` (deleted after stable release). | Pending release intent. |
+| `.changeset/pre.json` | every command | `monorel pre enter` (created); `monorel apply` (counter increments); `monorel pre exit` (removed). | Pre-release-mode state. |
+| `<package>/CHANGELOG.md` | `monorel apply` | `monorel apply` | New entries prepended above the latest existing entry. |
+| `<package>/go.mod` | `monorel apply` | `monorel apply` | Sub-modules: dev `replace` stripped, sibling requires pinned. |
+| `<package>/go.sum` | `monorel apply` | `monorel apply` | Sub-modules: tidied via offline `go mod tidy`. |
+
+## The `chore(release):` commit shape
+
+`monorel apply` produces a commit that looks like this:
+
+```
+chore(release): transports/foo v1.7.0, go.example.com/widget v2.0.1
+
+monorel-Release: transports/foo v1.7.0
+monorel-Release: go.example.com/widget v2.0.1
+monorel-PreRelease: false
+```
+
+`monorel tag` reads the `monorel-Release:` trailers from HEAD's commit message to derive the tag list (no need to re-thread the plan through the apply→tag handoff). The trailers are stable across versions; they're the contract `apply` and `tag` share.
+
+The commit subject also drives CI's `release.yml` predicate: `if: startsWith(github.event.head_commit.message, 'chore(release):')`.
+
+## Always-open release PR pattern
+
+The full lifecycle:
+
+```
+1. Contributor opens feature PR with .changeset/<name>.md
+2. PR merges; release-pr.yml fires
+3. Action wrapper:
+     git checkout -B monorel/release origin/<default-branch>
+     monorel apply
+     git push -f origin HEAD:monorel/release   (only if apply produced output)
+     monorel preview --upsert
+4. The release PR opens (or updates):
+     - Title: "chore(release): <package summary>"
+     - Body: rendered plan + per-package CHANGELOG bodies
+     - Diff: actual file changes (CHANGELOGs, go.mod/go.sum, .changeset/*.md deletions)
+5. Subsequent feature PRs re-trigger the workflow; the release PR diff updates
+6. Maintainer reviews, approves, merges
+7. release.yml fires on the chore(release): merge commit
+8. Action wrapper:
+     monorel tag                      (reads body trailers, creates tags)
+     git push --follow-tags
+     monorel publish                  (creates one provider release per tag)
+```
+
+The release PR's diff IS the file changes. Reviewers see exactly what will ship.
+
+## Bootstrapping a new package / module
+
+Adding a new sub-module mid-life:
+
+1. Create the directory + Go module as usual.
+2. Add a `[packages."<name>"]` block to `monorel.toml`.
+3. Add a `<package>/CHANGELOG.md` (empty file is fine; monorel will write the first entry).
+4. Validate: `monorel validate`.
+5. Author a changeset for the new package's first release: `monorel add --package <name>:major --message "Initial release."`. (See the project's release-versioning rule: prefer `:major` → `v1.0.0` over `:minor` → `v0.1.0` unless the API genuinely needs the pre-1.0 signal.)
+6. Commit and push. The release PR will include the new package at `v1.0.0`.
+
+## Recovery: orphaned tags / drifted state
+
+If a release commit produced bad state (wrong version, missing go.sum tidy, etc.):
+
+- Use `monorel doctor` to detect known classes of drift (revived changesets after squash-merge).
+- Hand-write a recovery changeset that bumps `:patch` for the affected packages with a body explaining the recovery. Merge a release PR; the next release republishes with the corrected state.
+- For genuinely-broken tags pushed to the remote, you can `git tag -d <tag> && git push --delete origin <tag>`, but downstream consumers may have already cached the SHA. Prefer a `:patch` bump to a tag rewrite.
+
+## Operational guarantees
+
+- **No commit-message inference.** Releases happen iff there's a `.changeset/*.md` file. No `Release-As:` footer leaks; no path-attribution surprises; no full-history scans.
+- **Idempotency.** Running `monorel apply` twice on the same plan is a no-op the second time (the `.changeset/*.md` files have already been deleted; nothing to apply).
+- **Atomicity.** A release commit either contains all the file changes for that release or none. `monorel apply`'s two-pass design (write everything, then stage at the end) leaves the git index untouched on partial failure.
+- **Tag preflight.** `monorel tag` checks every derived tag against the existing tag list before any `git tag` invocation; aborts cleanly on conflict.
+- **Pre-release isolation.** `monorel pre exit` consumes accumulated changesets cumulatively, so escalating-severity changes during the window are reflected in the final stable release.
+
+## Limitations
+
+- **No commit-message-driven release detection.** That's by design (it's the class of failures the tool exists to eliminate), but if your team relies on Conventional Commits to drive releases, you'd need to bridge.
+- **No multi-repo / cross-repo coordination.** monorel runs against one git repo at a time.
+- **GitLab requires fast-forward merge mode.** Squash / merge-commit modes drop the `monorel-Release:` trailers from the merge commit body.
+- **Pre-release windows can't be re-entered with the same channel.** Once you `pre exit`, re-entering with the same channel resets counters from 0.
+- **Per-call go.sum tidy assumes the developer's local cache has the transitive deps.** For substantive releases that introduce new transitive deps in a sibling, the cache is normally pre-populated by the dev's prior `go test ./...` runs. CI runners that haven't run tests first need `go mod download all` before `monorel apply`. The pre-flight check surfaces a precise error in that case.
+
+## Documentation
+
+- `monorel.disaresta.com`: full docs site.
+- `monorel.disaresta.com/getting-started`: step-by-step setup walkthrough.
+- `monorel.disaresta.com/cli-reference`: per-command flag reference.
+- `monorel.disaresta.com/cheat-sheet`: at-a-glance command map + common one-liners + files.
+- `monorel.disaresta.com/workflows`: ASCII diagrams of the lifecycles.
+- `monorel.disaresta.com/changesets`: changeset file format reference.
+- `monorel.disaresta.com/configuration`: `monorel.toml` field reference.
+- `monorel.disaresta.com/integrations/{github,gitea,gitlab}`: per-provider setup.
+- `monorel.disaresta.com/api`: library API reference.
+- `monorel.disaresta.com/design`: design principles + tradeoffs.
+- `monorel.disaresta.com/docker`: running monorel via container.
+- `monorel.disaresta.com/faq`: frequently asked questions.
+- `monorel.disaresta.com/glossary`: canonical terminology.
+- `monorel.disaresta.com/recipes/migration-from-release-please`: walkthrough for repos already using release-please.
+- `monorel.disaresta.com/recipes/bootstrapping-monorel`: notes on the chicken-and-egg of monorel releasing itself.
+
+Source: https://github.com/disaresta-org/monorel.

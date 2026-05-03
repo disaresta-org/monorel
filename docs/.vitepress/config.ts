@@ -113,6 +113,7 @@ gtag('config', '${gaMeasurementId}');`,
       {
         text: 'Reference',
         items: [
+          { text: 'Cheat Sheet', link: '/cheat-sheet' },
           { text: 'Configuration', link: '/configuration' },
           { text: 'CLI', link: '/cli-reference' },
           { text: 'Library API', link: '/api' },
@@ -132,6 +133,7 @@ gtag('config', '${gaMeasurementId}');`,
         text: 'Help',
         items: [
           { text: 'FAQ', link: '/faq' },
+          { text: 'Use with AI / LLMs', link: '/llms' },
         ],
       },
       {

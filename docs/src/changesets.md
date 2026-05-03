@@ -89,7 +89,10 @@ Files in `.changeset/` that are NOT changesets:
 ## Authoring workflow
 
 1. Make your code change as usual on a feature branch.
-2. Run `monorel add` (interactive) or `monorel add -p PKG:LEVEL -m "..."`.
+2. Author the changeset:
+   - **Interactive** (multi-select packages, per-package level prompt, in-place body field): `monorel add`.
+   - **Editor-driven body** (multi-paragraph markdown in `$VISUAL` / `$EDITOR`): `monorel add --editor`. Pair with `--package` to skip the multi-select: `monorel add -p PKG:LEVEL --editor`.
+   - **Fully scripted** (CI generators, automated bumps): `monorel add -p PKG:LEVEL -m "..."`.
 3. Commit the changeset along with your code change.
 4. Open the PR.
 5. CI runs `monorel preview` to update the always-open release PR.

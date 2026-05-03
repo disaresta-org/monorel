@@ -9,18 +9,6 @@ This page walks you from a fresh repo to a published release using monorel's can
 
 The shortest version: every release-affecting PR includes a changeset; the bot maintains an always-open release PR; you merge the release PR when you want to ship.
 
-::: info Looking for a working example?
-The [`examples/`](https://github.com/disaresta-org/monorel/tree/main/examples) directory in the monorel repo has minimal reference setups for each provider:
-
-- [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github): composite action wrapper + two workflow files.
-- [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea): same wrapper, Gitea Actions YAML format, `provider.host` set, Forgejo-compatible.
-- [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab): single `.gitlab-ci.yml` using the published Docker image.
-
-Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy into your repo.
-
-For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 25 sub-modules.
-:::
-
 ## Install
 
 ```sh
@@ -61,6 +49,18 @@ Next steps:
 
 `monorel validate` confirms the config is loadable and the package paths exist. See [Configuration](/configuration) when you want to hand-tune `monorel.toml` (per-package `tag_prefix` overrides, self-hosted GitHub Enterprise host, etc.).
 
+::: info Looking for a working example?
+The [`examples/`](https://github.com/disaresta-org/monorel/tree/main/examples) directory in the monorel repo has minimal reference setups for each provider:
+
+- [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github): composite action wrapper + two workflow files.
+- [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea): same wrapper, Gitea Actions YAML format, `provider.host` set, Forgejo-compatible.
+- [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab): single `.gitlab-ci.yml` using the published Docker image.
+
+Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy into your repo.
+
+For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 25 sub-modules.
+:::
+
 ## Wire up the GitHub Action
 
 Two workflow files drive the release lifecycle. The walkthrough below uses GitHub; if you're on Gitea or Forgejo, see the [Gitea / Forgejo integration page](/integrations/gitea) for the equivalent workflow files.
@@ -93,36 +93,9 @@ For a visual end-to-end view (including the pre-release-cycle variant), see [Wor
 
 ## Author your first changeset
 
-On a feature branch:
+On a feature branch, run `monorel add` and answer the prompts. It writes a `.changeset/<random-name>.md` declaring the affected packages and bump levels. Commit the file alongside your code change, open the PR, and merge it as you would any other PR.
 
-```sh
-monorel add \
-  --package "transports/foo:minor" \
-  --message "Adds Lazy() helper for deferred field evaluation."
-```
-
-This writes `.changeset/<random-name>.md`:
-
-```markdown
----
-"transports/foo": minor
----
-
-Adds Lazy() helper for deferred field evaluation.
-```
-
-A single changeset can target multiple packages with different bump levels:
-
-```sh
-monorel add \
-  --package "transports/foo:major" \
-  --package "github.com/acme/widget:patch" \
-  --message "Reshape the Foo Config; pass-through fix in the root."
-```
-
-Or run `monorel add` with no flags for an interactive prompt (multi-select, per-package level, multi-line body).
-
-Commit the changeset on your feature branch, open the PR, and merge it as you would any other PR.
+Full reference for the file format, multi-package shape, and other authoring modes (editor-driven body, scripted): [Changesets](/changesets).
 
 ## Watch the release PR
 

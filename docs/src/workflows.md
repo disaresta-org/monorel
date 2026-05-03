@@ -13,10 +13,14 @@ The diagrams below cover the three lifecycles every monorel user touches: openin
 1. monorel init
    └─> writes monorel.toml + .changeset/README.md
 
-2. Add .github/workflows/release-pr.yml + release.yml
+2. monorel validate
+   └─> sanity-checks the generated config (paths exist, no
+       duplicate tag prefixes, etc.)
+
+3. Add .github/workflows/release-pr.yml + release.yml
    (copy from Getting Started, or fork github.com/disaresta-org/monorel-example)
 
-3. Commit and push to main
+4. Commit and push to main
    └─> release-pr.yml runs, finds no changesets, no release PR opens
        (this is the expected steady state until your first changeset)
 ```
@@ -34,7 +38,7 @@ What happens when a contributor opens a PR with a changeset and merges it.
 │    Branch carries:                                      │
 │      - the code change                                  │
 │      - .changeset/<name>.md naming affected packages    │
-│        and bump levels                                  │
+│        and bump levels (created by `monorel add`)       │
 └────────────────────────┬────────────────────────────────┘
                          │  merge to main
                          ▼
@@ -45,6 +49,7 @@ What happens when a contributor opens a PR with a changeset and merges it.
                          │  on a fresh monorel/release branch:
                          │    monorel apply
                          │    git push --force
+                         │    monorel preview --upsert
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │ 3. Always-open release PR (opens or updates)            │
@@ -53,6 +58,7 @@ What happens when a contributor opens a PR with a changeset and merges it.
 │    will produce:                                        │
 │      - new CHANGELOG entries per affected package       │
 │      - deleted .changeset/*.md files                    │
+│      - tidied go.mod / go.sum across released modules   │
 │      - one chore(release): commit with                  │
 │        monorel-Release: trailers in the body            │
 └─────────────────────────────────────────────────────────┘
@@ -155,6 +161,7 @@ Switching channels (e.g. `rc` → `beta`) requires `monorel pre exit` first; ent
 
 ## See also
 
+- [Cheat Sheet](/cheat-sheet) for an at-a-glance index of every command by lifecycle phase + runner, common one-liners, and the files monorel reads and writes.
 - [Changesets](/changesets) for the `.changeset/<name>.md` file format.
 - [GitHub Action](/integrations/github) for the workflow YAML and token setup.
 - [FAQ](/faq) for the questions that come up after the first release.

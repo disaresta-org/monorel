@@ -31,17 +31,40 @@ monorel add \
 
 # Interactive (prompts for packages, levels, body)
 monorel add
+
+# Mix: pick packages non-interactively, write the body in $EDITOR
+monorel add --package "transports/zerolog:minor" --editor
 ```
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `-p, --package <name>:<level>` | string (repeatable) | Package and bump level. Triggers non-interactive mode when given. |
-| `-m, --message <text>` | string | Changeset body (the changelog entry). May be empty. |
+| `-p, --package <name>:<level>` | string (repeatable) | Package and bump level. Triggers non-interactive package selection when given. |
+| `-m, --message <text>` | string | Changeset body (the changelog entry). May be empty. Mutually exclusive with `--editor`. |
+| `-e, --editor` | bool | Open `$VISUAL` (then `$EDITOR`, then `vi`/`nano`/`notepad`) for the changelog body. Lines beginning with `#` are stripped on save. Mutually exclusive with `--message`. |
 | `--name <name>` | string | Override the auto-generated changeset filename (default: random `<adj>-<noun>`). Lowercase letters, digits, hyphens only. |
 
-Validates: package exists in `monorel.toml`, bump level is `major|minor|patch`, no duplicate package across `--package` flags.
+Validates:
+
+- Each `--package` names a package declared in `monorel.toml`.
+- Each bump level is one of `major`, `minor`, `patch`.
+- No package appears more than once across `--package` flags.
+- `--editor` and `--message` are not both set.
 
 Writes to `.changeset/<name>.md`.
+
+### Body-prompt key bindings
+
+When the in-place body prompt is active (no `--editor`, no `--message`), the keys are:
+
+| Key | Action |
+|---|---|
+| `enter` | New line. |
+| `ctrl+s` | Submit the body and proceed. |
+| `ctrl+e` | Open `$VISUAL` / `$EDITOR` to compose the body, then return. |
+| `tab` / `shift+tab` | Next / previous field (within the form). |
+| `ctrl+c` | Cancel the changeset (exit code 130). |
+
+Multi-line markdown is the common case, so `enter` is rebound from huh's default "submit" to "new line." The same `ctrl+e` editor escape is available whether or not you passed `--editor` up front.
 
 ## `monorel plan`
 
