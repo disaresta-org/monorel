@@ -67,11 +67,23 @@ type Repo interface {
 	// remote's reflog is "commit, then its tags."
 	PushTags(remote string) error
 
+	// Fetch updates remote-tracking refs for ref from remote
+	// (`git fetch <remote> <ref>`). Used by the auto orchestrator to
+	// refresh origin/<base-branch> before creating monorel/release
+	// from it. Empty ref fetches every ref the remote advertises.
+	Fetch(remote, ref string) error
+
 	// CheckoutBranch checks out branch, creating it from the
-	// current HEAD if it doesn't exist (`git checkout -B`). Used by
-	// the action orchestrator to manage the always-open release
-	// branch.
+	// current HEAD if it doesn't exist (`git checkout -B`). For
+	// creating a branch from a non-HEAD start point (e.g. a remote
+	// tracking ref), use [Repo.CheckoutNewBranch].
 	CheckoutBranch(branch string) error
+
+	// CheckoutNewBranch creates branch at startPoint and checks it
+	// out (`git checkout -B <branch> <startPoint>`). Used by the
+	// auto orchestrator to create monorel/release from the freshly
+	// fetched origin/<base>.
+	CheckoutNewBranch(branch, startPoint string) error
 
 	// IsClean reports whether the working tree has no uncommitted
 	// or untracked changes (i.e. `git status --porcelain` is empty).

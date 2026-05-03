@@ -264,6 +264,14 @@ func (f *Fake) PushTags(remote string) error {
 	return nil
 }
 
+// Fetch implements [Repo.Fetch]. The fake runs the FailNext hook;
+// it does not simulate any state change.
+func (f *Fake) Fetch(_ /*remote*/, _ /*ref*/ string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.take()
+}
+
 // CheckoutBranch implements [Repo.CheckoutBranch].
 func (f *Fake) CheckoutBranch(branch string) error {
 	f.mu.Lock()
@@ -273,6 +281,25 @@ func (f *Fake) CheckoutBranch(branch string) error {
 	}
 	if branch == "" {
 		return errors.New("branch name is empty")
+	}
+	f.Branch = branch
+	return nil
+}
+
+// CheckoutNewBranch implements [Repo.CheckoutNewBranch]. The fake
+// records the new branch as the current branch; startPoint is
+// observed but not simulated.
+func (f *Fake) CheckoutNewBranch(branch, startPoint string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.take(); err != nil {
+		return err
+	}
+	if branch == "" {
+		return errors.New("branch is empty")
+	}
+	if startPoint == "" {
+		return errors.New("startPoint is empty")
 	}
 	f.Branch = branch
 	return nil
