@@ -1901,7 +1901,7 @@ Run: `cd /tmp/monorel-src/docs && bun run docs:build 2>&1 | tail -5`
 
 Expected: clean build. The cross-links between `ci/github/README.md` and `docs/src/workflows.md` should now both resolve.
 
-- [ ] **Step 3: Run the full repo test suite to confirm nothing regressed (defensive — docs changes shouldn't affect tests, but a sanity check is cheap).**
+- [ ] **Step 3: Run the full repo test suite to confirm nothing regressed (defensive: docs changes shouldn't affect tests, but a sanity check is cheap).**
 
 Run: `cd /tmp/monorel-src && go test ./...`
 
