@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	gogh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
@@ -179,6 +178,10 @@ func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseO
 }
 
 func (c *client) FindPRByMergeCommit(ctx context.Context, sha string) (*provider.PullRequest, error) {
+	// First page is sufficient: a commit is the merge commit of at
+	// most one PR, and the API ranks the merging PR first. The loop
+	// below double-checks via GetMergeCommitSHA == sha so an unrelated
+	// PR that merely touches the commit doesn't slip through.
 	prs, _, err := c.gh.PullRequests.ListPullRequestsWithCommit(ctx, c.owner, c.repo, sha, &gogh.ListOptions{PerPage: 50})
 	if err != nil {
 		return nil, fmt.Errorf("github: list PRs for commit %s: %w", sha, err)
@@ -197,7 +200,7 @@ func convertPR(pr *gogh.PullRequest) *provider.PullRequest {
 	}
 	out := &provider.PullRequest{
 		Number:    pr.GetNumber(),
-		State:     strings.ToLower(pr.GetState()),
+		State:     pr.GetState(),
 		Title:     pr.GetTitle(),
 		Body:      pr.GetBody(),
 		HTMLURL:   pr.GetHTMLURL(),

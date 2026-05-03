@@ -198,7 +198,7 @@ func (c *client) CreateRelease(ctx context.Context, opts provider.CreateReleaseO
 // pattern is to list closed PRs and filter by merge_commit_sha. The
 // loop pages through results until a match or until the SDK reports
 // no NextPage.
-func (c *client) FindPRByMergeCommit(_ context.Context, sha string) (*provider.PullRequest, error) {
+func (c *client) FindPRByMergeCommit(ctx context.Context, sha string) (*provider.PullRequest, error) {
 	page := 1
 	for {
 		prs, resp, err := c.gt.ListRepoPullRequests(c.owner, c.repo, gtsdk.ListPullRequestsOptions{
