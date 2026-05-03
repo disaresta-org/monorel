@@ -173,7 +173,7 @@ func Plan(cfg *config.Config, changesets []*changeset.Changeset, tags []string, 
 			}
 		}
 
-		from, fromOK := latestStableTagVersion(tags, pkgCfg)
+		from, fromOK := LatestStableTagVersion(tags, pkgCfg)
 		var stableTo string
 		var initial bool
 		if fromOK {
@@ -224,14 +224,14 @@ func Plan(cfg *config.Config, changesets []*changeset.Changeset, tags []string, 
 	return &ReleasePlan{Releases: releases, Consumed: consumed}, nil
 }
 
-// latestStableTagVersion finds the highest semver-valid, non-pre-release
+// LatestStableTagVersion finds the highest semver-valid, non-pre-release
 // tag for pkg's configured tag_prefix and returns its version part
 // (e.g. "v1.6.2"). The bool reports whether any qualifying tag existed.
 //
 // Tags that don't parse as semver are silently ignored; pre-release
 // tags are ignored at this layer (pre-release-mode handling lives in
 // a layer above the planner).
-func latestStableTagVersion(tags []string, pkg config.PackageConfig) (string, bool) {
+func LatestStableTagVersion(tags []string, pkg config.PackageConfig) (string, bool) {
 	prefix := pkg.FullTagPrefix()
 	var best string
 	for _, tag := range tags {

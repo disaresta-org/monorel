@@ -35,11 +35,20 @@ import (
 	"monorel.disaresta.com/plan"
 )
 
-// Options bundles the inputs to [Apply]. All fields except Today are
-// required.
+// Options bundles the inputs to [Apply]. All fields except Today and
+// Config are required; Config is required for the go.mod rewriter to
+// see managed packages outside the current release plan (without it,
+// out-of-plan sibling requires aren't pinned).
 type Options struct {
 	// Plan is the release plan to apply. Must be non-empty.
 	Plan *plan.ReleasePlan
+
+	// Config is the parsed monorel.toml. The go.mod rewriter walks
+	// every managed package's go.mod (not just those in Plan) so
+	// sibling requires for packages outside the current plan get
+	// pinned to their latest existing tag. Optional; if nil, only
+	// in-plan siblings get pinned.
+	Config *config.Config
 
 	// Repo is the git interface bound to RepoDir. Apply uses
 	// ListTags (conflict check), Add/Remove (staging), Commit, and

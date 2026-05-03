@@ -247,6 +247,301 @@ require example.com/transports/external/v2 v2.5.0
 	}
 }
 
+// TestRewriteSubmoduleGoMods_PinsOutOfPlanSiblingFromExistingTag
+// covers the headline win of the smarter rewriter: package A is
+// being released, package B (a managed sibling) is NOT in the
+// current plan, but B already has a tag at v1.2.0. A's go.mod
+// requires B at the placeholder pseudo-version. After the rewrite,
+// A's require pins to v1.2.0 (from B's existing tag) without B
+// needing to be in the release plan.
+func TestRewriteSubmoduleGoMods_PinsOutOfPlanSiblingFromExistingTag(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+replace example.com/transports/bar/v2 => ../bar
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake("transports/bar/v1.2.0", "transports/foo/v2.0.0")
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{{
+				Name:   "transports/foo",
+				Tag:    "transports/foo/v2.0.1",
+				Bump:   semver.Patch,
+				From:   "v2.0.0",
+				To:     "v2.0.1",
+				Config: cfg.Packages["transports/foo"],
+			}},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if strings.Contains(got, "replace example.com/transports/bar/v2") {
+		t.Errorf("dev replace for out-of-plan sibling should be stripped:\n%s", got)
+	}
+	if !strings.Contains(got, "example.com/transports/bar/v2 v1.2.0") {
+		t.Errorf("require should pin to existing-tag version v1.2.0:\n%s", got)
+	}
+	if strings.Contains(got, "v2.0.0-00010101000000-000000000000") {
+		t.Errorf("placeholder require version should be gone:\n%s", got)
+	}
+}
+
+// TestRewriteSubmoduleGoMods_OutOfPlanSiblingNoExistingTag verifies
+// that an out-of-plan managed sibling with no existing tag (e.g. a
+// freshly-registered package that hasn't shipped its first release)
+// doesn't fail the rewrite. The dev replace still gets dropped (the
+// package IS managed); the require simply stays at whatever the
+// go.mod already had, since there's no real version to pin to.
+func TestRewriteSubmoduleGoMods_OutOfPlanSiblingNoExistingTag(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+replace example.com/transports/bar/v2 => ../bar
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake("transports/foo/v2.0.0") // no tag for bar
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{{
+				Name:   "transports/foo",
+				Tag:    "transports/foo/v2.0.1",
+				Bump:   semver.Patch,
+				From:   "v2.0.0",
+				To:     "v2.0.1",
+				Config: cfg.Packages["transports/foo"],
+			}},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if strings.Contains(got, "replace example.com/transports/bar/v2") {
+		t.Errorf("dev replace for managed sibling should be stripped even when no tag exists:\n%s", got)
+	}
+	if !strings.Contains(got, "v2.0.0-00010101000000-000000000000") {
+		t.Errorf("placeholder require should be preserved when no real version is available:\n%s", got)
+	}
+}
+
+// TestRewriteSubmoduleGoMods_OutOfPlanSiblingPreReleaseTagsIgnored
+// verifies that an out-of-plan sibling whose only existing tags are
+// pre-releases behaves the same as having no tag at all: the
+// placeholder require is preserved (the rewriter only pins to
+// stable tags, since pinning sub-modules to a pre-release of a
+// sibling is rarely the intended publish-time state).
+func TestRewriteSubmoduleGoMods_OutOfPlanSiblingPreReleaseTagsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake("transports/bar/v1.0.0-rc.1", "transports/bar/v1.0.0-rc.2")
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{{
+				Name:   "transports/foo",
+				Tag:    "transports/foo/v2.0.1",
+				Bump:   semver.Patch,
+				From:   "v2.0.0",
+				To:     "v2.0.1",
+				Config: cfg.Packages["transports/foo"],
+			}},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if !strings.Contains(got, "v2.0.0-00010101000000-000000000000") {
+		t.Errorf("placeholder require should be preserved when only pre-release tags exist:\n%s", got)
+	}
+	if strings.Contains(got, "v1.0.0-rc") {
+		t.Errorf("pre-release tag should not be pinned as a sibling version:\n%s", got)
+	}
+}
+
+// TestRewriteSubmoduleGoMods_ConfigMatchesPlanNoOutOfPlanWalk
+// covers the code path where opts.Config is set but every package
+// declared in it is also in the current plan. The
+// hasOutOfPlanPackages short-circuit should fire so ListTags isn't
+// consulted, and the rewrite should produce the same output as the
+// nil-Config case for the same plan.
+func TestRewriteSubmoduleGoMods_ConfigMatchesPlanNoOutOfPlanWalk(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+replace example.com/transports/bar/v2 => ../bar
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake() // no tags seeded; should never be consulted
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{
+				{
+					Name:   "transports/foo",
+					Tag:    "transports/foo/v2.0.1",
+					Bump:   semver.Patch,
+					From:   "v2.0.0",
+					To:     "v2.0.1",
+					Config: cfg.Packages["transports/foo"],
+				},
+				{
+					Name:   "transports/bar",
+					Tag:    "transports/bar/v2.0.1",
+					Bump:   semver.Patch,
+					From:   "v2.0.0",
+					To:     "v2.0.1",
+					Config: cfg.Packages["transports/bar"],
+				},
+			},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if strings.Contains(got, "replace") {
+		t.Errorf("dev replace should be stripped:\n%s", got)
+	}
+	if !strings.Contains(got, "example.com/transports/bar/v2 v2.0.1") {
+		t.Errorf("require should pin to planned v2.0.1:\n%s", got)
+	}
+}
+
+// TestRewriteSubmoduleGoMods_KeyedByImportPathNotPackageName
+// verifies that the sibling-pin lookup uses the go.mod's `module`
+// directive (the import path), not the monorel.toml package name.
+// Two managed packages that share a similar package-name shape but
+// publish under different import paths must be distinguished by
+// their module directive.
+func TestRewriteSubmoduleGoMods_KeyedByImportPathNotPackageName(t *testing.T) {
+	dir := t.TempDir()
+	// foo (in plan) requires bar (out of plan) by import path.
+	// Note bar's go.mod publishes under example.com/transports/bar/v2
+	// while its monorel.toml package-name key is "transports/bar".
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake("transports/bar/v2.0.5")
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{{
+				Name:   "transports/foo",
+				Tag:    "transports/foo/v2.0.1",
+				Bump:   semver.Patch,
+				From:   "v2.0.0",
+				To:     "v2.0.1",
+				Config: cfg.Packages["transports/foo"],
+			}},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if !strings.Contains(got, "example.com/transports/bar/v2 v2.0.5") {
+		t.Errorf("require should pin to v2.0.5 (the bar import path's latest tag):\n%s", got)
+	}
+}
+
 // TestRewriteSubmoduleGoMods_NoGoModSkipsSilently confirms a
 // release whose Path doesn't contain a go.mod (e.g. a pure-changelog
 // package) doesn't error out.
