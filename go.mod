@@ -13,8 +13,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.loglayer.dev/plugins/fmtlog/v2 v2.0.1
-	go.loglayer.dev/transports/cli/v2 v2.1.1
-	go.loglayer.dev/v2 v2.0.1
+	go.loglayer.dev/transports/cli/v2 v2.2.0
+	go.loglayer.dev/v2 v2.1.0
 	golang.org/x/mod v0.35.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/term v0.42.0

@@ -118,12 +118,12 @@ gitlab.com/gitlab-org/api/client-go v1.46.0 h1:YxBWFZIFYKcGESCb9fpkwzouo+apyB9pr
 gitlab.com/gitlab-org/api/client-go v1.46.0/go.mod h1:FtgyU6g2HS5+fMhw6nLK96GBEEBx5MzntOiJWfIaiN8=
 go.loglayer.dev/plugins/fmtlog/v2 v2.0.1 h1:Lrj4ne53PihwNDuMJCwjVw+5hE4lpZbI64cOX5/ZA4Q=
 go.loglayer.dev/plugins/fmtlog/v2 v2.0.1/go.mod h1:X3e0Abx1+Sg/1E+YZx3dYHPgChUTQX6HOlOVq3OtQ0s=
-go.loglayer.dev/transports/cli/v2 v2.1.1 h1:aFJE1uA6xFMPVMa1s48dGAXd/xsmbv7eYcb5Rj1o74Q=
-go.loglayer.dev/transports/cli/v2 v2.1.1/go.mod h1:cuhl2sbZcg1trVBg9qeIpEruaDu/rMKzBUy0n38vb1g=
+go.loglayer.dev/transports/cli/v2 v2.2.0 h1:iTdx5DlSt/5gru1x2OFy6s5bmtEvkAoPfAMVaaZGytA=
+go.loglayer.dev/transports/cli/v2 v2.2.0/go.mod h1:CO/IML0g98TSzmK+Fmf83c9zaaAgLkRsbQuh9FBdRQY=
 go.loglayer.dev/transports/testing/v2 v2.0.1 h1:+xjONuRjjP2Z+CNa+wzfwoTCAn0VexRtd/d48DHCb/Q=
 go.loglayer.dev/transports/testing/v2 v2.0.1/go.mod h1:12kl35hwKAZctpUrkGiV67O2ZF41Drh21Rhad4lul6M=
-go.loglayer.dev/v2 v2.0.1 h1:B7oYpkfMky0UG/N8IdKeIiiTi6h7eyj5NvRyEth9DHI=
-go.loglayer.dev/v2 v2.0.1/go.mod h1:+BWhs5AyICvCLBz07qHnCE12W34tArUWfXOba0Ct/QI=
+go.loglayer.dev/v2 v2.1.0 h1:8/fq8Z1NNLtjfKgaPn6S0Hy7zWPnkjn9Gj3YgEDFk4w=
+go.loglayer.dev/v2 v2.1.0/go.mod h1:+BWhs5AyICvCLBz07qHnCE12W34tArUWfXOba0Ct/QI=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=

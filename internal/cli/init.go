@@ -167,14 +167,18 @@ func doInit(log *loglayer.LogLayer, opts initOptions) error {
 		// else: file present, leave it alone.
 	}
 
-	log.Info("Wrote monorel.toml with %d package(s):", len(pkgs))
+	lines := make([]any, 0, len(pkgs)+5)
+	lines = append(lines, fmt.Sprintf("Wrote monorel.toml with %d package(s):", len(pkgs)))
 	for _, p := range pkgs {
-		log.Info("  %s (path: %s, tag prefix: %q)", p.Name, p.Path, p.TagPrefix)
+		lines = append(lines, fmt.Sprintf("  %s (path: %s, tag prefix: %q)", p.Name, p.Path, p.TagPrefix))
 	}
-	log.Info("Created .changeset/ with a README.")
-	log.Info("Next steps:")
-	log.Info("  monorel validate     # confirm the config")
-	log.Info("  monorel add          # write your first changeset")
+	lines = append(lines,
+		"Created .changeset/ with a README.",
+		"Next steps:",
+		"  monorel validate     # confirm the config",
+		"  monorel add          # write your first changeset",
+	)
+	log.Info(loglayer.Multiline(lines...))
 	return nil
 }
 
