@@ -32,7 +32,8 @@ import (
 // the current release plan:
 //
 //   - In-plan siblings pin to the planned release version (the
-//     version part of opts.Plan.Releases[i].Tag).
+//     version part of each release's Tag, e.g. "v2.0.1" from
+//     "transports/foo/v2.0.1").
 //   - Out-of-plan siblings (declared in opts.Config but not being
 //     released right now) pin to their latest existing stable tag.
 //     This lets a single-package release fix its own go.mod without
@@ -127,7 +128,7 @@ func rewriteSubmoduleGoMods(opts Options) error {
 	return nil
 }
 
-// buildSiblingMap constructs the import-path → version map the
+// buildSiblingMap constructs the import-path-to-version map the
 // rewriter consults. Every monorel-managed package contributes one
 // entry; in-plan packages map to their planned version, out-of-plan
 // packages map to their latest existing stable tag (or "" if none).

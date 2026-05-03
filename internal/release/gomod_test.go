@@ -420,6 +420,73 @@ go 1.25.0
 	}
 }
 
+// TestRewriteSubmoduleGoMods_ConfigMatchesPlanNoOutOfPlanWalk
+// covers the code path where opts.Config is set but every package
+// declared in it is also in the current plan. The
+// hasOutOfPlanPackages short-circuit should fire so ListTags isn't
+// consulted, and the rewrite should produce the same output as the
+// nil-Config case for the same plan.
+func TestRewriteSubmoduleGoMods_ConfigMatchesPlanNoOutOfPlanWalk(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+replace example.com/transports/bar/v2 => ../bar
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake() // no tags seeded; should never be consulted
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{
+				{
+					Name:   "transports/foo",
+					Tag:    "transports/foo/v2.0.1",
+					Bump:   semver.Patch,
+					From:   "v2.0.0",
+					To:     "v2.0.1",
+					Config: cfg.Packages["transports/foo"],
+				},
+				{
+					Name:   "transports/bar",
+					Tag:    "transports/bar/v2.0.1",
+					Bump:   semver.Patch,
+					From:   "v2.0.0",
+					To:     "v2.0.1",
+					Config: cfg.Packages["transports/bar"],
+				},
+			},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if strings.Contains(got, "replace") {
+		t.Errorf("dev replace should be stripped:\n%s", got)
+	}
+	if !strings.Contains(got, "example.com/transports/bar/v2 v2.0.1") {
+		t.Errorf("require should pin to planned v2.0.1:\n%s", got)
+	}
+}
+
 // TestRewriteSubmoduleGoMods_KeyedByImportPathNotPackageName
 // verifies that the sibling-pin lookup uses the go.mod's `module`
 // directive (the import path), not the monorel.toml package name.
