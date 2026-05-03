@@ -43,7 +43,12 @@ monorel add --package "transports/zerolog:minor" --editor
 | `-e, --editor` | bool | Open `$VISUAL` (then `$EDITOR`, then `vi`/`nano`/`notepad`) for the changelog body. Lines beginning with `#` are stripped on save. Mutually exclusive with `--message`. |
 | `--name <name>` | string | Override the auto-generated changeset filename (default: random `<adj>-<noun>`). Lowercase letters, digits, hyphens only. |
 
-Validates: package exists in `monorel.toml`, bump level is `major|minor|patch`, no duplicate package across `--package` flags, `--editor` and `--message` not both set.
+Validates:
+
+- Each `--package` names a package declared in `monorel.toml`.
+- Each bump level is one of `major`, `minor`, `patch`.
+- No package appears more than once across `--package` flags.
+- `--editor` and `--message` are not both set.
 
 Writes to `.changeset/<name>.md`.
 

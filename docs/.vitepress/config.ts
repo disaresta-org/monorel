@@ -133,6 +133,7 @@ gtag('config', '${gaMeasurementId}');`,
         text: 'Help',
         items: [
           { text: 'FAQ', link: '/faq' },
+          { text: 'Use with AI / LLMs', link: '/llms' },
         ],
       },
       {

@@ -27,7 +27,10 @@ Every monorel subcommand, indexed by lifecycle phase + runner + purpose.
 | Diagnostic | `monorel plan` | Anyone (local) | Print the release plan that would be applied right now. Pure read; no mutation. |
 | Diagnostic | `monorel status` | Anyone (local) | Summarize pending changesets. |
 
-Inside the `disaresta-org/monorel/ci/github` action, `command: pr` runs the `monorel apply` + `git push -f` + `monorel preview --upsert` sequence; `command: release` runs `monorel tag` + `git push --follow-tags` + `monorel publish`. The action wrapper exists so workflow files don't have to spell out each step.
+The `disaresta-org/monorel/ci/github` action groups these:
+
+- `command: pr` runs `monorel apply` → `git push -f` → `monorel preview --upsert`.
+- `command: release` runs `monorel tag` → `git push --follow-tags` → `monorel publish`.
 
 ## Common one-liners
 

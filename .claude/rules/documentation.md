@@ -185,11 +185,16 @@ When you ship a new trap, add a `::: warning` (or `:::danger` for breakage) on t
 Update all of these in the same change:
 
 1. **Relevant doc page** (`configuration.md` for a Config field, `cli-reference.md` for a flag, `changesets.md` for a frontmatter shape).
-2. **`docs/src/index.md`** if the change is a real selling point (rare).
-3. **`CHANGELOG.md`** at repo root: monorel maintains this; the entry lands when you ship the change via a `.changeset/*.md` file. Don't hand-edit `CHANGELOG.md`.
-4. **`AGENTS.md`** "Key Design Decisions" if the change introduces a new concept (rare).
+2. **`docs/src/cheat-sheet.md`** if the change adds a command, file, or env var (the cheat sheet is the at-a-glance index; new surface should appear there).
+3. **`docs/src/public/llms.txt`**: concise LLM-facing reference. Add a bullet, table row, or short snippet for the new surface.
+4. **`docs/src/public/llms-full.txt`**: comprehensive LLM-facing reference. Add a section, table row, or snippet describing the new surface in full.
+5. **`docs/src/index.md`** if the change is a real selling point (rare).
+6. **`.changeset/<name>.md`**: ship the change via `monorel add` (or hand-roll the file). The root `CHANGELOG.md` is written from changesets by `monorel release`; do not edit it by hand.
+7. **`AGENTS.md`** "Key Design Decisions" if the change introduces a new concept (rare).
 
 For a brand-new provider, also follow `AGENTS.md` "Adding a New Provider".
+
+The two `llms.*` files matter because external users feed them directly into LLM coding assistants; stale entries become wrong answers in third-party tools. They live at `docs/src/public/`, served by VitePress at `/llms.txt` and `/llms-full.txt`.
 
 ## When You Make a CLI Output Change
 
