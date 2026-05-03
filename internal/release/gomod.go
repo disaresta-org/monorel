@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
+	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/plan"
 )
 
@@ -131,7 +132,7 @@ func rewriteSubmoduleGoMods(opts Options) error {
 // entry; in-plan packages map to their planned version, out-of-plan
 // packages map to their latest existing stable tag (or "" if none).
 //
-// Falls back to a plan-only map when opts.Config is nil — preserves
+// Falls back to a plan-only map when opts.Config is nil. Preserves
 // behavior for callers that haven't been updated to thread the
 // config through.
 func buildSiblingMap(opts Options) (map[string]string, error) {
@@ -163,10 +164,16 @@ func buildSiblingMap(opts Options) (map[string]string, error) {
 		return siblings, nil
 	}
 
-	// Out-of-plan managed packages: read their go.mod for the
-	// import path, look up their latest existing stable tag.
-	var allTags []string
-	var tagsLoaded bool
+	// Out-of-plan managed packages: load tags once, then walk every
+	// managed package not in the plan, read its go.mod for the
+	// import path, and look up its latest existing stable tag.
+	if !hasOutOfPlanPackages(opts.Config.Packages, planned) {
+		return siblings, nil
+	}
+	allTags, err := opts.Repo.ListTags("")
+	if err != nil {
+		return nil, fmt.Errorf("release: list tags for sibling lookup: %w", err)
+	}
 	for name, pkg := range opts.Config.Packages {
 		if _, inPlan := planned[name]; inPlan {
 			continue
@@ -178,13 +185,6 @@ func buildSiblingMap(opts Options) (map[string]string, error) {
 		}
 		if mf == nil {
 			continue
-		}
-		if !tagsLoaded {
-			allTags, err = opts.Repo.ListTags("")
-			if err != nil {
-				return nil, fmt.Errorf("release: list tags for sibling lookup: %w", err)
-			}
-			tagsLoaded = true
 		}
 		ver, ok := plan.LatestStableTagVersion(allTags, pkg)
 		if !ok {
@@ -203,7 +203,8 @@ func buildSiblingMap(opts Options) (map[string]string, error) {
 
 // readModFile reads and parses the go.mod at path. Returns (nil, nil)
 // if the file doesn't exist (the package has no go.mod, e.g. a
-// pure-changelog package).
+// pure-changelog package). On success the returned File is guaranteed
+// to have a non-nil Module directive (parse errors out otherwise).
 func readModFile(path string) (*modfile.File, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -220,6 +221,18 @@ func readModFile(path string) (*modfile.File, error) {
 		return nil, fmt.Errorf("release: %s has no module directive", path)
 	}
 	return mf, nil
+}
+
+// hasOutOfPlanPackages reports whether any package in pkgs is not
+// listed in planned. Used to skip the ListTags call when every
+// managed package is part of the current plan.
+func hasOutOfPlanPackages(pkgs map[string]config.PackageConfig, planned map[string]string) bool {
+	for name := range pkgs {
+		if _, inPlan := planned[name]; !inPlan {
+			return true
+		}
+	}
+	return false
 }
 
 // isRelativePath reports whether s names a filesystem path relative

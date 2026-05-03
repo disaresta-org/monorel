@@ -365,13 +365,13 @@ go 1.25.0
 	}
 }
 
-// TestRewriteSubmoduleGoMods_PreReleaseTagsIgnored verifies that an
-// out-of-plan sibling whose only existing tags are pre-releases
-// behaves the same as having no tag at all: the placeholder require
-// is preserved (the rewriter only pins to stable tags, since
-// pinning sub-modules to a pre-release of a sibling is rarely the
-// intended publish-time state).
-func TestRewriteSubmoduleGoMods_PreReleaseTagsIgnored(t *testing.T) {
+// TestRewriteSubmoduleGoMods_OutOfPlanSiblingPreReleaseTagsIgnored
+// verifies that an out-of-plan sibling whose only existing tags are
+// pre-releases behaves the same as having no tag at all: the
+// placeholder require is preserved (the rewriter only pins to
+// stable tags, since pinning sub-modules to a pre-release of a
+// sibling is rarely the intended publish-time state).
+func TestRewriteSubmoduleGoMods_OutOfPlanSiblingPreReleaseTagsIgnored(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
 
@@ -417,6 +417,61 @@ go 1.25.0
 	}
 	if strings.Contains(got, "v1.0.0-rc") {
 		t.Errorf("pre-release tag should not be pinned as a sibling version:\n%s", got)
+	}
+}
+
+// TestRewriteSubmoduleGoMods_KeyedByImportPathNotPackageName
+// verifies that the sibling-pin lookup uses the go.mod's `module`
+// directive (the import path), not the monorel.toml package name.
+// Two managed packages that share a similar package-name shape but
+// publish under different import paths must be distinguished by
+// their module directive.
+func TestRewriteSubmoduleGoMods_KeyedByImportPathNotPackageName(t *testing.T) {
+	dir := t.TempDir()
+	// foo (in plan) requires bar (out of plan) by import path.
+	// Note bar's go.mod publishes under example.com/transports/bar/v2
+	// while its monorel.toml package-name key is "transports/bar".
+	mustWrite(t, filepath.Join(dir, "transports/foo/go.mod"), `module example.com/transports/foo/v2
+
+go 1.25.0
+
+require example.com/transports/bar/v2 v2.0.0-00010101000000-000000000000
+`)
+	mustWrite(t, filepath.Join(dir, "transports/bar/go.mod"), `module example.com/transports/bar/v2
+
+go 1.25.0
+`)
+
+	repo := git.NewFake("transports/bar/v2.0.5")
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"transports/foo": {TagPrefix: "transports/foo", Path: "transports/foo"},
+			"transports/bar": {TagPrefix: "transports/bar", Path: "transports/bar"},
+		},
+	}
+	opts := Options{
+		Repo:    repo,
+		RepoDir: dir,
+		Config:  cfg,
+		Plan: &plan.ReleasePlan{
+			Releases: []plan.PackageRelease{{
+				Name:   "transports/foo",
+				Tag:    "transports/foo/v2.0.1",
+				Bump:   semver.Patch,
+				From:   "v2.0.0",
+				To:     "v2.0.1",
+				Config: cfg.Packages["transports/foo"],
+			}},
+		},
+	}
+
+	if err := rewriteSubmoduleGoMods(opts); err != nil {
+		t.Fatalf("rewriteSubmoduleGoMods: %v", err)
+	}
+
+	got := mustRead(t, filepath.Join(dir, "transports/foo/go.mod"))
+	if !strings.Contains(got, "example.com/transports/bar/v2 v2.0.5") {
+		t.Errorf("require should pin to v2.0.5 (the bar import path's latest tag):\n%s", got)
 	}
 }
 
