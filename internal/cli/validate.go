@@ -88,9 +88,13 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// writeFindingsText writes a human-readable summary. Empty findings
-// produce "No findings." Warnings and errors are grouped by severity
-// in fixed order (errors first, warnings second).
+// writeFindingsText emits a human-readable summary directly to the
+// command's stdout. Findings are the command's primary output, not
+// chatter, so they bypass the logger; routing through `log.Info`
+// would let `-q` swallow them silently. (The `--json` path is the
+// supported way to feed validate's output to other tools.) Empty
+// findings produce "No findings." Warnings and errors are grouped
+// by severity in fixed order (errors first, warnings second).
 func writeFindingsText(w io.Writer, findings []validate.Finding) error {
 	if len(findings) == 0 {
 		_, err := fmt.Fprintln(w, "No findings. monorel.toml + .changeset/*.md look valid.")

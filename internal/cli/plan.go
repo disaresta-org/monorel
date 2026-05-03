@@ -2,12 +2,11 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	loglayer "go.loglayer.dev/v2"
 
 	"monorel.disaresta.com/changeset"
 	"monorel.disaresta.com/plan"
@@ -42,35 +41,39 @@ func runPlan(cmd *cobra.Command, _ []string) error {
 	if asJSON {
 		return writePlanJSON(cmd.OutOrStdout(), p)
 	}
-	return writePlanTable(cmd.OutOrStdout(), p)
+	emitPlanTable(rt.Log, p)
+	return nil
 }
 
-// writePlanTable writes a human-readable table to w. Empty plans
-// surface a single line so the user knows the run was successful but
-// produced nothing to release.
-func writePlanTable(w io.Writer, p *plan.ReleasePlan) error {
+// emitPlanTable writes a human-readable table via the cli transport.
+// Empty plans surface a single line so the user knows the run was
+// successful but produced nothing to release.
+func emitPlanTable(log *loglayer.LogLayer, p *plan.ReleasePlan) {
 	if p.IsEmpty() {
-		_, err := fmt.Fprintln(w, "No pending changesets. Nothing to release.")
-		return err
+		log.Info("No pending changesets. Nothing to release.")
+		return
 	}
 
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "PACKAGE\tFROM\tBUMP\tTO\tTAG\tCHANGESETS")
+	rows := make([]loglayer.Metadata, 0, len(p.Releases))
 	for _, r := range p.Releases {
 		from := r.From
 		if from == "" {
 			from = "(initial)"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			r.Name, from, r.Bump, r.To, r.Tag,
-			strings.Join(changesetNames(r.Changesets), ","))
+		rows = append(rows, loglayer.Metadata{
+			"package":    r.Name,
+			"from":       from,
+			"bump":       r.Bump.String(),
+			"to":         r.To,
+			"tag":        r.Tag,
+			"changesets": strings.Join(changesetNames(r.Changesets), ","),
+		})
 	}
-	if err := tw.Flush(); err != nil {
-		return err
-	}
-	fmt.Fprintf(w, "\n%d package(s) to release; %d changeset(s) consumed.\n",
+	// Table-only entry: the cli transport detects slice-of-map
+	// metadata and renders an aligned table without a headline.
+	log.MetadataOnly(rows)
+	log.Info("%d package(s) to release; %d changeset(s) consumed.",
 		len(p.Releases), len(p.Consumed))
-	return nil
 }
 
 // writePlanJSON writes a JSON document to w. The shape is intentionally

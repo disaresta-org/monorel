@@ -87,16 +87,15 @@ func runPreview(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	out := cmd.OutOrStdout()
 	switch res.Action {
 	case orchestrator.ActionNoop:
-		fmt.Fprintln(out, "Plan is empty and no release PR is open. Nothing to do.")
+		rt.Log.Info("Plan is empty and no release PR is open. Nothing to do.")
 	case orchestrator.ActionClosed:
-		fmt.Fprintf(out, "Plan is empty; closed release PR #%d.\n", res.PR.Number)
+		rt.Log.Info("Plan is empty; closed release PR #%d.", res.PR.Number)
 	case orchestrator.ActionCreated:
-		fmt.Fprintf(out, "Created release PR #%d: %s\n", res.PR.Number, res.PR.HTMLURL)
+		rt.Log.Info("Created release PR #%d: %s", res.PR.Number, res.PR.HTMLURL)
 	case orchestrator.ActionUpdated:
-		fmt.Fprintf(out, "Updated release PR #%d: %s\n", res.PR.Number, res.PR.HTMLURL)
+		rt.Log.Info("Updated release PR #%d: %s", res.PR.Number, res.PR.HTMLURL)
 	default:
 		return fmt.Errorf("orchestrator returned unknown action %q", res.Action)
 	}

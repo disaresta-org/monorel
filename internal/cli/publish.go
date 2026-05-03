@@ -45,7 +45,7 @@ func runPublish(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if len(infos) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No tags at HEAD. Nothing to publish.")
+		rt.Log.Info("No tags at HEAD. Nothing to publish.")
 		return nil
 	}
 
@@ -66,11 +66,17 @@ func runPublish(cmd *cobra.Command, _ []string) error {
 
 	res := &release.Result{Releases: infos}
 	published, err := release.PublishReleases(ctx, client, res)
-	out := cmd.OutOrStdout()
 	if err != nil {
-		fmt.Fprintf(out, "Created %d/%d releases before failing.\n", len(published), len(infos))
+		// Partial-progress headline goes to stderr (warn) so a CI
+		// log scraper can detect the failure cleanly while still
+		// seeing the count.
+		rt.Log.Warn("Created %d/%d releases before failing.", len(published), len(infos))
 		return err
 	}
+	// Headline summary: write directly to stdout (the GitHub Action
+	// wrapper greps for these lines, and `-q` suppresses Info, so
+	// routing through the logger would silently break the contract).
+	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "Published %d release(s):\n", len(published))
 	for _, r := range published {
 		fmt.Fprintf(out, "  %s\n", r.Tag)

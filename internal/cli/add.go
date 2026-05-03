@@ -99,7 +99,7 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		rel = name + ".md"
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", rel)
+	rt.Log.Info("wrote %s", rel)
 	return nil
 }
 

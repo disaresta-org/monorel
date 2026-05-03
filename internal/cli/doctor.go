@@ -76,6 +76,11 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// writeDoctorText emits a human-readable summary directly to the
+// command's stdout. Findings are the command's primary output, not
+// chatter, so they bypass the logger; routing through `log.Info`
+// would let `-q` swallow them silently. (The `--json` path is the
+// supported way to feed doctor's output to other tools.)
 func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 	if len(findings) == 0 {
 		_, err := fmt.Fprintln(w, "No findings. Repository state looks healthy.")
