@@ -9,6 +9,22 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.12.0] - 2026-05-03
+
+### Minor Changes
+
+- `monorel add` now accepts `-e` / `--editor` to write the changelog body in `$EDITOR` (or `$VISUAL`) instead of the in-place text-area prompt. Mirrors `git commit`'s editor flow: the temp file is pre-seeded with a commented prompt block; lines beginning with `#` are stripped on save; surrounding whitespace is trimmed.
+
+  Editor resolution order: `$VISUAL`, then `$EDITOR`, then `vi` / `nano` (Unix) or `notepad` (Windows) when neither env var is set. `--editor` and `--message` are mutually exclusive (passing both is an error).
+
+  Useful when:
+
+  - The body is more than a one-liner and the in-place text area feels cramped.
+  - You want syntax highlighting for the markdown.
+  - You're building a non-interactive package selection (`--package`) but still want a real editor for the body (`monorel add -p foo:minor --editor`).
+
+  The default behavior (in-place text prompt via `huh`) is unchanged when `--editor` is not passed.
+
 ## [0.11.0] - 2026-05-03
 
 ### Minor Changes
