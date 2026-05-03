@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -93,10 +94,64 @@ func offlineTidyEnv() []string {
 // be downloaded (tidy adds pins later, after the in-plan siblings
 // are seeded).
 //
+// inPlan is the set of module import paths being released in the
+// current plan. Entries in go.sum whose module path matches a key
+// in inPlan are skipped: those modules will be seeded by the caller's
+// seedModuleCache step, not fetched from the proxy.
+//
+// If no go.sum exists in modDir, the function returns without running
+// the download command. A missing go.sum means tidy hasn't yet
+// recorded any third-party hashes, so there is nothing to pre-fill.
+//
 // PATH, HOME, USER, TMPDIR, LANG, LC_*, GOMODCACHE, GOCACHE, GOPROXY,
 // GOSUMDB pass through.
-func primeModuleCache(modDir string) error {
-	cmd := exec.Command("go", "mod", "download")
+func primeModuleCache(modDir string, inPlan map[string]string) error {
+	goSumPath := filepath.Join(modDir, "go.sum")
+	goSumBytes, err := os.ReadFile(goSumPath)
+	if os.IsNotExist(err) {
+		// Nothing pinned yet; no third-party deps to pre-fill.
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("prime module cache: read %s: %w", goSumPath, err)
+	}
+
+	// Collect module@version pairs from go.sum, excluding in-plan
+	// modules (which will be seeded by the caller) and /go.mod entries
+	// (the per-module download fetches the .mod file automatically).
+	var targets []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(string(goSumBytes), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+		modPath := parts[0]
+		modVer := parts[1]
+		// Skip /go.mod entries; `go mod download mod@ver` fetches both.
+		if strings.HasSuffix(modVer, "/go.mod") {
+			continue
+		}
+		// Skip in-plan modules; seedModuleCache handles those.
+		if _, ok := inPlan[modPath]; ok {
+			continue
+		}
+		key := modPath + "@" + modVer
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		targets = append(targets, key)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
+	args := append([]string{"mod", "download"}, targets...)
+	cmd := exec.Command("go", args...)
 	cmd.Dir = modDir
 	cmd.Env = primeCacheEnv()
 

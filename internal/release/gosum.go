@@ -66,7 +66,22 @@ func tidySubmoduleGoSums(opts Options) error {
 		return err
 	}
 
-	// 4. Iterate seed-and-tidy to fixpoint. Each iteration zips
+	// 4. Prime the module cache with third-party deps each affected
+	//    sub-module transitively requires. Tidy under GOPROXY=off
+	//    can only resolve from the cache; managed siblings are
+	//    seeded by the loop below, but third-party deps depend on
+	//    the cache being warm. Dev cache is usually warm from prior
+	//    builds; fresh CI runner cache isn't. Populate the cache
+	//    explicitly so the offline tidy that follows resolves
+	//    every transitive dep from the cache.
+	for _, sub := range affected {
+		modDir := filepath.Join(opts.RepoDir, sub)
+		if err := primeModuleCache(modDir, inPlan); err != nil {
+			return err
+		}
+	}
+
+	// 5. Iterate seed-and-tidy to fixpoint. Each iteration zips
 	//    every in-plan module's working tree, seeds the cache with
 	//    the resulting hashes, and runs offline tidy in each
 	//    affected sub-module. If any sub-module's go.sum was
