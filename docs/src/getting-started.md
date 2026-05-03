@@ -93,36 +93,9 @@ For a visual end-to-end view (including the pre-release-cycle variant), see [Wor
 
 ## Author your first changeset
 
-On a feature branch:
+On a feature branch, run `monorel add` and answer the prompts. It writes a `.changeset/<random-name>.md` declaring the affected packages and bump levels. Commit the file alongside your code change, open the PR, and merge it as you would any other PR.
 
-```sh
-monorel add \
-  --package "transports/foo:minor" \
-  --message "Adds Lazy() helper for deferred field evaluation."
-```
-
-This writes `.changeset/<random-name>.md`:
-
-```markdown
----
-"transports/foo": minor
----
-
-Adds Lazy() helper for deferred field evaluation.
-```
-
-A single changeset can target multiple packages with different bump levels:
-
-```sh
-monorel add \
-  --package "transports/foo:major" \
-  --package "github.com/acme/widget:patch" \
-  --message "Reshape the Foo Config; pass-through fix in the root."
-```
-
-Or run `monorel add` with no flags for an interactive prompt (multi-select, per-package level, multi-line body). Pass `--editor` (or `-e`) to compose the body in `$VISUAL` / `$EDITOR` instead of the in-place text field; useful when the body is multi-paragraph markdown. `--editor` and `--message` are mutually exclusive.
-
-Commit the changeset on your feature branch, open the PR, and merge it as you would any other PR.
+Full reference for the file format, multi-package shape, and other authoring modes (editor-driven body, scripted): [Changesets](/changesets).
 
 ## Watch the release PR
 
