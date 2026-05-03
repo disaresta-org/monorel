@@ -382,4 +382,4 @@ The same logic is exposed as a Go library at [`monorel.disaresta.com/doctor`](/a
 ## Exit codes
 
 - `0`: success.
-- non-zero: an error occurred. The CLI prints the error to stderr; commands that do partial work (e.g. `release --publish` failing on the second provider release) print a "created N/M" line before the error.
+- non-zero: an error occurred. The CLI prints the error to stderr; commands that do partial work (e.g. `monorel publish` failing on the second provider release) print a "created N/M" line before the error.

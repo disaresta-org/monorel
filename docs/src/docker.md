@@ -35,7 +35,7 @@ docker run --rm \
   ghcr.io/disaresta-org/monorel:latest plan
 ```
 
-For commands that need a provider token (`monorel publish`, `monorel preview --upsert`, `monorel release --publish`), pass it via an environment variable. The shorthand `-e GITHUB_TOKEN` forwards the host's variable of the same name without retyping its value:
+For commands that need a provider token (`monorel publish`, `monorel preview --upsert`), pass it via an environment variable. The shorthand `-e GITHUB_TOKEN` forwards the host's variable of the same name without retyping its value:
 
 ```sh
 export GITHUB_TOKEN=ghp_…   # (or use your shell's secret store)

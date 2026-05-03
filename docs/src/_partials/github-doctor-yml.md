@@ -18,7 +18,7 @@ jobs:
           # (fetch-depth: 1) would miss them and turn doctor into a
           # no-op.
           fetch-depth: 0
-      - uses: disaresta-org/monorel/ci/github@v0.11.0
+      - uses: disaresta-org/monorel/ci/github@v0.14.0
         with:
           command: doctor
 ```

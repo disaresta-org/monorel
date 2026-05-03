@@ -7,10 +7,6 @@ description: "Wire up monorel against a Bitbucket Cloud repository: configuratio
 
 monorel's Bitbucket provider talks to [Bitbucket Cloud](https://bitbucket.org) via the standard Bitbucket REST API v2. The implementation is hand-rolled against `net/http` (no SDK), so the provider has no extra direct dependencies and works on any platform Go does.
 
-::: info Available in v0.14+
-The Bitbucket provider landed in monorel v0.14.0. Earlier versions support `github`, `gitea`, and `gitlab` only.
-:::
-
 ::: warning Bitbucket Cloud only
 Only Bitbucket Cloud (`bitbucket.org`) is supported. Bitbucket Data Center / Server (the self-hosted product) uses a different REST surface and is not covered. The package layout is namespace-ready for a future `bitbucket/datacenter/` sibling, but that work is not on the roadmap.
 :::

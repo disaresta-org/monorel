@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - uses: disaresta-org/monorel/ci/github@v0.11.0
+      - uses: disaresta-org/monorel/ci/github@v0.14.0
         with:
           command: release
 ```
