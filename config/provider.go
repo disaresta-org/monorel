@@ -5,9 +5,10 @@ package config
 // new provider: append to KnownProviders and wire up a provider
 // implementation under internal/provider/<name>/.
 const (
-	ProviderGitHub = "github"
-	ProviderGitea  = "gitea"
-	ProviderGitLab = "gitlab"
+	ProviderGitHub    = "github"
+	ProviderGitea     = "gitea"
+	ProviderGitLab    = "gitlab"
+	ProviderBitbucket = "bitbucket"
 )
 
 // DefaultProvider is the value [ResolveProvider] returns for an
@@ -19,6 +20,7 @@ const DefaultProvider = ProviderGitHub
 // in alphabetical order. The slice is shared and read-only; callers
 // should not mutate it.
 var KnownProviders = []string{
+	ProviderBitbucket,
 	ProviderGitea,
 	ProviderGitHub,
 	ProviderGitLab,

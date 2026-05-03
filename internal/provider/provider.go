@@ -31,6 +31,8 @@ func TokenEnvVars(provider string) []string {
 		return []string{"GITEA_TOKEN"}
 	case config.ProviderGitLab:
 		return []string{"GITLAB_TOKEN", "CI_JOB_TOKEN"}
+	case config.ProviderBitbucket:
+		return []string{"BITBUCKET_TOKEN"}
 	}
 	return nil
 }
@@ -44,6 +46,19 @@ func TokenFromEnv(provider string) string {
 		}
 	}
 	return ""
+}
+
+// EmailEnvVars returns environment variable names to consult for a
+// provider's auth-email, in priority order. Most providers don't use
+// a separate email (the token alone authenticates); Bitbucket Cloud
+// is the exception because its REST API uses HTTP Basic with
+// `email + token`. Returns nil for providers that don't need a
+// separate email.
+func EmailEnvVars(provider string) []string {
+	if config.ResolveProvider(provider) == config.ProviderBitbucket {
+		return []string{"BITBUCKET_EMAIL"}
+	}
+	return nil
 }
 
 // Client is the slice of provider operations monorel needs. The methods
