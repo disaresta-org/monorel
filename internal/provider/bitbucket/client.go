@@ -59,8 +59,6 @@ func (c *client) do(ctx context.Context, method, path string, query url.Values, 
 
 // decodeJSON reads resp.Body, JSON-decodes into out, and closes the
 // body. Convenience for the common one-shot pattern.
-//
-//lint:ignore U1000 used by Phase 3 REST methods
 func decodeJSON(resp *http.Response, out any) error {
 	defer resp.Body.Close()
 	if out == nil {
@@ -76,8 +74,6 @@ func decodeJSON(resp *http.Response, out any) error {
 // /repositories/<workspace>/<repo>. Includes URL-encoding of the
 // workspace and repo slugs (rare but possible if the slug contains
 // reserved characters).
-//
-//lint:ignore U1000 used by Phase 3 REST methods
 func (c *client) repoBase() string {
 	return "/repositories/" + url.PathEscape(c.workspace) + "/" + url.PathEscape(c.repo)
 }

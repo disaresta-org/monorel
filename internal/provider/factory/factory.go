@@ -9,9 +9,11 @@ package factory
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/provider"
+	"monorel.disaresta.com/internal/provider/bitbucket"
 	"monorel.disaresta.com/internal/provider/gitea"
 	"monorel.disaresta.com/internal/provider/github"
 	"monorel.disaresta.com/internal/provider/gitlab"
@@ -42,6 +44,14 @@ func New(ctx context.Context, cfg config.ProviderConfig, token string) (provider
 			Repo:  cfg.Repo,
 			Host:  cfg.Host,
 			Token: token,
+		})
+	case config.ProviderBitbucket:
+		return bitbucket.New(ctx, bitbucket.Options{
+			Workspace: cfg.Owner,
+			Repo:      cfg.Repo,
+			Host:      cfg.Host,
+			Email:     os.Getenv("BITBUCKET_EMAIL"),
+			Token:     token,
 		})
 	default:
 		return nil, fmt.Errorf("provider: unknown provider %q", cfg.Name)
