@@ -145,7 +145,7 @@ No. The planner reads tags from git history to determine the current version per
 
 ### Does monorel require GitHub?
 
-No. As of v0.7, `provider.name` accepts `"github"`, `"gitea"`, and `"gitlab"`. The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). Bitbucket isn't implemented yet but the provider seam is ready; the path is documented in `internal/provider/factory/factory.go`.
+No. `provider.name` accepts `"github"`, `"gitea"`, `"gitlab"`, and `"bitbucket"` (Bitbucket Cloud added in v0.14). The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). The provider seam is documented in `internal/provider/factory/factory.go` for users who need a different forge.
 
 ### Can monorel coordinate releases across multiple repos?
 

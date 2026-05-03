@@ -188,7 +188,7 @@ release:
 | GitHub | `GITHUB_TOKEN` or `GH_TOKEN` | Default `secrets.GITHUB_TOKEN` works; PAT or App token needed if branch protection requires status checks. |
 | Gitea / Forgejo | `GITEA_TOKEN` | PAT with `repository: write` + `user: read`. |
 | GitLab | `GITLAB_TOKEN` | PAT or project access token with `api` scope. |
-| Bitbucket Cloud | `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | API token with `read/write:repository:bitbucket` + `read/write:pullrequest:bitbucket` scopes. |
+| Bitbucket Cloud | `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | API token with `read/write:repository:bitbucket` + `read/write:pullrequest:bitbucket` + `read:account` scopes. |
 
 ## Documentation
 

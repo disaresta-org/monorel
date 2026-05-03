@@ -7,8 +7,8 @@ description: "Wire up monorel against a Bitbucket Cloud repository: configuratio
 
 monorel's Bitbucket provider talks to [Bitbucket Cloud](https://bitbucket.org) via the standard Bitbucket REST API v2. The implementation is hand-rolled against `net/http` (no SDK), so the provider has no extra direct dependencies and works on any platform Go does.
 
-::: info Available in v0.13+
-The Bitbucket provider landed in monorel v0.13.0. Earlier versions support `github`, `gitea`, and `gitlab` only.
+::: info Available in v0.14+
+The Bitbucket provider landed in monorel v0.14.0. Earlier versions support `github`, `gitea`, and `gitlab` only.
 :::
 
 ::: warning Bitbucket Cloud only
@@ -129,6 +129,10 @@ Bitbucket Cloud has no first-class "Release" concept analogous to GitHub Release
 
 Consequence: `monorel publish` does nothing on Bitbucket. It's safe to run (the command exits successfully without making any API calls), but the canonical record of what changed in each release is the `CHANGELOG.md` entry. The pipeline above includes `monorel publish` for symmetry with the other providers; you can omit it without loss.
 
+::: warning `monorel publish` still requires the auth env vars
+The publish command constructs the provider client before noticing it has nothing to do, so `BITBUCKET_EMAIL` and `BITBUCKET_TOKEN` must still be set in the environment when it runs. Constructor validation (including the `/2.0/user` username probe) fires before the no-op check; missing or invalid credentials surface as a constructor error, not a clean exit.
+:::
+
 If you need release notes shown in a UI, link the per-package CHANGELOG file from the repo's README or your project's docs site.
 
 ## Branch protection
@@ -142,7 +146,7 @@ Bitbucket calls these "branch restrictions." Two points:
 
 ### `provider: unknown provider "bitbucket"`
 
-monorel binary is older than v0.13.0 (when the Bitbucket provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
+monorel binary is older than v0.14.0 (when the Bitbucket provider landed). Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
 
 ### `bitbucket: probe username: 401 Unauthorized`
 

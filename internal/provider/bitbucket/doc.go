@@ -16,8 +16,11 @@
 //
 // Git over HTTPS uses a different identifier: <bitbucket-username>:<token>
 // (NOT email). The provider client probes /2.0/user on first call to
-// learn the username and caches it. Callers that need to construct
-// an HTTPS git URL ask for the username via the cached state.
+// learn the username (used internally to validate the token's
+// read:account scope at construction time) and caches it. External
+// shell wrappers that need to construct an HTTPS git URL set the
+// username themselves via a CI variable; today no exported accessor
+// surfaces the cached username outside the package.
 //
 // # Releases
 //

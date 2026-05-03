@@ -46,11 +46,18 @@ func New(ctx context.Context, cfg config.ProviderConfig, token string) (provider
 			Token: token,
 		})
 	case config.ProviderBitbucket:
+		var email string
+		for _, name := range provider.EmailEnvVars(config.ProviderBitbucket) {
+			if v := os.Getenv(name); v != "" {
+				email = v
+				break
+			}
+		}
 		return bitbucket.New(ctx, bitbucket.Options{
 			Workspace: cfg.Owner,
 			Repo:      cfg.Repo,
 			Host:      cfg.Host,
-			Email:     os.Getenv("BITBUCKET_EMAIL"),
+			Email:     email,
 			Token:     token,
 		})
 	default:
