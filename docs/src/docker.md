@@ -84,5 +84,5 @@ Then `monorel plan`, `monorel add`, etc. work as if it were installed directly.
 ## Notes
 
 - The image runs as root by default. The files monorel creates (`.changeset/*.md`, `CHANGELOG.md` updates, the release commit) end up owned by uid 0 in your working tree. On Linux that's annoying; on macOS / Windows with Docker Desktop, the file-sharing layer handles ownership translation automatically.
-- The image bundles `git`. Your repo must be a real git working tree (`monorel release` expects to commit + tag).
+- The image bundles `git` and the Go toolchain. `git` is needed because `monorel release` commits and tags. The Go toolchain is needed because the `apply` step runs `go mod tidy` (offline, against a seeded local cache) so the release commit's `go.sum` is canonically clean for the proxy-published state. The image's Go version pins what tidy can resolve; use a release whose Go version satisfies your modules' `go` directive.
 - `monorel release` creates the commit + tag inside the container. Use `git push --follow-tags` from the host afterward — that's not the container's job.

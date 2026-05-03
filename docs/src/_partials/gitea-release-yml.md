@@ -13,6 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      # Required so monorel's apply step can run `go mod tidy`. See
+      # release-pr.yml for the rationale.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: release

@@ -18,4 +18,7 @@ New direct dependencies (promoted from indirect via existing `golang.org/x/mod`)
 - `golang.org/x/mod/sumdb/dirhash` for the `h1:` hash.
 - `golang.org/x/mod/module` for path / version escaping.
 
-**Action note:** `go` must be on `PATH` at apply time. GitHub-hosted runners include a recent Go binary, but pinning is safer than relying on the runner's pre-installed version. Workflows using `disaresta-org/monorel/ci/github` should add `actions/setup-go@v5` with `go-version-file: go.mod` ahead of the monorel action to guarantee a Go that satisfies every released module's `go` directive. The action's README has updated example snippets.
+**Pipeline-side note:** `go` must be on `PATH` at apply time.
+
+- **GitHub Actions / Gitea Actions**: add `actions/setup-go@v5` with `go-version-file: go.mod` ahead of the `disaresta-org/monorel/ci/github` action. GitHub-hosted runners include a recent Go binary, but pinning is safer than relying on the runner's pre-installed version. The example workflows in the README and under `examples/{github,gitea}/` have been updated.
+- **GitLab CI (Docker image)**: the `ghcr.io/disaresta-org/monorel` image's runtime base switched from `alpine:3.20` to `golang:1.26-alpine` so `go` is on `PATH` inside the container. Adds ~150MB to the image; pull once per runner and amortize over releases. Pin a Go version compatible with your modules' `go` directive by choosing the matching monorel image tag.

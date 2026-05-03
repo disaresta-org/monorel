@@ -18,6 +18,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # `monorel apply` runs `go mod tidy` (offline, against a seeded
+      # local cache) so the release commit's go.sum is canonically
+      # clean. Pin Go via the released module's directive.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - uses: disaresta-org/monorel/ci/github@v0.6.0
         with:
           command: pr
