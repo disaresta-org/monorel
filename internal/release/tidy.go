@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // runOfflineTidy execs `go mod tidy` in modDir against the seeded
@@ -54,6 +55,7 @@ func offlineTidyEnv() []string {
 		"TMPDIR",
 		"LANG",
 		"GOMODCACHE",
+		"GOCACHE", // tidy may compile to discover deps; let it reuse the build cache.
 	}
 	env := make([]string, 0, len(inherit)+8)
 	for _, k := range inherit {
@@ -63,7 +65,7 @@ func offlineTidyEnv() []string {
 	}
 	// LC_* locale variables: pass through any that are set.
 	for _, e := range os.Environ() {
-		if len(e) > 3 && e[:3] == "LC_" {
+		if strings.HasPrefix(e, "LC_") {
 			env = append(env, e)
 		}
 	}

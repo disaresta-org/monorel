@@ -86,10 +86,14 @@ func seedModuleCache(opts Options) (cleanup func(), err error) {
 		}
 
 		entry, err := writeCacheEntry(mc, mv, modDir, modBytes, now)
+		// Append unconditionally: writeCacheEntry returns its
+		// (partially-populated) entry on error too, and cleanup
+		// must be able to remove whatever it wrote before failing.
+		// Empty fields in entry round-trip safely through os.Remove.
+		seeded = append(seeded, entry)
 		if err != nil {
 			return cleanup, fmt.Errorf("seed module cache for %s@%s: %w", mv.Path, mv.Version, err)
 		}
-		seeded = append(seeded, entry)
 	}
 
 	return cleanup, nil
@@ -154,40 +158,19 @@ func writeCacheEntry(mc string, mv module.Version, modDir string, modBytes []byt
 	return entry, nil
 }
 
-// goModCache returns the developer's GOMODCACHE. Cached on first
-// call. Falls back to $GOPATH/pkg/mod if `go env` fails.
-var (
-	goModCacheValue string
-	goModCacheErr   error
-	goModCacheDone  bool
-)
-
+// goModCache returns the developer's GOMODCACHE. One subprocess
+// call per invocation; the orchestrator caches the result for the
+// duration of a single tidy pass and threads it down to helpers.
 func goModCache() (string, error) {
-	if goModCacheDone {
-		return goModCacheValue, goModCacheErr
-	}
-	goModCacheDone = true
-
 	out, err := exec.Command("go", "env", "GOMODCACHE").Output()
 	if err != nil {
-		goModCacheErr = fmt.Errorf("`go env GOMODCACHE` failed: %w", err)
-		return "", goModCacheErr
+		return "", fmt.Errorf("`go env GOMODCACHE` failed: %w", err)
 	}
 	v := strings.TrimSpace(string(out))
 	if v == "" {
-		goModCacheErr = fmt.Errorf("`go env GOMODCACHE` returned empty")
-		return "", goModCacheErr
+		return "", fmt.Errorf("`go env GOMODCACHE` returned empty")
 	}
-	goModCacheValue = v
 	return v, nil
-}
-
-// resetGoModCacheForTesting clears the cached `go env GOMODCACHE`
-// result so tests can point each invocation at a fresh tempdir.
-func resetGoModCacheForTesting() {
-	goModCacheValue = ""
-	goModCacheErr = nil
-	goModCacheDone = false
 }
 
 // tagVersion returns the version part of a release tag.
