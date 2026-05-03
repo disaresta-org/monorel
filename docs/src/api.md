@@ -38,18 +38,21 @@ Full GoDoc with runnable examples lives on [pkg.go.dev](https://pkg.go.dev/monor
 The `doctor` package wraps a small, extensible check-runner. Today it ships a single check, `revived-changeset`, that catches a common failure mode: when a contributor branches from `main` BEFORE a release commit and squash-merges later, GitHub re-introduces the changeset files the release commit deleted. The next release plan re-ships the same content under a new version.
 
 ```go
+package main
+
 import (
 	"fmt"
+	"os/exec"
+	"sort"
+	"strings"
 
 	"monorel.disaresta.com/doctor"
-	"monorel.disaresta.com/internal/git" // or your own git seam
 )
 
 func main() {
-	repo := git.Open(".")
 	findings, err := doctor.Run(doctor.Options{
 		RepoDir: ".",
-		GitLog:  repo.DeletedFilesInCommitsMatching,
+		GitLog:  shellGitLog("."),
 	})
 	if err != nil {
 		panic(err)
@@ -58,9 +61,39 @@ func main() {
 		fmt.Printf("%s [%s] %s: %s\n", f.Severity, f.CheckName, f.Path, f.Message)
 	}
 }
+
+// shellGitLog adapts `git log` to doctor.GitLog. Returns every file
+// path deleted by a commit whose message contains messageGrep as a
+// case-sensitive literal substring, deduped and sorted.
+func shellGitLog(dir string) doctor.GitLog {
+	return func(messageGrep string) ([]string, error) {
+		cmd := exec.Command("git", "log",
+			"--diff-filter=D", "--name-only", "--format=",
+			"--fixed-strings", "--grep="+messageGrep)
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, err
+		}
+		seen := map[string]struct{}{}
+		var paths []string
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			if _, dup := seen[line]; dup {
+				continue
+			}
+			seen[line] = struct{}{}
+			paths = append(paths, line)
+		}
+		sort.Strings(paths)
+		return paths, nil
+	}
+}
 ```
 
-`doctor.GitLog` is a function value, not an interface, so callers can adapt any git library (go-git, libgit2 bindings, a local cache) without conforming to a struct shape. Pass any function with signature `func(messageGrep string) (deletedPaths []string, err error)` that scans commit history for deletions in commits whose message contains the substring.
+`doctor.GitLog` is a function value, not an interface, so callers can adapt any git library (go-git, libgit2 bindings, an in-memory cache) without conforming to a struct shape. The `os/exec` form above is the simplest adapter; replace it with a call into your existing git library if you have one. The contract: `func(messageGrep string) (deletedPaths []string, err error)` returning every path deleted by a commit whose subject or body contains the literal substring.
 
 ## What's NOT public
 
