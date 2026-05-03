@@ -79,3 +79,69 @@ func offlineTidyEnv() []string {
 	)
 	return env
 }
+
+// primeModuleCache populates the local module cache with the
+// third-party deps modDir's go.mod transitively requires. Subsequent
+// offline tidy with GOPROXY=off can resolve those deps from the
+// cache without reaching out to the network.
+//
+// Uses the inherited GOPROXY (typically https://proxy.golang.org,direct)
+// and GOSUMDB so go.sum hashes are verified during download. Does
+// NOT mutate go.sum: `go mod download` reads go.sum, downloads the
+// listed modules, and writes nothing. The download is bounded by the
+// existing entries in go.sum: any module not already pinned wouldn't
+// be downloaded (tidy adds pins later, after the in-plan siblings
+// are seeded).
+//
+// PATH, HOME, USER, TMPDIR, LANG, LC_*, GOMODCACHE, GOCACHE, GOPROXY,
+// GOSUMDB pass through.
+func primeModuleCache(modDir string) error {
+	cmd := exec.Command("go", "mod", "download")
+	cmd.Dir = modDir
+	cmd.Env = primeCacheEnv()
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("prime module cache in %s: %w\n%s\n\n"+
+			"Hint: this typically means GOPROXY isn't reachable from this environment. "+
+			"Confirm `GOPROXY` is a real proxy URL (e.g. https://proxy.golang.org,direct), "+
+			"or set `GOPROXY=direct` to fetch straight from the source repo",
+			modDir, err, out)
+	}
+	return nil
+}
+
+// primeCacheEnv builds the env slice for the prime-cache subprocess.
+// Mirrors offlineTidyEnv's "scratch env, no caller GOFLAGS leak"
+// shape, but inherits GOPROXY and GOSUMDB so download can fetch from
+// the network.
+func primeCacheEnv() []string {
+	inherit := []string{
+		"PATH",
+		"HOME",
+		"USER",
+		"TMPDIR",
+		"LANG",
+		"GOMODCACHE",
+		"GOCACHE",
+		"GOPROXY",
+		"GOSUMDB",
+	}
+	env := make([]string, 0, len(inherit)+8)
+	for _, k := range inherit {
+		if v, ok := os.LookupEnv(k); ok {
+			env = append(env, k+"="+v)
+		}
+	}
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "LC_") {
+			env = append(env, e)
+		}
+	}
+	env = append(env,
+		"GOWORK=off",
+		"GOFLAGS=",
+		"GOTOOLCHAIN=local",
+	)
+	return env
+}
