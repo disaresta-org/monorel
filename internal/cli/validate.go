@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	loglayer "go.loglayer.dev/v2"
 
 	"monorel.disaresta.com/internal/git"
 	"monorel.disaresta.com/validate"
@@ -74,9 +75,11 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	} else {
-		if err := writeFindingsText(cmd.OutOrStdout(), findings); err != nil {
+		log, err := newLogger(cmd)
+		if err != nil {
 			return err
 		}
+		writeFindingsText(log, findings)
 	}
 
 	if validate.HasErrors(findings) {
@@ -88,13 +91,15 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// writeFindingsText writes a human-readable summary. Empty findings
-// produce "No findings." Warnings and errors are grouped by severity
-// in fixed order (errors first, warnings second).
-func writeFindingsText(w io.Writer, findings []validate.Finding) error {
+// writeFindingsText emits a human-readable summary through the
+// logger's Info channel (no level prefix on Info; output matches the
+// pre-loglayer fmt-based shape). Empty findings produce
+// "No findings." Warnings and errors are grouped by severity in
+// fixed order (errors first, warnings second).
+func writeFindingsText(log *loglayer.LogLayer, findings []validate.Finding) {
 	if len(findings) == 0 {
-		_, err := fmt.Fprintln(w, "No findings. monorel.toml + .changeset/*.md look valid.")
-		return err
+		log.Info("No findings. monorel.toml + .changeset/*.md look valid.")
+		return
 	}
 
 	errCount := 0
@@ -119,9 +124,8 @@ func writeFindingsText(w io.Writer, findings []validate.Finding) error {
 				continue
 			}
 			if !header {
-				if _, err := fmt.Fprintf(w, "\n%s:\n", headers[sev]); err != nil {
-					return err
-				}
+				log.Info("")
+				log.Info("%s:", headers[sev])
 				header = true
 			}
 			loc := ""
@@ -130,14 +134,12 @@ func writeFindingsText(w io.Writer, findings []validate.Finding) error {
 			} else if f.Package != "" {
 				loc = " [" + f.Package + "]"
 			}
-			if _, err := fmt.Fprintf(w, "  - %s: %s%s\n", f.Code, f.Message, loc); err != nil {
-				return err
-			}
+			log.Info("  - %s: %s%s", f.Code, f.Message, loc)
 		}
 	}
 
-	_, err := fmt.Fprintf(w, "\n%d error(s), %d warning(s).\n", errCount, warnCount)
-	return err
+	log.Info("")
+	log.Info("%d error(s), %d warning(s).", errCount, warnCount)
 }
 
 // writeFindingsJSON emits a stable JSON document. The shape is:

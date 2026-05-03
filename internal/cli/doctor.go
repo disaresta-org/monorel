@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	loglayer "go.loglayer.dev/v2"
 
 	"monorel.disaresta.com/doctor"
 	"monorel.disaresta.com/internal/git"
@@ -65,9 +66,11 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	} else {
-		if err := writeDoctorText(cmd.OutOrStdout(), findings); err != nil {
+		log, err := newLogger(cmd)
+		if err != nil {
 			return err
 		}
+		writeDoctorText(log, findings)
 	}
 
 	if hasDoctorErrors(findings) {
@@ -76,10 +79,10 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
+func writeDoctorText(log *loglayer.LogLayer, findings []doctor.Finding) {
 	if len(findings) == 0 {
-		_, err := fmt.Fprintln(w, "No findings. Repository state looks healthy.")
-		return err
+		log.Info("No findings. Repository state looks healthy.")
+		return
 	}
 	errCount := 0
 	warnCount := 0
@@ -102,22 +105,19 @@ func writeDoctorText(w io.Writer, findings []doctor.Finding) error {
 				continue
 			}
 			if !header {
-				if _, err := fmt.Fprintf(w, "\n%s:\n", severityLabel[sev]); err != nil {
-					return err
-				}
+				log.Info("")
+				log.Info("%s:", severityLabel[sev])
 				header = true
 			}
 			loc := ""
 			if f.Path != "" {
 				loc = " [" + f.Path + "]"
 			}
-			if _, err := fmt.Fprintf(w, "  - %s: %s%s\n", f.CheckName, f.Message, loc); err != nil {
-				return err
-			}
+			log.Info("  - %s: %s%s", f.CheckName, f.Message, loc)
 		}
 	}
-	_, err := fmt.Fprintf(w, "\n%d error(s), %d warning(s).\n", errCount, warnCount)
-	return err
+	log.Info("")
+	log.Info("%d error(s), %d warning(s).", errCount, warnCount)
 }
 
 // writeDoctorJSON emits the findings + headline counts. The shape
