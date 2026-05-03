@@ -117,6 +117,12 @@ func tidySubmoduleGoSums(opts Options) error {
 			}
 		}
 
+		if tidyHook != nil {
+			if err := tidyHook(i); err != nil {
+				return err
+			}
+		}
+
 		after, err := readGoSums(opts.RepoDir, affected)
 		if err != nil {
 			return err
@@ -354,3 +360,9 @@ func (e *errFixpointNotReached) Error() string {
 	}
 	return b.String()
 }
+
+// tidyHook is a per-iteration test hook used by the fixpoint loop
+// to inject non-determinism (or any other behavior) for testing
+// errFixpointNotReached. Production code never sets it; the only
+// caller is the gosum_test.go suite. nil means "no-op."
+var tidyHook func(iteration int) error

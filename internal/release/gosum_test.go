@@ -2,6 +2,8 @@ package release
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -629,4 +631,55 @@ func dirhashOfModule(repoDir, sub, importPath, version string) (string, error) {
 		return "", err
 	}
 	return dirhash.HashZip(tmpZip.Name(), dirhash.Hash1)
+}
+
+// TestTidySubmoduleGoSums_FixpointNotReached_SurfacesDiagnosticError
+// pins the diagnostic path. Inject a hook that mutates an affected
+// sub-module's go.sum on every iteration so the loop never
+// converges; assert it returns errFixpointNotReached after
+// maxTidyIterations and the message includes the per-iteration
+// diff payload.
+func TestTidySubmoduleGoSums_FixpointNotReached_SurfacesDiagnosticError(t *testing.T) {
+	opts, _ := setupSubmoduleFixture(t, true /* aRequiresB */)
+
+	// Inject non-determinism: append a unique line to a/go.sum
+	// after each tidy iteration. The next iteration's "before"
+	// snapshot will see the appended line; tidy may or may not
+	// remove it (depending on whether it parses as a valid sum
+	// line); either way, before != after, so the loop never
+	// converges.
+	originalHook := tidyHook
+	t.Cleanup(func() { tidyHook = originalHook })
+	tidyHook = func(iteration int) error {
+		path := filepath.Join(opts.RepoDir, "a", "go.sum")
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = fmt.Fprintf(f, "# fixpoint-test marker iteration=%d\n", iteration)
+		return err
+	}
+
+	err := tidySubmoduleGoSums(opts)
+	if err == nil {
+		t.Fatal("tidySubmoduleGoSums: want errFixpointNotReached, got nil")
+	}
+	var fpErr *errFixpointNotReached
+	if !errors.As(err, &fpErr) {
+		t.Fatalf("tidySubmoduleGoSums: want *errFixpointNotReached, got %T: %v", err, err)
+	}
+	if fpErr.iterations != 10 {
+		t.Errorf("iterations: got %d, want 10", fpErr.iterations)
+	}
+	msg := fpErr.Error()
+	if !strings.Contains(msg, "did not converge after 10 iterations") {
+		t.Errorf("error message missing convergence header: %q", msg)
+	}
+	if !strings.Contains(msg, "monorel/issues") {
+		t.Errorf("error message missing issue-filing hint: %q", msg)
+	}
+	if !strings.Contains(msg, "BEFORE:") || !strings.Contains(msg, "AFTER:") {
+		t.Errorf("error message missing diff payload: %q", msg)
+	}
 }
