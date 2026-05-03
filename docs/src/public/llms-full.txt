@@ -117,6 +117,7 @@ Reserved filenames in `.changeset/` (NOT changesets): `pre.json`, `README.md`, `
 
 ```json
 {
+  "schemaVersion": 1,
   "mode": "pre",
   "channel": "rc",
   "counters": {
@@ -125,6 +126,8 @@ Reserved filenames in `.changeset/` (NOT changesets): `pre.json`, `README.md`, `
   }
 }
 ```
+
+`schemaVersion` identifies the on-disk format. Files written by older monorel versions omit the field; they load as version 1 (backward-compatible). A file with `schemaVersion` higher than this monorel build supports is rejected with a clear error.
 
 Created by `monorel pre enter <channel>`; deleted by `monorel pre exit`. While the file exists:
 

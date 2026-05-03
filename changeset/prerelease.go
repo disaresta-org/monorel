@@ -17,6 +17,14 @@ import (
 // file; the next stable release bumps from the last *stable* tag,
 // applying every changeset accumulated since.
 type PreState struct {
+	// SchemaVersion identifies the on-disk format. Currently 1.
+	// Older files written before this field existed deserialize as
+	// 0 and are treated as version 1 (backward-compatible). Newer
+	// versions (greater than [PreStateCurrentSchemaVersion]) are
+	// rejected with a clear error so a stale monorel binary can't
+	// silently misread a future format.
+	SchemaVersion int `json:"schemaVersion,omitempty"`
+
 	// Mode is always "pre" while the state file exists. Reserved
 	// for forward-compatibility with future modes (e.g. "exit"
 	// rendering the file inert without deleting it).
@@ -35,6 +43,11 @@ type PreState struct {
 // PreStateFilename is the basename of the on-disk state file.
 const PreStateFilename = "pre.json"
 
+// PreStateCurrentSchemaVersion is the version this build of monorel
+// writes to .changeset/pre.json. Bump (and add a migration in
+// LoadPreState) when the on-disk shape changes incompatibly.
+const PreStateCurrentSchemaVersion = 1
+
 // LoadPreState reads .changeset/pre.json. Returns (nil, nil) if the
 // file does not exist (the common, "not in pre-release mode" case).
 func LoadPreState(dir string) (*PreState, error) {
@@ -49,6 +62,18 @@ func LoadPreState(dir string) (*PreState, error) {
 	var s PreState
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	// Schema-version gate. 0 means "written by a monorel before the
+	// field existed"; treat as version 1 (the original shape). A
+	// version higher than this build understands is a hard error
+	// because we can't safely interpret unknown fields or migrated
+	// semantics.
+	if s.SchemaVersion == 0 {
+		s.SchemaVersion = 1
+	}
+	if s.SchemaVersion > PreStateCurrentSchemaVersion {
+		return nil, fmt.Errorf("parse %s: schemaVersion %d is newer than this build supports (max %d); upgrade monorel",
+			path, s.SchemaVersion, PreStateCurrentSchemaVersion)
 	}
 	if s.Mode != "pre" {
 		return nil, fmt.Errorf("parse %s: unknown mode %q (expected \"pre\")", path, s.Mode)
@@ -68,6 +93,9 @@ func (s *PreState) Write(dir string) error {
 	}
 	if s.Counters == nil {
 		s.Counters = map[string]int{}
+	}
+	if s.SchemaVersion == 0 {
+		s.SchemaVersion = PreStateCurrentSchemaVersion
 	}
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

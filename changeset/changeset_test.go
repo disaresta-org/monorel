@@ -403,6 +403,82 @@ func TestPreState_RejectsInvalid(t *testing.T) {
 	}
 }
 
+func TestPreState_LegacyFileWithoutSchemaVersionLoadsAsV1(t *testing.T) {
+	// pre.json files written by monorel before SchemaVersion existed
+	// have no `schemaVersion` field. They should load fine, with
+	// SchemaVersion treated as 1 (the original on-disk shape).
+	dir := t.TempDir()
+	path := filepath.Join(dir, PreStateFilename)
+	legacy := `{"mode":"pre","channel":"rc","counters":{"foo":2}}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := LoadPreState(dir)
+	if err != nil {
+		t.Fatalf("LoadPreState on legacy file: %v", err)
+	}
+	if got.SchemaVersion != 1 {
+		t.Errorf("legacy file should load as SchemaVersion 1; got %d", got.SchemaVersion)
+	}
+	if got.Channel != "rc" || got.Counters["foo"] != 2 {
+		t.Errorf("legacy fields not preserved: %+v", got)
+	}
+}
+
+func TestPreState_RejectsFutureSchemaVersion(t *testing.T) {
+	// A pre.json written by a NEWER monorel (schemaVersion bumped
+	// past what this build understands) is rejected hard, so the
+	// stale binary can't silently misread the future format.
+	dir := t.TempDir()
+	path := filepath.Join(dir, PreStateFilename)
+	future := `{"schemaVersion":99,"mode":"pre","channel":"rc"}`
+	if err := os.WriteFile(path, []byte(future), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadPreState(dir)
+	if err == nil {
+		t.Fatal("expected error for future schemaVersion")
+	}
+	if !strings.Contains(err.Error(), "schemaVersion 99") {
+		t.Errorf("error should name the offending version; got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "upgrade monorel") {
+		t.Errorf("error should hint at the fix; got: %v", err)
+	}
+}
+
+func TestPreState_WriteStampsCurrentSchemaVersion(t *testing.T) {
+	// Calling Write on a PreState with SchemaVersion zero stamps
+	// the current version. Round-trips back through Load.
+	dir := t.TempDir()
+	original := &PreState{Mode: "pre", Channel: "rc"}
+	if err := original.Write(dir); err != nil {
+		t.Fatal(err)
+	}
+	if original.SchemaVersion != PreStateCurrentSchemaVersion {
+		t.Errorf("Write should stamp SchemaVersion; got %d, want %d",
+			original.SchemaVersion, PreStateCurrentSchemaVersion)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, PreStateFilename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"schemaVersion": 1`) {
+		t.Errorf("on-disk file should include schemaVersion field; got:\n%s", raw)
+	}
+
+	got, err := LoadPreState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SchemaVersion != 1 {
+		t.Errorf("round-tripped SchemaVersion = %d, want 1", got.SchemaVersion)
+	}
+}
+
 func TestPreState_RemoveIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	if err := RemovePreState(dir); err != nil {
