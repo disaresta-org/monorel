@@ -278,6 +278,17 @@ list, err := changeset.LoadAll(".changeset/")  // every *.md file in the dir
 
 name := changeset.RandomName()       // "<adj>-<noun>"
 ok := changeset.IsValidName("name")  // [a-z0-9]+(-[a-z0-9]+)*
+
+// Pre-release-mode state.
+pre, err := changeset.LoadPreState(".changeset/")  // nil if not in pre mode
+// pre.SchemaVersion (currently 1; missing-field files load as 1)
+// pre.Mode = "pre", pre.Channel = "rc", pre.Counters map[string]int
+pre.Write(".changeset/")    // stamps schemaVersion automatically
+changeset.RemovePreState(".changeset/")  // idempotent
+
+// Constants:
+// changeset.PreStateFilename             = "pre.json"
+// changeset.PreStateCurrentSchemaVersion = 1
 ```
 
 ### `monorel.disaresta.com/plan` (the load-bearing logic)
