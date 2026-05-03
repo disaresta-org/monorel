@@ -40,6 +40,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - uses: disaresta-org/monorel/ci/github@v1
         with:
           command: pr
@@ -62,10 +65,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - uses: disaresta-org/monorel/ci/github@v1
         with:
           command: release
 ```
+
+## Requirements
+
+- **`go` on `PATH`.** monorel's `apply` step runs `go mod tidy` (offline, against a seeded local cache) in every released sub-module that requires an in-plan sibling, so the release commit's `go.sum` is canonically clean for the proxy-published state. The runner needs a `go` binary whose version satisfies every released module's `go` directive — use `actions/setup-go@v5` with `go-version-file: go.mod` (or pin `go-version` explicitly) to install the right version. GitHub-hosted runners include a recent Go by default, but pinning is safer than relying on the runner's pre-installed version, especially when modules use a recent `go` directive.
 
 ## Notes
 

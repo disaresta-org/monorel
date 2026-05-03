@@ -18,4 +18,4 @@ New direct dependencies (promoted from indirect via existing `golang.org/x/mod`)
 - `golang.org/x/mod/sumdb/dirhash` for the `h1:` hash.
 - `golang.org/x/mod/module` for path / version escaping.
 
-`go` must be on `PATH` at apply time (already required by every existing release-pipeline runner).
+**Action note:** `go` must be on `PATH` at apply time. GitHub-hosted runners include a recent Go binary, but pinning is safer than relying on the runner's pre-installed version. Workflows using `disaresta-org/monorel/ci/github` should add `actions/setup-go@v5` with `go-version-file: go.mod` ahead of the monorel action to guarantee a Go that satisfies every released module's `go` directive. The action's README has updated example snippets.
