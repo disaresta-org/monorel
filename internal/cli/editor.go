@@ -12,13 +12,13 @@ import (
 
 // editorPlaceholder seeds the temp file the editor opens. Lines
 // beginning with "#" are stripped on read-back, mirroring git
-// commit's convention; the closing "----" delimiter is the cue
-// that follows the final commented prompt line.
+// commit's convention.
 const editorPlaceholder = `
 
 # Write the changelog body for this changeset.
-# Markdown is supported. Lines starting with "#" are ignored.
-# Save and close the editor to confirm; an empty body cancels.
+# Markdown is supported, except that lines starting with "#" are
+# stripped (so "# Heading" is dropped; use "## Heading" or higher).
+# Save and close the editor to confirm; an empty body aborts.
 `
 
 // promptViaEditor opens $EDITOR (or $VISUAL, then a platform default)
@@ -74,6 +74,11 @@ func promptViaEditor(initial, editorOverride string) (string, error) {
 // resolveEditor returns the first non-empty match in priority order:
 // $VISUAL, $EDITOR, then a platform fallback. Returns "" if no
 // fallback is available.
+//
+// The returned value is exec'd by splitting on whitespace
+// ([strings.Fields]); shell quoting is not honored. EDITOR values like
+// `code --wait` work; values like `EDITOR='emacsclient -a "" -c'`
+// (relying on quoted-empty-string args) need a wrapper script.
 func resolveEditor() string {
 	if v := os.Getenv("VISUAL"); v != "" {
 		return v

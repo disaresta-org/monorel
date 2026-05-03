@@ -102,6 +102,15 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
+		// Honor the editor placeholder's "an empty body aborts"
+		// promise: an interactive author who saved an empty file
+		// almost certainly meant to back out, not write a release
+		// note with no description. (Empty bodies via --message
+		// are still allowed; that's an explicit non-interactive
+		// choice, not an accident.)
+		if message == "" {
+			return errors.New("empty body; aborting (write something or pass --message explicitly to allow an empty body)")
+		}
 	case message != "":
 		// already set; nothing to do.
 	case huhEligible && len(pkgFlags) == 0:

@@ -192,6 +192,30 @@ func TestAddCmd_EditorFlag_WritesBodyFromEditor(t *testing.T) {
 	}
 }
 
+func TestAddCmd_EditorEmptyBodyAborts(t *testing.T) {
+	f := newFixture(t, twoPackageTOML, nil, nil)
+
+	// The fake editor leaves an empty file (only commented lines,
+	// which the strip step removes). The placeholder promises this
+	// "aborts"; verify the code keeps that promise.
+	editor := fakeEditor(t, "# only a comment, no body content")
+	t.Setenv("EDITOR", editor)
+	t.Setenv("VISUAL", "")
+
+	_, _, err := runCmd(t,
+		"add",
+		"--config", f.configPath,
+		"--package", "foo:patch",
+		"--editor",
+	)
+	if err == nil {
+		t.Fatal("expected abort error on empty editor body")
+	}
+	if !strings.Contains(err.Error(), "empty body") {
+		t.Errorf("error should mention empty body; got: %v", err)
+	}
+}
+
 func TestAddCmd_EditorAndMessageAreMutuallyExclusive(t *testing.T) {
 	f := newFixture(t, twoPackageTOML, nil, nil)
 	_, _, err := runCmd(t,
