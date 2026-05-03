@@ -31,6 +31,14 @@ Yes. monorel reads every `.changeset/*.md` file regardless of which PR added it;
 
 Rule of thumb: write one changeset per **coherent change**, not one per PR. A PR with N independent changes deserves N changeset files; a PR with one change spanning N packages deserves one multi-package changeset.
 
+### How do I write a multi-paragraph changeset body?
+
+Three ways, depending on how much markdown you're writing:
+
+- **In the interactive prompt** (default `monorel add`): the body field is a multi-line textarea. The keybindings are `enter` for new line, `ctrl+s` to submit, `ctrl+e` to escape into `$VISUAL` / `$EDITOR` mid-flow, `ctrl+c` to cancel. (huh's default keymap binds `enter` to "submit"; monorel rebinds it for the body field because multi-paragraph markdown is the common case.)
+- **From your editor up front**: `monorel add --editor` (or `-e`) opens `$VISUAL` / `$EDITOR` against a temp file pre-seeded with a commented prompt block. Lines starting with `#` are stripped on save (so `# Heading` is dropped; use `## Heading` or higher). An empty body aborts.
+- **Non-interactive**: `monorel add --package foo:patch --message $'line one\n\nline two'`. Bash `$'...'` syntax interprets `\n` as a real newline. Mutually exclusive with `--editor`.
+
 ### Can multiple PRs target the same package in the same release window?
 
 Yes. Multiple changesets stacking on one package combine: the **strongest bump level** wins, and every changeset's body appears in the rendered CHANGELOG entry. Three PRs each adding a `patch` changeset to `transports/foo` plus one PR adding a `minor` produce a single `minor` release containing all four entries.
