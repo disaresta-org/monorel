@@ -65,8 +65,8 @@ func tidySubmoduleGoSums(opts Options) error {
 	}
 
 	// 4. Seed the cache with in-plan releases.
-	cleanup, err := seedModuleCache(opts)
-	defer cleanup()
+	seeded, err := seedModuleCache(opts)
+	defer clearSeededEntries(seeded)
 	if err != nil {
 		return err
 	}
