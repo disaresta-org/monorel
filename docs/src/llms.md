@@ -58,4 +58,3 @@ If you're not sure, start with `llms-full.txt`. It's the lower-friction option.
 
 - **Source code** at [github.com/disaresta-org/monorel](https://github.com/disaresta-org/monorel) is small enough to fit in most coding assistants' context.
 - **pkg.go.dev** (`pkg.go.dev/monorel.disaresta.com`) renders all GoDoc for the public library packages, including type signatures and doc comments. Useful for fact-checking the model's output.
-- **This docs site** is itself indexed by most search-augmented assistants. Asking "from the monorel docs, ..." often works without any setup.
