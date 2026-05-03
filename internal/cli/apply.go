@@ -73,12 +73,15 @@ func runApply(cmd *cobra.Command, _ []string) error {
 
 	// Headline summary: the GitHub Action wrapper parses these lines
 	// (the "Applied N release(s) at <sha>:" / "  staged: <pkg> <ver>"
-	// shape). Keep them literal.
-	rt.Log.Info("Applied %d release(s) at %s:", len(res.Releases), short(res.CommitSHA))
+	// shape). Write directly to stdout instead of going through the
+	// logger so `-q` (which suppresses Info) can't silently break the
+	// grep contract: this is machine-readable output, not chatter.
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Applied %d release(s) at %s:\n", len(res.Releases), short(res.CommitSHA))
 	for _, r := range res.Releases {
 		// Apply doesn't create tags; the planned tag name is what
 		// `monorel tag` will produce for this release.
-		rt.Log.Info("  staged: %s", r.Tag)
+		fmt.Fprintf(out, "  staged: %s\n", r.Tag)
 	}
 	rt.Log.Info("Run `monorel tag` (typically post-merge) to create tags from this commit's trailers.")
 	return nil

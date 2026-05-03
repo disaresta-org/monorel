@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"monorel.disaresta.com/internal/release"
@@ -50,11 +52,13 @@ func runTag(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Headline summary: keep the wording stable (the GitHub Action
-	// wrapper greps for these lines).
-	rt.Log.Info("Tagged %d release(s) at %s:", len(res.Releases), short(res.CommitSHA))
+	// Headline summary: write directly to stdout (the GitHub Action
+	// wrapper greps for these lines, and `-q` suppresses Info, so
+	// routing through the logger would silently break the contract).
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Tagged %d release(s) at %s:\n", len(res.Releases), short(res.CommitSHA))
 	for _, r := range res.Releases {
-		rt.Log.Info("  %s", r.Tag)
+		fmt.Fprintf(out, "  %s\n", r.Tag)
 	}
 	rt.Log.Info("Run `git push --follow-tags && monorel publish` to publish.")
 	return nil

@@ -73,9 +73,13 @@ func runPublish(cmd *cobra.Command, _ []string) error {
 		rt.Log.Warn("Created %d/%d releases before failing.", len(published), len(infos))
 		return err
 	}
-	rt.Log.Info("Published %d release(s):", len(published))
+	// Headline summary: write directly to stdout (the GitHub Action
+	// wrapper greps for these lines, and `-q` suppresses Info, so
+	// routing through the logger would silently break the contract).
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Published %d release(s):\n", len(published))
 	for _, r := range published {
-		rt.Log.Info("  %s", r.Tag)
+		fmt.Fprintf(out, "  %s\n", r.Tag)
 	}
 	return nil
 }

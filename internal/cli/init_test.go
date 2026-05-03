@@ -429,8 +429,8 @@ changelog  = "CHANGELOG.md"
 	if err := doInit(log, initOptions{dir: dir, force: true}); err != nil {
 		t.Fatalf("doInit: %v", err)
 	}
-	if !strings.Contains(out.String(), "warning") {
-		t.Errorf("expected a warning when malformed config falls through, got:\n%s", out.String())
+	if !strings.Contains(out.String(), "could not be loaded") {
+		t.Errorf("expected the malformed-config warning when init falls through to auto-detect, got:\n%s", out.String())
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, "monorel.toml"))
 	if !strings.Contains(string(body), `owner = "auto-detected"`) || !strings.Contains(string(body), `repo  = "from-origin"`) {
