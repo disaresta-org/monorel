@@ -16,8 +16,11 @@ jobs:
   release-pr:
     runs-on: ubuntu-latest
     # Skip release-PR upserts on the release commit itself; otherwise
-    # we'd churn the PR right after merging it.
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    # we'd churn the PR right after merging it. Require BOTH the
+    # chore(release): subject prefix AND the monorel-Release: trailer
+    # in the body: a feature PR titled `chore(release): X` would also
+    # match a subject-only check, leaving the release PR un-upserted.
+    if: ${{ !(startsWith(github.event.head_commit.message, 'chore(release):') && contains(github.event.head_commit.message, 'monorel-Release:')) }}
     steps:
       - uses: actions/checkout@v4
         with:
