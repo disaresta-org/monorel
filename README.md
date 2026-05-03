@@ -54,11 +54,13 @@ Reference setups for each provider live in [`examples/`](examples/) (GitHub, Git
 - [Introduction](https://monorel.disaresta.com/introduction): why monorel + comparison vs release-please / changesets / Knope.
 - [Getting Started](https://monorel.disaresta.com/getting-started): install, init, wire up CI, ship the first release.
 - [Workflows](https://monorel.disaresta.com/workflows): ASCII diagrams of the daily flow, release cuts, pre-release cycles.
+- [Cheat Sheet](https://monorel.disaresta.com/cheat-sheet): at-a-glance command map, common one-liners, files monorel reads and writes.
 - [Configuration](https://monorel.disaresta.com/configuration): `monorel.toml` reference.
 - [CLI](https://monorel.disaresta.com/cli-reference): every command and flag.
 - [Changesets](https://monorel.disaresta.com/changesets): file format and authoring conventions.
 - Integration guides: [GitHub](https://monorel.disaresta.com/integrations/github), [Gitea / Forgejo](https://monorel.disaresta.com/integrations/gitea), [GitLab](https://monorel.disaresta.com/integrations/gitlab).
 - [FAQ](https://monorel.disaresta.com/faq): the questions that come up after the first release.
+- [Use with AI / LLMs](https://monorel.disaresta.com/llms): paste-ready `llms.txt` and `llms-full.txt` for coding assistants.
 - [Glossary](https://monorel.disaresta.com/glossary): canonical definitions of monorel terminology.
 - [Library API](https://monorel.disaresta.com/api): Go packages exposed for programmatic use.
 
@@ -78,7 +80,7 @@ The GitHub flow looks like this:
 - uses: actions/setup-go@v5
   with:
     go-version-file: go.mod
-- uses: disaresta-org/monorel/ci/github@v0.11.0
+- uses: disaresta-org/monorel/ci/github@v0.12.0
   with:
     command: pr      # or 'release' for the post-merge tag + push + publish step
 ```
