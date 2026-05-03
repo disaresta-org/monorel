@@ -61,6 +61,7 @@ func runApply(cmd *cobra.Command, _ []string) error {
 
 	res, err := release.Apply(release.Options{
 		Plan:         p,
+		Config:       rt.Config,
 		Repo:         rt.Repo,
 		RepoDir:      rt.RepoDir,
 		ChangesetDir: rt.ChangesetDir,
