@@ -24,6 +24,7 @@ The off-the-shelf options each have a sharp edge for this layout.
 | Bare-tag root (`vX.Y.Z`) | ✅ | n/a (JS layout) | ❌ prefixes mandatory | ✅ |
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
 | Cleans `go.mod` for proxy publish | ❌ | n/a (JS) | ❌ | ✅ |
+| Tidies sub-module `go.sum` at release | ❌ | n/a (JS) | ❌ | ✅ |
 | Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
 | Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab |
@@ -61,6 +62,7 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 - **Pre-release support.** `monorel pre enter rc` switches the repo to release-candidate mode; subsequent releases append `-rc.N` to the next stable version and increment a per-package counter. `pre exit` returns to stable.
 - **Provider-neutral.** GitHub, Gitea / Forgejo, and GitLab today; Bitbucket by adding a subpackage. The orchestrator never sees provider-specific types.
 - **Clean `go.mod` at release time.** Sub-modules carry dev `replace` directives and placeholder `require` versions for local cross-module work; monorel strips and pins them in the release commit so downstream consumers' `go mod tidy` resolves the published versions.
+- **Tidy sub-module `go.sum` at release time.** Pinning sibling requires shifts the `go.sum` drift problem onto consumers. monorel runs `go mod tidy` (offline, against a seeded local cache) in every released sub-module that requires an in-plan sibling, so the release commit's `go.sum` is canonically clean. No proxy roundtrip; main is `go mod tidy`-clean for every consumer on the next pull.
 
 ## When monorel is overkill
 

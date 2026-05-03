@@ -69,17 +69,29 @@ If `go env GOMODCACHE` shells out to a missing `go` binary or returns a non-exis
 runOfflineTidy(modDir string) error
 ```
 
-Exec `go mod tidy` in `modDir` with the env:
+Exec `go mod tidy` in `modDir` with explicit env hygiene. Specifically:
 
-- `GOPROXY=off`
-- `GOSUMDB=off`
-- inherited PATH / HOME / GOMODCACHE
+- **Inherited from the parent process**: `PATH`, `HOME`, `GOMODCACHE`, `USER`, `TMPDIR`, `LANG`, `LC_*`, system-shape vars only.
+- **Explicitly set**: `GOPROXY=off`, `GOSUMDB=off`, `GOWORK=off`, `GOFLAGS=`, `GOTOOLCHAIN=local` (last one prevents tidy from trying to download a different toolchain).
+- **NOT inherited**: any caller-set `GOPROXY`, `GOSUMDB`, `GOWORK`, `GOFLAGS`, `GOPRIVATE`. `GOFLAGS=-mod=vendor` set globally would otherwise break tidy; clearing the slot guarantees consistent behavior.
 
-Capture stdout/stderr; on non-zero exit, return an error wrapping the captured output. The error includes the offending module path and a hint:
+The implementation builds the env from scratch as a slice of `KEY=value` entries rather than `os.Environ()` + appends. This makes the env hygiene visible at a glance and prevents future regressions from accidentally re-introducing inherited variables.
+
+Capture combined stdout/stderr; on non-zero exit, return an error wrapping the captured output. The error includes the offending module path and a hint:
 
 > tidy failed in transports/foo: <go's error>
 >
 > Hint: this typically means the local Go module cache is missing a transitive dependency. Re-run after `go test ./...` (which populates the cache), or run `go mod download all` from the repo root.
+
+### Pre-flight cache check (out-of-plan siblings)
+
+Before running tidy, walk each affected sub-module's `go.mod` for managed-but-not-in-plan sibling requires. For each, verify that `<GOMODCACHE>/cache/download/<module>/@v/<version>.info` exists; if not, surface a precise error:
+
+> apply: pre-flight check failed for transports/foo
+>
+> The release would resolve transports/bar v1.5.0 (a monorel-managed package not in the current release plan), but its cache entry is missing. Run `go mod download go.loglayer.dev/transports/bar/v2@v1.5.0` to populate the cache, or run `go mod download all` from the repo root, then retry.
+
+Saves the maintainer from a generic "missing module" error inside tidy's output.
 
 ## Data flow
 
@@ -108,17 +120,38 @@ Hard-fail across the board. If any single sub-module's tidy fails, the whole app
 
 To minimize partial state, `tidySubmoduleGoSums` runs in two passes: first, every affected sub-module's tidy runs (working tree is mutated as tidy writes its output); only if every tidy succeeds does the orchestrator stage the changes via `opts.Repo.Add`. On failure, the working tree shows dirty `go.mod` / `go.sum` files but the git index is untouched. The maintainer recovers with `git checkout -- '*/go.mod' '*/go.sum'` and retries.
 
-The `seedModuleCache` cleanup runs via `defer` regardless of success or failure, so a failed apply doesn't leave the developer's cache polluted.
+### Cleanup contract
 
-If the developer's `GOMODCACHE` already has an entry at the same `<module>/@v/vX.Y.Z` path (e.g. from a prior `go get module@vX.Y.Z` against an existing tag), the seed overwrites it. The overwrite is benign in practice: `zip.CreateFromDir`'s output matches `proxy.golang.org`'s archive bit-for-bit, so the new entry is byte-identical to whatever was there. Worth noting because the cleanup removes the entry on exit; if the developer later runs `go get module@vX.Y.Z`, it re-fetches normally.
+`seedModuleCache` returns a cleanup closure. The orchestrator calls it via `defer` so it runs whether tidy succeeds or fails. Cleanup attempts to remove every entry it wrote (tracked by absolute path); a per-entry remove failure is logged via `opts.Log` (when present) but does NOT cause cleanup itself to fail. The contract for callers is:
+
+- **Happy path**: every seeded entry is removed before the orchestrator returns.
+- **Cleanup-failure path**: leftover entries remain in the developer's `GOMODCACHE`. Cache entries are content-addressed; the leftovers are inert (a future `go get <module>@<version>` overwrites them with byte-identical content).
+
+Tests assert the happy-path behavior (post-run, the seeded paths don't exist). The cleanup-failure path is not unit-tested because the only realistic trigger is a filesystem error during `os.Remove`, which we model in tests by stubbing.
+
+### Existing cache entries
+
+If the developer's `GOMODCACHE` already has an entry at `<module>/@v/vX.Y.Z` (e.g. from a prior `go get module@vX.Y.Z` against an existing tag), the seed overwrites it. The overwrite is benign in practice: `zip.CreateFromDir`'s output matches `proxy.golang.org`'s archive bit-for-bit, so the new entry is byte-identical. Cleanup removes the entry on exit; the developer's next `go get module@vX.Y.Z` re-fetches normally.
 
 ## Out-of-plan managed siblings (#44 interaction)
 
 The smarter rewriter (#44) pins sibling requires for managed packages outside the current release plan to their latest existing tag. Those versions already exist on the proxy; their cache entries are normally populated from prior dev work. Tidy with `GOPROXY=off` resolves them from the developer's existing cache.
 
-If the cache is missing an out-of-plan sibling, tidy fails with the standard "missing module" error. The hint message in `runOfflineTidy` covers this case (re-run after `go test ./...` or `go mod download all`).
+The pre-flight cache check surfaces the missing-cache case before tidy runs (see `tidy.go`'s pre-flight section above), giving the maintainer a precise fix instead of generic "missing module" output from tidy.
 
 We do not pre-fetch out-of-plan siblings via the live proxy. Pre-fetching would re-introduce a proxy roundtrip — small, but conceptually inconsistent with "fully offline at apply time."
+
+## Tidy mutation surprise
+
+`go mod tidy` is semi-active: when MVS picks a higher version of a transitive dep than what's currently in `go.sum`, tidy writes the higher version's hashes. For "republish to clean go.mod" releases (loglayer-go's v2.0.1 cascade is the canonical example), the maintainer expects byte-identical re-publish. If a sibling's rewritten `go.mod` newly resolves a transitive dep at a higher version than dependents currently track, that bump shows up in the release commit's diff.
+
+We accept this. Reasons:
+
+1. The bump is canonically correct — it's what the maintainer would get by manually running `go mod tidy` after the release. Pre-empting it produces a commit that's *less* tidy by the toolchain's own definition.
+2. `go mod tidy -e` doesn't actually suppress version bumps; `-e` only changes how *errors* are reported. There's no flag to lock transitive versions.
+3. Maintainers who want a strictly byte-identical re-publish can revert any unwanted bump in a separate commit before merging the release PR. The maintainer-facing changelog (`monorel preview`'s rendered plan) makes the bump visible.
+
+The release PR's diff includes the changes; the maintainer reviews them before merging. Surprise is bounded.
 
 ## Testing
 
