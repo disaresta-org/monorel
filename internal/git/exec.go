@@ -184,10 +184,10 @@ func (e *Exec) CheckoutBranch(branch string) error {
 // CheckoutNewBranch implements [Repo.CheckoutNewBranch].
 func (e *Exec) CheckoutNewBranch(branch, startPoint string) error {
 	if branch == "" {
-		return errors.New("branch is empty")
+		return errors.New("branch name is empty")
 	}
 	if startPoint == "" {
-		return errors.New("startPoint is empty")
+		return errors.New("start point is empty")
 	}
 	_, err := e.run("checkout", "-B", branch, startPoint)
 	return err

@@ -266,7 +266,7 @@ func (f *Fake) PushTags(remote string) error {
 
 // Fetch implements [Repo.Fetch]. The fake runs the FailNext hook;
 // it does not simulate any state change.
-func (f *Fake) Fetch(_ /*remote*/, _ /*ref*/ string) error {
+func (f *Fake) Fetch(remote, ref string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.take()
@@ -296,10 +296,10 @@ func (f *Fake) CheckoutNewBranch(branch, startPoint string) error {
 		return err
 	}
 	if branch == "" {
-		return errors.New("branch is empty")
+		return errors.New("branch name is empty")
 	}
 	if startPoint == "" {
-		return errors.New("startPoint is empty")
+		return errors.New("start point is empty")
 	}
 	f.Branch = branch
 	return nil

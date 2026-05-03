@@ -68,9 +68,14 @@ type Repo interface {
 	PushTags(remote string) error
 
 	// Fetch updates remote-tracking refs for ref from remote
-	// (`git fetch <remote> <ref>`). Used by the auto orchestrator to
-	// refresh origin/<base-branch> before creating monorel/release
-	// from it. Empty ref fetches every ref the remote advertises.
+	// (`git fetch --no-tags <remote> <ref>`). Used by the auto
+	// orchestrator to refresh origin/<base-branch> before creating
+	// monorel/release from it. Empty ref fetches every ref the
+	// remote advertises.
+	//
+	// Tags are not auto-fetched (--no-tags); the auto orchestrator
+	// only needs the refs that affect the release branch's plan.
+	// Call ListTags or a separate fetch if you need them.
 	Fetch(remote, ref string) error
 
 	// CheckoutBranch checks out branch, creating it from the

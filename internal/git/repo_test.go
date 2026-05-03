@@ -392,6 +392,9 @@ func TestExec_Fetch(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error fetching from a repo with no origin")
 	}
+	if !strings.Contains(err.Error(), "git fetch") {
+		t.Errorf("err = %v; should wrap underlying git-fetch error", err)
+	}
 }
 
 func TestFake_Fetch(t *testing.T) {
