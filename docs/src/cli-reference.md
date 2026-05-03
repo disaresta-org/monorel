@@ -16,7 +16,7 @@ These persistent flags apply to every subcommand:
 | `--config <path>` | string | Path to `monorel.toml`. Default `monorel.toml`. The repository root is its parent directory. |
 | `--color auto\|always\|never` | string | ANSI color in CLI output. `auto` (default) detects whether stdout is a TTY. `always` keeps color when piping into a paginator that handles ANSI; `never` disables it for log files and `grep` consumers. |
 | `-v`, `-vv` | count | Increase verbosity. `-v` adds debug-level messages; `-vv` also appends structured fields to each line. Default level shows info, warn, and error. |
-| `-q`, `--quiet` | bool | Suppress info and warn output, leaving only error and fatal. The release-pipeline commands (`apply`, `release`, `tag`, `publish`) still emit their headline result lines under `-q` because the GitHub Action wrapper greps for them. |
+| `-q`, `--quiet` | bool | Suppress info and warn chatter (progress hints, "nothing to do" messages, etc.), leaving only error and fatal. Each command's primary result still prints: `validate` and `doctor` print their findings, the release-pipeline commands (`apply`, `release`, `tag`, `publish`) print their headline output for the GitHub Action wrapper to grep, and so on. |
 
 ## `monorel add`
 

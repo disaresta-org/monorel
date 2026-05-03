@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	loglayer "go.loglayer.dev/v2"
 
 	"monorel.disaresta.com/internal/git"
 	"monorel.disaresta.com/validate"
@@ -75,11 +74,9 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	} else {
-		log, err := newLogger(cmd)
-		if err != nil {
+		if err := writeFindingsText(cmd.OutOrStdout(), findings); err != nil {
 			return err
 		}
-		writeFindingsText(log, findings)
 	}
 
 	if validate.HasErrors(findings) {
@@ -91,15 +88,17 @@ func runValidate(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// writeFindingsText emits a human-readable summary through the
-// logger's Info channel (no level prefix on Info; output matches the
-// pre-loglayer fmt-based shape). Empty findings produce
-// "No findings." Warnings and errors are grouped by severity in
-// fixed order (errors first, warnings second).
-func writeFindingsText(log *loglayer.LogLayer, findings []validate.Finding) {
+// writeFindingsText emits a human-readable summary directly to the
+// command's stdout. Findings are the command's primary output, not
+// chatter, so they bypass the logger; routing through `log.Info`
+// would let `-q` swallow them silently. (The `--json` path is the
+// supported way to feed validate's output to other tools.) Empty
+// findings produce "No findings." Warnings and errors are grouped
+// by severity in fixed order (errors first, warnings second).
+func writeFindingsText(w io.Writer, findings []validate.Finding) error {
 	if len(findings) == 0 {
-		log.Info("No findings. monorel.toml + .changeset/*.md look valid.")
-		return
+		_, err := fmt.Fprintln(w, "No findings. monorel.toml + .changeset/*.md look valid.")
+		return err
 	}
 
 	errCount := 0
@@ -124,8 +123,9 @@ func writeFindingsText(log *loglayer.LogLayer, findings []validate.Finding) {
 				continue
 			}
 			if !header {
-				log.Info("")
-				log.Info("%s:", headers[sev])
+				if _, err := fmt.Fprintf(w, "\n%s:\n", headers[sev]); err != nil {
+					return err
+				}
 				header = true
 			}
 			loc := ""
@@ -134,12 +134,14 @@ func writeFindingsText(log *loglayer.LogLayer, findings []validate.Finding) {
 			} else if f.Package != "" {
 				loc = " [" + f.Package + "]"
 			}
-			log.Info("  - %s: %s%s", f.Code, f.Message, loc)
+			if _, err := fmt.Fprintf(w, "  - %s: %s%s\n", f.Code, f.Message, loc); err != nil {
+				return err
+			}
 		}
 	}
 
-	log.Info("")
-	log.Info("%d error(s), %d warning(s).", errCount, warnCount)
+	_, err := fmt.Fprintf(w, "\n%d error(s), %d warning(s).\n", errCount, warnCount)
+	return err
 }
 
 // writeFindingsJSON emits a stable JSON document. The shape is:
