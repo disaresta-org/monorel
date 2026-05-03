@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"monorel.disaresta.com/config"
+	"monorel.disaresta.com/internal/provider"
+	"monorel.disaresta.com/internal/provider/factory"
 	"monorel.disaresta.com/internal/release"
 )
 
@@ -44,9 +48,28 @@ func runTag(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Build a provider client when the auth token is in the
+	// environment. The provider is only used for the universal PR-body
+	// trailers fallback (when HEAD's commit message has no trailers,
+	// e.g. squash-merge rewrote it). Tag works without a provider in
+	// the common case; we only need it for recovery.
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var providerClient provider.Client
+	providerName := config.ResolveProvider(rt.Config.Provider.Name)
+	if token := provider.TokenFromEnv(providerName); token != "" {
+		providerClient, err = factory.New(ctx, rt.Config.Provider, token)
+		if err != nil {
+			return fmt.Errorf("provider client: %w", err)
+		}
+	}
+
 	res, err := release.Tag(release.TagOptions{
-		Config: rt.Config,
-		Repo:   rt.Repo,
+		Config:   rt.Config,
+		Repo:     rt.Repo,
+		Provider: providerClient,
 	})
 	if err != nil {
 		return err
