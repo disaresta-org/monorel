@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -72,6 +74,16 @@ func runTag(cmd *cobra.Command, _ []string) error {
 		Provider: providerClient,
 	})
 	if err != nil {
+		// When the trailers are missing AND no provider client was
+		// built (no token in env), the PR-body fallback couldn't even
+		// be tried. Hint the operator at the env var that would
+		// enable it; advisory only, the exit code stays the same.
+		if errors.Is(err, release.ErrNoReleaseCommit) && providerClient == nil {
+			if envVars := provider.TokenEnvVars(providerName); len(envVars) > 0 {
+				rt.Log.Warn("Tip: set %s to enable the PR-body trailers fallback (covers squash-merged release PRs).",
+					strings.Join(envVars, " or "))
+			}
+		}
 		return err
 	}
 

@@ -503,6 +503,69 @@ monorel-PreRelease: false
 	}
 }
 
+func TestTag_FallbackPRWithoutTrailersBlock(t *testing.T) {
+	// HEAD has no trailers; the fallback finds a merged PR but its
+	// body lacks the <!-- monorel-trailers --> comment block. Tag
+	// should still return ErrNoReleaseCommit (a PR exists but offers
+	// nothing to recover from).
+	f := git.NewFake()
+	f.HeadSHA = "abc123"
+	if err := f.Add("dummy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Commit("chore(release): foo v1.7.0\n\n(no trailers; squash-merge)"); err != nil {
+		t.Fatal(err)
+	}
+
+	pf := provider.NewFake()
+	pf.PRs[42] = &provider.PullRequest{
+		Number:    42,
+		State:     "closed",
+		Title:     "release",
+		Body:      "Just a regular PR description, no trailers block here.",
+		MergedSHA: "abc123",
+	}
+
+	cfg := &config.Config{
+		Packages: map[string]config.PackageConfig{
+			"foo": pkgConfig("transports/foo", "transports/foo"),
+		},
+	}
+	_, err := release.Tag(release.TagOptions{Config: cfg, Repo: f, Provider: pf})
+	if !errors.Is(err, release.ErrNoReleaseCommit) {
+		t.Fatalf("err = %v, want ErrNoReleaseCommit", err)
+	}
+}
+
+func TestTag_FallbackProviderError(t *testing.T) {
+	// HEAD has no trailers; the provider call itself errors (e.g. a
+	// network failure). Tag should propagate the wrapped error rather
+	// than masking it as ErrNoReleaseCommit.
+	f := git.NewFake()
+	f.HeadSHA = "abc123"
+	if err := f.Add("dummy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Commit("chore(release): foo v1.7.0\n\n(no trailers)"); err != nil {
+		t.Fatal(err)
+	}
+
+	pf := provider.NewFake()
+	pf.FailNext = provider.FailOnce(errors.New("network down"))
+
+	cfg := &config.Config{Packages: map[string]config.PackageConfig{}}
+	_, err := release.Tag(release.TagOptions{Config: cfg, Repo: f, Provider: pf})
+	if err == nil {
+		t.Fatal("expected wrapped network error; got nil")
+	}
+	if errors.Is(err, release.ErrNoReleaseCommit) {
+		t.Errorf("err = %v; should NOT be ErrNoReleaseCommit (provider failed)", err)
+	}
+	if !strings.Contains(err.Error(), "network down") {
+		t.Errorf("err = %q; should wrap underlying network error", err.Error())
+	}
+}
+
 func TestTag_FallbackBothMissing(t *testing.T) {
 	// HEAD has no trailers AND the provider has no PR matching the
 	// SHA. Tag should still return ErrNoReleaseCommit (fallback isn't
