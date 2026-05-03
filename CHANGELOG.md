@@ -9,6 +9,25 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.9.0] - 2026-05-02
+
+### Minor Changes
+
+- `monorel apply` now rewrites each released sub-module's `go.mod` before staging the release commit:
+
+  1. Drops dev-only `replace` directives whose target is a sibling package in the same release plan AND whose source is a relative filesystem path (the `replace go.loglayer.dev/<sibling> => ../<sibling>` convention from monorel's monorepo template). External replaces (forking a third-party dep, etc.) are preserved.
+  2. Pins each sibling `require` line to the planned release version, replacing the placeholder pseudo-version (`v0.0.0-00010101000000-000000000000`) sub-modules carry during development.
+
+  Without this rewrite, the dev-only state shipped to the module proxy and downstream consumers' `go mod tidy` returned 404 on the placeholder pseudo-version.
+
+  Fixes [#41](https://github.com/disaresta-org/monorel/issues/41).
+
+### Patch Changes
+
+- Auto-truncate the always-open release PR body when it would exceed the provider's body limit. The orchestrator now falls back through three forms: full rendering with per-package release notes (default), compact rendering with the version table only (when the full body exceeds 65,536 chars), or hard byte-truncation with a trailing marker (last-resort safety net for releases with hundreds of packages where even the table blows past the limit).
+
+  Fixes [#37](https://github.com/disaresta-org/monorel/issues/37): the loglayer-go v2 cascade triggered GitHub's `422 Validation Failed: body is too long` because 27 packages × a single multi-package changeset body × table overhead pushed the rendered PR body past 65,536 chars.
+
 ## [0.8.0] - 2026-05-02
 
 ### Minor Changes
