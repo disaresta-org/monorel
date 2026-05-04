@@ -62,6 +62,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Run the lint's own self-test first; if a refactor of the
+      # matcher regressed any banned-character case the test catches it
+      # before the production scan does.
+      - run: bash scripts/test-check-changeset-style.sh
       - run: bash scripts/check-changeset-style.sh
 
   e2e-scenario-count:
