@@ -41,3 +41,6 @@ docs/.vitepress/cache/
 # Editor/IDE
 .idea/
 .vscode/
+
+# e2e-built monorel binary
+bin/
