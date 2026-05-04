@@ -18,9 +18,6 @@ hero:
     - theme: alt
       text: Quickstart
       link: /getting-started
-    - theme: alt
-      text: Coming from release-please?
-      link: /recipes/migration-from-release-please
 
 features:
   - title: Changesets, not commit messages
