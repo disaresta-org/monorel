@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: "Per-command reference for monorel: add, plan, status, validate, apply, tag, release, preview, publish, pre, init, doctor."
+description: "Per-command reference for monorel: add, plan, status, validate, apply, tag, release, preview, publish, pre, init, doctor, detect-release, auto."
 ---
 
 # CLI Reference
@@ -372,6 +372,72 @@ Local pre-commit / pre-push hooks are NOT a good fit: the bug class doctor catch
 :::
 
 The same logic is exposed as a Go library at [`monorel.disaresta.com/doctor`](/api#doctor) for callers who want to embed the check in custom CI without shelling out.
+
+## `monorel detect-release`
+
+Report whether HEAD is the merge of monorel's release PR. Inspects HEAD using two independent signals:
+
+1. **Trailer signal** (no network): HEAD's commit body contains a `monorel-Release:` trailer. Hits when squash- or rebase-merge propagated the source body.
+2. **API signal** (network): the configured provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason.
+
+Either signal alone is sufficient. The trailer is checked first; the API call only fires when the trailer is missing.
+
+```sh
+monorel detect-release
+# release commit detected (source: trailer)
+echo $?
+# 0
+
+monorel detect-release
+# HEAD is not a release-PR merge
+echo $?
+# 1
+```
+
+Exit codes:
+
+| Code | Meaning |
+|------|---------|
+| 0 | HEAD is a release-PR merge. Caller should run `monorel tag` / `git push --follow-tags` / `monorel publish`. |
+| 1 | HEAD is NOT a release-PR merge. Caller should run `monorel apply` / `monorel preview --upsert`. |
+| 2 | Detection failed (network, auth, or repo-state error). Caller should retry or surface the error. |
+
+`detect-release` is used internally by [`monorel auto`](#monorel-auto). Use it standalone in custom CI scripts that want to gate their own release vs feature dispatch on the same signal `auto` uses.
+
+The same logic is exposed as a Go library at [`monorel.disaresta.com/internal/detect`](https://github.com/disaresta-org/monorel/tree/main/internal/detect) for callers who want to embed detection without shelling out.
+
+## `monorel auto`
+
+One-stop CI command. Detects whether HEAD is the merge of monorel's release PR (using the same logic as [`monorel detect-release`](#monorel-detect-release)) and dispatches to one of two pipelines:
+
+- **Release path** (HEAD is a release-PR merge): `monorel tag` → `git push --follow-tags` → `monorel publish`. Creates per-package tags from the release commit's trailers, pushes them, and creates one provider Release per tag.
+- **Feature path** (HEAD is anything else): compute the release plan; if non-empty, fetch the base branch, check out `monorel/release` from it, run `monorel apply`, force-push, and `monorel preview --upsert`. If the plan is empty and a release PR is open, close it. If the plan is empty and no release PR is open, do nothing.
+
+The single entry point makes per-provider CI workflows trivial: configure the git author, then run `monorel auto`. No "if commit matches X then run command Y" branching in YAML or bash; that logic lives inside monorel.
+
+```sh
+monorel auto
+# Released 1 package(s) at a4f77ab (detected by trailer):
+#   transports/zerolog/v1.7.0
+
+# (or, on a feature branch with pending changesets)
+monorel auto
+# Created release PR #42: https://github.com/acme/widget/pull/42
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--base-branch <name>` | string | provider's default branch | Merge target branch. Empty queries the provider for the repo's default. |
+| `--remote <name>` | string | `origin` | Git remote name for fetch and push. |
+
+Exit codes are `0` on success and non-zero on any error (provider failures, git errors, dispatch errors). Unlike `detect-release`, `auto` doesn't use exit code 1 to signal "feature branch"; both paths exit 0 when the underlying pipeline succeeds.
+
+Used by every provider's example workflow / pipeline. See the integration pages for the canonical wiring:
+
+- [GitHub](/integrations/github#workflows) (composite action wrapper around `monorel auto`).
+- [Gitea / Forgejo](/integrations/gitea#gitea-actions-recommended).
+- [GitLab](/integrations/gitlab#workflows) (`monorel auto` in `.gitlab-ci.yml`).
+- [Bitbucket](/integrations/bitbucket#workflows) (`monorel auto` in `bitbucket-pipelines.yml`).
 
 ## Persistent flags
 
