@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestVersioning_InitialReleaseMatrix covers Scenario 7: the first
+// TestVersioning_InitialReleaseMatrix: the first
 // release of a package follows monorel's initial-release rules:
 //
 //	:major → v1.0.0
@@ -48,7 +48,7 @@ func TestVersioning_InitialReleaseMatrix(t *testing.T) {
 	}
 }
 
-// TestVersioning_NewPackageMidLife covers Scenario 8: an existing
+// TestVersioning_NewPackageMidLife: an existing
 // package has been released; a new package is registered in
 // monorel.toml and gets its initial release while the existing
 // package's history is untouched.
@@ -68,7 +68,8 @@ func TestVersioning_NewPackageMidLife(t *testing.T) {
 
 	// Now register pkg-b alongside pkg-a, plus a :major changeset
 	// for pkg-b. Expected: pkg-b/v1.0.0 (initial) + pkg-a unchanged.
-	r.WriteFile(t, "monorel.toml", strings.ReplaceAll(readFile(t, r.Local+"/monorel.toml"),
+	original := readFile(t, r.Local+"/monorel.toml")
+	updated := strings.ReplaceAll(original,
 		`[packages."pkg-a"]
 tag_prefix = "pkg-a"
 path = "pkg-a"
@@ -83,7 +84,13 @@ changelog = "pkg-a/CHANGELOG.md"
 tag_prefix = "pkg-b"
 path = "pkg-b"
 changelog = "pkg-b/CHANGELOG.md"
-`))
+`)
+	// Guard against silent no-op if the helper template ever changes.
+	if updated == original || !strings.Contains(updated, `[packages."pkg-b"]`) {
+		t.Fatalf("monorel.toml mutation failed; pkg-b block not added.\nbefore:\n%s\nafter:\n%s",
+			original, updated)
+	}
+	r.WriteFile(t, "monorel.toml", updated)
 	r.WriteFile(t, "pkg-b/README.md", "# pkg-b\n")
 	r.WriteFile(t, "pkg-b/CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n")
 	r.WriteChangeset(t, "feat-b", map[string]string{"pkg-b": "major"}, "Initial pkg-b.")
@@ -114,7 +121,7 @@ changelog = "pkg-b/CHANGELOG.md"
 	}
 }
 
-// TestVersioning_SubModuleOnlyRelease covers Scenario 9: a multi-
+// TestVersioning_SubModuleOnlyRelease: a multi-
 // module monorepo where only one sub-module bumps. The other
 // packages' tags don't move and their go.mod files aren't touched.
 func TestVersioning_SubModuleOnlyRelease(t *testing.T) {
@@ -175,7 +182,7 @@ func TestVersioning_SubModuleOnlyRelease(t *testing.T) {
 	}
 }
 
-// TestVersioning_MaxBumpPrecedence covers Scenario 1: when two
+// TestVersioning_MaxBumpPrecedence: when two
 // changesets bump the same package at different levels, the max
 // level wins. Verifies the planner's max-across-changesets rule
 // end-to-end against a real release.
@@ -214,11 +221,11 @@ func TestVersioning_MaxBumpPrecedence(t *testing.T) {
 	}
 }
 
-// TestVersioning_OverlappingChangesetsMergeBumps covers Scenario 7:
-// two changesets that BOTH bump pkg-a (one :minor, one :patch) plus
-// one that bumps pkg-b (:patch). The resulting plan has pkg-a at
-// minor (max of minor + patch) and pkg-b at patch. Verifies the
-// per-package merge across changeset files.
+// TestVersioning_OverlappingChangesetsMergeBumps drives two
+// changesets that BOTH bump pkg-a (one :minor, one :patch) plus one
+// that bumps pkg-b (:patch). The resulting plan has pkg-a at minor
+// (max of minor + patch) and pkg-b at patch. Verifies the
+// per-package bump merge across changeset files.
 func TestVersioning_OverlappingChangesetsMergeBumps(t *testing.T) {
 	r := newScenarioRepo(t, "overlap")
 	r.WriteFile(t, "monorel.toml", `[provider]

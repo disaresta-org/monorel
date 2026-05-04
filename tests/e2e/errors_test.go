@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestErrors_TagConflict covers Scenario 10: re-running auto on a
+// TestErrors_TagConflict: re-running auto on a
 // commit whose derived tags already exist must error. The error
 // message references release.ErrTagExists and is wrapped with the
 // auto: prefix.
@@ -44,7 +44,7 @@ func TestErrors_TagConflict(t *testing.T) {
 	}
 }
 
-// TestErrors_TrailersFallbackFailure covers Scenario 11: when
+// TestErrors_TrailersFallbackFailure: when
 // neither signal can fire (HEAD body has no trailer AND no PR
 // matches the SHA), monorel tag returns ErrNoReleaseCommit and
 // detect-release returns exit 1.
@@ -76,7 +76,7 @@ func TestErrors_TrailersFallbackFailure(t *testing.T) {
 	}
 }
 
-// TestErrors_AutoIdempotentTagged covers Scenario 3: re-running
+// TestErrors_AutoIdempotentTagged: re-running
 // auto on a HEAD that's already been tagged should error with the
 // tag-conflict path. (Auto's release branch always tries to create
 // the derived tags; if they already exist locally, ErrTagExists
@@ -108,7 +108,7 @@ func TestErrors_AutoIdempotentTagged(t *testing.T) {
 	}
 }
 
-// TestErrors_ValidateStrict covers Scenario 9: validate --strict
+// TestErrors_ValidateStrict: validate --strict
 // exits non-zero when only warnings are present. The plain validate
 // run on the same state would exit 0.
 func TestErrors_ValidateStrict(t *testing.T) {
@@ -137,8 +137,10 @@ func TestErrors_ValidateStrict(t *testing.T) {
 	}
 }
 
-// TestErrors_ValidateCheckTags covers Scenario 10: --check-tags
-// surfaces non-semver tags as warnings.
+// TestErrors_ValidateCheckTags pins three contracts: --check-tags
+// exits 0 on a warning-only state (--strict is required to escalate),
+// the invalid tag names appear in the report, and a regression that
+// flags the valid tag as a warning fails the test.
 func TestErrors_ValidateCheckTags(t *testing.T) {
 	r := newScenarioRepo(t, "check-tags")
 	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
@@ -148,13 +150,26 @@ func TestErrors_ValidateCheckTags(t *testing.T) {
 	r.run(t, "git", "tag", "pkg-a/v-not-semver") // also invalid
 
 	res := r.Monorel(t, "validate", "--check-tags")
+	if res.ExitCode != 0 {
+		t.Errorf("validate --check-tags on warning-only state should exit 0; got %d\nstdout: %s\nstderr: %s",
+			res.ExitCode, res.Stdout, res.Stderr)
+	}
 	combined := res.Stdout + "\n" + res.Stderr
-	if !strings.Contains(combined, "pkg-a/garbage") {
-		t.Errorf("--check-tags should mention pkg-a/garbage:\n%s", combined)
+	for _, want := range []string{"pkg-a/garbage", "pkg-a/v-not-semver"} {
+		if !strings.Contains(combined, want) {
+			t.Errorf("--check-tags should mention %q:\n%s", want, combined)
+		}
+	}
+	// Regression guard: valid tag must not appear on a warning line.
+	for _, line := range strings.Split(combined, "\n") {
+		if strings.Contains(line, "pkg-a/v1.2.3") &&
+			(strings.Contains(line, "warning") || strings.Contains(line, "tag_not_semver")) {
+			t.Errorf("valid tag pkg-a/v1.2.3 should not be flagged:\n%s", line)
+		}
 	}
 }
 
-// TestErrors_ValidateConfigErrors covers Scenario 12: monorel
+// TestErrors_ValidateConfigErrors: monorel
 // validate detects:
 //   - missing package path
 //   - missing changelog parent directory

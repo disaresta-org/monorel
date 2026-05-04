@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestSignals_MergeStrategies covers Scenario 5: a release PR
+// TestSignals_MergeStrategies: a release PR
 // merged with each of squash / rebase / merge-commit produces a
 // successfully-tagged release. Detection sources differ:
 //   - squash:       trailer dropped → API signal fires
@@ -45,7 +45,7 @@ func TestSignals_MergeStrategies(t *testing.T) {
 	}
 }
 
-// TestSignals_DirectPushNoPR covers Scenario 15: a release commit
+// TestSignals_DirectPushNoPR: a release commit
 // pushed directly to main without going through the always-open PR
 // pattern. The trailer signal fires because the commit body is
 // preserved verbatim; FindPRByMergeCommit returns nil because no PR

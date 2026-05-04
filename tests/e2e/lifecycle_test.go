@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestLifecycle_PreReleaseRcCycle covers Scenario 4: the rc cycle.
+// TestLifecycle_PreReleaseRcCycle: the rc cycle.
 //
 //	pre enter rc → release rc.0 → release rc.1 → pre exit → release stable
 //
@@ -80,7 +80,7 @@ func TestLifecycle_PreReleaseRcCycle(t *testing.T) {
 	}
 }
 
-// TestLifecycle_ManuallyClosedReleasePR covers Scenario 13: an
+// TestLifecycle_ManuallyClosedReleasePR: an
 // open release PR that the user manually closes (without merging).
 // The next auto run should open a fresh PR.
 func TestLifecycle_ManuallyClosedReleasePR(t *testing.T) {
@@ -115,12 +115,11 @@ func TestLifecycle_ManuallyClosedReleasePR(t *testing.T) {
 	}
 }
 
-// TestLifecycle_DoctorRevival covers Scenario 14 (constructed
-// state): the doctor command flags a `.changeset/*.md` that was
-// previously deleted by a chore(release) commit but is back on
-// disk. Constructing the state directly avoids Gitea's
-// modify/delete merge-conflict refusal that blocks the
-// natural-merge variant.
+// TestLifecycle_DoctorRevival drives the doctor command against a
+// constructed-state revival: a `.changeset/*.md` that was previously
+// deleted by a chore(release) commit reappears on disk. Constructing
+// the state directly avoids Gitea's modify/delete merge-conflict
+// refusal that blocks the natural-merge variant.
 func TestLifecycle_DoctorRevival(t *testing.T) {
 	r := newScenarioRepo(t, "doctor")
 	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
@@ -153,7 +152,7 @@ func TestLifecycle_DoctorRevival(t *testing.T) {
 	}
 }
 
-// TestLifecycle_NoopAfterRelease covers Scenario 5: a release was
+// TestLifecycle_NoopAfterRelease: a release was
 // already cut; a docs-only commit lands on top of the chore(release)
 // merge; running auto again should be a no-op (no new PR opened, no
 // re-tag attempt). The detection path returns "feature" because HEAD
@@ -187,7 +186,7 @@ func TestLifecycle_NoopAfterRelease(t *testing.T) {
 	}
 }
 
-// TestLifecycle_PreReleaseCounter covers Scenario 2: three
+// TestLifecycle_PreReleaseCounter: three
 // successive rc releases produce rc.0, rc.1, rc.2 (the per-package
 // counter increments by 1 each time, never resetting).
 func TestLifecycle_PreReleaseCounter(t *testing.T) {
@@ -237,11 +236,10 @@ func TestLifecycle_PreReleaseCounter(t *testing.T) {
 	}
 }
 
-// TestLifecycle_StaleReleaseBranchOverwrite covers Scenario 4:
-// monorel/release exists from a previous run with stale state
-// (different package selection). A subsequent auto run with a
-// different changeset set must force-push monorel/release with
-// fresh state, not cherry-pick on top of the stale one.
+// TestLifecycle_StaleReleaseBranchOverwrite proves that a stale
+// monorel/release branch (from a previous run with a different
+// package selection) is force-pushed cleanly on the next auto run,
+// not cherry-picked on top of.
 func TestLifecycle_StaleReleaseBranchOverwrite(t *testing.T) {
 	r := newScenarioRepo(t, "stale-release")
 	rootKey, fooKey, _ := r.ScaffoldMultiModule(t)
@@ -270,17 +268,18 @@ func TestLifecycle_StaleReleaseBranchOverwrite(t *testing.T) {
 		t.Fatalf("expected 1 open PR after overwrite, got %d", len(prs))
 	}
 	body := prs[0].Body
-	if strings.Contains(body, "go.example.com v") && !strings.Contains(body, "transports/foo") {
-		// Body should NOT mention the old root release; SHOULD mention
-		// the new transports/foo release.
-		t.Errorf("PR body still references old plan instead of new:\n%s", body)
+	// Independent assertions: stale state must be GONE, fresh state
+	// must be PRESENT. A merged-state regression (both visible) must
+	// fail the test, which the previous compound condition allowed.
+	if strings.Contains(body, "go.example.com v") {
+		t.Errorf("PR body still references old root plan:\n%s", body)
 	}
 	if !strings.Contains(body, "transports/foo") {
 		t.Errorf("PR body should mention transports/foo (the new plan):\n%s", body)
 	}
 }
 
-// TestLifecycle_ConcurrentContributors covers Scenario 6: PR A
+// TestLifecycle_ConcurrentContributors: PR A
 // merges first; release PR opens with A's package; THEN PR B merges
 // with a different package; refresh should show both packages.
 func TestLifecycle_ConcurrentContributors(t *testing.T) {
@@ -325,7 +324,7 @@ func TestLifecycle_ConcurrentContributors(t *testing.T) {
 	}
 }
 
-// TestLifecycle_PreModeErrors covers Scenario 8: pre exit outside
+// TestLifecycle_PreModeErrors: pre exit outside
 // pre mode is a graceful no-op (exits 0, prints "nothing to exit"),
 // while pre enter while already in pre mode errors.
 func TestLifecycle_PreModeErrors(t *testing.T) {
@@ -356,7 +355,7 @@ func TestLifecycle_PreModeErrors(t *testing.T) {
 	}
 }
 
-// TestLifecycle_DoctorCleanState covers Scenario 11: a fresh repo
+// TestLifecycle_DoctorCleanState: a fresh repo
 // with no chore(release) commits ever produces no doctor findings.
 // The negative complement to TestLifecycle_DoctorRevival.
 func TestLifecycle_DoctorCleanState(t *testing.T) {

@@ -8,11 +8,11 @@ import (
 	"testing"
 )
 
-// TestBasic_MultiModuleRelease covers Scenario 1:
-// 3-module monorepo (root + transports/foo + plugins/bar), two
-// changesets producing 3 packages with mixed bumps, full feature →
-// squash → release flow. Verifies sub-module go.mod rewriting and
-// non-empty Release bodies.
+// TestBasic_MultiModuleRelease drives a 3-module monorepo (root +
+// transports/foo + plugins/bar) with two changesets producing 3
+// packages at mixed bumps, end-to-end through feature → squash →
+// release. Verifies sub-module go.mod rewriting and non-empty
+// Release bodies.
 func TestBasic_MultiModuleRelease(t *testing.T) {
 	r := newScenarioRepo(t, "multi")
 	rootKey, fooKey, barKey := r.ScaffoldMultiModule(t)
@@ -93,7 +93,7 @@ func TestBasic_MultiModuleRelease(t *testing.T) {
 	}
 }
 
-// TestBasic_EmptyPlanNoop covers Scenario 2: a docs-only commit with
+// TestBasic_EmptyPlanNoop: a docs-only commit with
 // no changeset → auto runs but does nothing.
 func TestBasic_EmptyPlanNoop(t *testing.T) {
 	r := newScenarioRepo(t, "empty")
@@ -114,7 +114,7 @@ func TestBasic_EmptyPlanNoop(t *testing.T) {
 	}
 }
 
-// TestBasic_InFlightRefresh covers Scenario 3: open release PR with
+// TestBasic_InFlightRefresh: open release PR with
 // one changeset, push a SECOND changeset, expect the PR to refresh
 // with the merged plan.
 func TestBasic_InFlightRefresh(t *testing.T) {

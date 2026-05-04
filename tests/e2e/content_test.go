@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestContent_MarkdownInChangesetBody covers Scenario 12: backticks,
+// TestContent_MarkdownInChangesetBody: backticks,
 // code fences, and links in a changeset body survive end-to-end —
 // they reach the rendered CHANGELOG entry, the rendered PR body,
 // and (after release) the Gitea Release body.
