@@ -1,6 +1,6 @@
 ---
 title: "monorel: changesets-style releases for Go monorepos"
-description: A release tool for multi-module Go monorepos. Per-PR intent via .changeset files, native Go tag conventions, always-open release PR.
+description: A release tool for single-module and multi-module Go repos. Per-PR intent via .changeset files, native Go tag conventions, always-open release PR.
 
 layout: home
 
