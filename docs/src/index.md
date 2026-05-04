@@ -7,7 +7,7 @@ layout: home
 hero:
   name: monorel
   text: Releases for Go monorepos
-  tagline: Explicit per-PR changesets. Native Go tag conventions. Single-module repos work too.
+  tagline: Explicit per-PR changesets. Native Go tag conventions. Single and multi-module support.
   image:
     src: /logo-v2.webp
     alt: "monorel logo: many incoming rails merging into one"
