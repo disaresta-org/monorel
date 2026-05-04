@@ -20,7 +20,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: GitHub (MIT Licensed)
-      link: https://github.com/loglayer/loglayer-go
+      link: https://github.com/disaresta-org/monorel
 
 features:
   - title: Changesets, not commit messages
