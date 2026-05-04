@@ -51,7 +51,7 @@ monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLa
 - **Feature commit** (the common case): stage the always-open release MR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release MR is closed.
 - **Release-MR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one Release per tag.
 
-Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge method.
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR an API lookup that finds the PR whose merge produced HEAD and confirms its source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge method.
 
 `.gitlab-ci.yml`:
 

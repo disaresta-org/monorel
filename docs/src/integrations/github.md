@@ -40,7 +40,7 @@ One workflow file drives the entire lifecycle. On every push to `main`, the wrap
 - **Feature commit** (the common case): stage the always-open release PR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release PR is closed.
 - **Release-PR merge** (HEAD is the squash / rebase / merge-commit of `monorel/release`): run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one GitHub Release per tag.
 
-Detection uses two signals OR'd together: HEAD's `monorel-Release:` commit-body trailer (fast path, no network), and the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release` (covers cases where the trailer is lost). Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
+Detection uses two signals OR'd together: HEAD's `monorel-Release:` commit-body trailer (fast path, no network), and an API lookup that finds the PR whose merge produced HEAD and confirms its source branch is `monorel/release` (covers cases where the trailer is lost). Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
 
 The `disaresta-org/monorel/ci/github` composite action wrapper:
 
@@ -160,7 +160,7 @@ Recommended settings for the default branch:
 `monorel auto` detects a release-PR merge using two independent signals OR'd together:
 
 - **Trailer signal** (fast path): HEAD's commit body contains a `monorel-Release:` trailer. Hits when squash- or rebase-merge propagated the source commit's body.
-- **API signal** (network): provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason (a squash-merge configuration that strips the body, a merge-commit body that ignores the parent, etc.).
+- **API signal** (network): monorel asks the host to identify the PR whose merge produced HEAD; if its source branch is `monorel/release`, this is a release-PR merge. Hits when the trailer is missing for any reason (a squash-merge configuration that strips the body, a merge-commit body that ignores the parent, etc.).
 
 Either signal alone is enough. So squash, rebase, and merge-commit are all fine merge strategies for the release PR; pick whichever matches the rest of your repo's convention.
 
@@ -284,7 +284,7 @@ Cause: GitHub's anti-recursion rule suppresses `push: tags` events when the tag 
 
 ### `monorel publish` fails partway through
 
-monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags (each `CreateRelease` is idempotent on the tag name; the provider returns an error for duplicates, which the partial-success path surfaces). Tags from the prior run are already in place.
+monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags. Each release is keyed by its tag name, so a re-run skips any release the prior run already created and resumes from the first one missing. Tags from the prior run are already in place.
 
 ### "422 Field:head Code:invalid" on the release PR upsert
 

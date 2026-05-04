@@ -263,7 +263,7 @@ monorel publish       # create one provider release per tag
 
 Requires the configured provider's auth token in the environment (e.g. `GITHUB_TOKEN` for GitHub). The error message names the expected env var.
 
-If `publish` fails partway through, it reports `Created N/M releases before failing.` and re-running picks up the remainder (each `CreateRelease` is idempotent on the tag name; the provider returns an error on duplicates, which the partial-success path handles).
+If `publish` fails partway through, it reports `Created N/M releases before failing.` and re-running picks up the remainder. Each release is keyed by its tag name, so a re-run skips any release that's already there and resumes from the first one missing.
 
 ## `monorel pre`
 
@@ -380,7 +380,7 @@ The same logic is exposed as a Go library at [`monorel.disaresta.com/doctor`](/a
 Report whether HEAD is the merge of monorel's release PR. Inspects HEAD using two independent signals:
 
 1. **Trailer signal** (no network): HEAD's commit body contains a `monorel-Release:` trailer. Hits when squash- or rebase-merge propagated the source body.
-2. **API signal** (network): the configured provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason.
+2. **API signal** (network): monorel asks the host to identify the PR whose merge produced HEAD; if there is one and its source branch is `monorel/release`, this is a release-PR merge. Hits when the trailer is missing for any reason.
 
 Either signal alone is sufficient. The trailer is checked first; the API call only fires when the trailer is missing.
 
