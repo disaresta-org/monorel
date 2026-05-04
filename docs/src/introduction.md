@@ -7,8 +7,26 @@ description: "monorel exists because the Go ecosystem doesn't have a release too
 
 The Go ecosystem doesn't have a release tool that handles the canonical Go monorepo layout cleanly. The layout in question:
 
-- **Main module** at the repo root with bare `vX.Y.Z` tags. `go install <module>@v1.2.3` requires this.
-- **Sub-modules** in subdirectories with `<path>/vX.Y.Z` tags. `go get <module>/transports/foo@v1.2.3` requires this.
+```
+my-repo/                        ← main module (root)
+├── go.mod                        module example.com/widget
+├── widget.go
+├── transports/
+│   └── foo/                    ← sub-module
+│       ├── go.mod                module example.com/widget/transports/foo
+│       └── foo.go
+└── plugins/
+    └── bar/                    ← sub-module
+        ├── go.mod                module example.com/widget/plugins/bar
+        └── bar.go
+
+tags:  v1.2.3                   ← root: BARE tag (required by go install)
+       transports/foo/v0.5.1    ← sub-module: PATH-PREFIXED tag (required by go get)
+       plugins/bar/v2.0.0
+```
+
+- **Main module** at the repo root takes bare `vX.Y.Z` tags. `go install <module>@v1.2.3` requires this.
+- **Sub-modules** in subdirectories take `<path>/vX.Y.Z` tags. `go get <module>/transports/foo@v1.2.3` requires this.
 
 The off-the-shelf options each have a sharp edge for this layout.
 
