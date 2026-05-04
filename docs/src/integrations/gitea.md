@@ -86,6 +86,25 @@ Works on a contributor's laptop or any non-Gitea-Actions CI (Drone, Woodpecker, 
 
 monorel is a single static binary; any CI that can run a shell command can run it. The pattern is the same as the local CLI flow: download the binary, set `GITEA_TOKEN`, run `monorel release` + `git push --follow-tags` + `monorel publish`. There's no monorel-specific machinery to install.
 
+### Skipping CI on chore(release) commits
+
+The release commit `chore(release): ...` (created when the always-open release PR is merged) updates module `go.mod` files to require new in-plan sibling versions. monorel's release workflow creates and pushes the matching tags on the same push. Any *other* workflow that fires on that push and resolves Go module versions (lint, test, deploy) races the tag push and may transiently fail with:
+
+```
+go: example.com/foo/v2: reading example.com/foo/go.mod at revision v2.1.0: unknown revision v2.1.0
+```
+
+The release succeeds and the tags get pushed; the racing workflow's red mark stays in the UI. Gitea Actions is GitHub Actions-compatible, so the same `if:` clause works:
+
+```yaml
+jobs:
+  test:
+    if: github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(release):')
+    # ... rest of job ...
+```
+
+monorel's own release workflow does NOT need this filter. On a `chore(release):` push it's the workflow doing the tagging; on every other push `monorel auto` falls through to the upsert path.
+
 ## Branch protection
 
 `monorel auto` force-pushes to `monorel/release` on every feature-branch run. By default Gitea allows this for unprotected branches; if you've added branch protection rules covering `monorel/release`, allow force-push for that ref (or for the bot account that owns the workflow).

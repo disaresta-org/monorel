@@ -128,6 +128,25 @@ The chained workflows must declare `workflow_call` in their `on:` block and acce
 
 The `root_tag` capture is what lets `build-binaries` and `build-image` skip themselves when the release was sub-module-only (no `vX.Y.Z` root tag created). For docs deploy this isn't needed; every release should redeploy the docs.
 
+### Skipping CI on chore(release) commits
+
+The release commit `chore(release): ...` (created when the always-open release PR is merged) updates module `go.mod` files to require new in-plan sibling versions. monorel's release workflow creates and pushes the matching tags on the same push. Any *other* workflow that fires on that push and resolves Go module versions (lint, test, deploy) races the tag push and may transiently fail with:
+
+```
+go: example.com/foo/v2: reading example.com/foo/go.mod at revision v2.1.0: unknown revision v2.1.0
+```
+
+The release succeeds and the tags get pushed; the racing workflow's red mark stays in the UI. Skip the racing workflow on `chore(release):` commits with an `if:` clause:
+
+```yaml
+jobs:
+  test:
+    if: github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(release):')
+    # ... rest of job ...
+```
+
+monorel's own release workflow does NOT need this filter. On a `chore(release):` push it's the workflow doing the tagging; on every other push `monorel auto` falls through to the upsert path.
+
 ## Branch protection
 
 Recommended settings for the default branch:
