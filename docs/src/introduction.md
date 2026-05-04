@@ -5,7 +5,7 @@ description: "monorel exists because the Go ecosystem doesn't have a release too
 
 # Why monorel?
 
-The Go ecosystem doesn't have a release tool that handles the canonical Go monorepo layout cleanly. The layout in question:
+monorel handles both single-module and multi-module Go repos, but it's designed for the multi-module case. That's where the Go ecosystem currently has a gap: no battle-tested release tool handles the canonical Go monorepo layout cleanly. The layout in question:
 
 ```
 my-repo/                        ← main module (root)
