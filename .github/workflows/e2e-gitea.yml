@@ -49,21 +49,18 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+          # setup-go's built-in cache (default true since v4) already
+          # covers ~/go/pkg/mod and ~/.cache/go-build, keyed on
+          # go.sum. An explicit actions/cache@v4 step used to live
+          # here on the same paths; it was redundant and produced two
+          # post-action cache uploads at job teardown that ran in
+          # parallel with each other.
+          cache: true
 
-      - name: Cache Go module download
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-e2e-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-e2e-
-
-      # testcontainers-go expects a working Docker daemon at
-      # /var/run/docker.sock. ubuntu-latest's default image has it.
-      - name: Verify docker is up
-        run: docker info >/dev/null
-
+      # testcontainers-go connects to /var/run/docker.sock from inside
+      # the test process; ubuntu-latest ships Docker. If the daemon
+      # were ever down, testcontainers returns a clear error of its
+      # own when the first scenario calls forgejo.Run, so a separate
+      # `docker info` preflight step would only duplicate that signal.
       - name: Run e2e suite
         run: go test -tags=e2e -count=1 -timeout 15m -v ./tests/e2e/...
