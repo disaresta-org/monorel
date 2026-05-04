@@ -40,6 +40,12 @@ permissions:
 
 jobs:
   e2e:
+    # Skip on chore(release) push commits. The e2e suite spins up a
+    # Forgejo container and exercises monorel against an ephemeral
+    # repo inside it; nothing about the chore(release) merge changes
+    # the suite's behavior, so re-running it on the release commit
+    # just burns CI minutes.
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
