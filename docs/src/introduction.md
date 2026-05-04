@@ -48,7 +48,8 @@ The off-the-shelf options each have a sharp edge for this layout.
 | Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab |
 | Polyglot / non-language-specific | ✅ | ⚠️ JS-shaped (`package.json` per package) | ✅ | ❌ Go-only by design |
 
-The first three rows are the common ground: every tool in this category will manage independent per-package versions, write a per-package CHANGELOG, and support pre-release windows. The friction shows up below those rows: how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.
+- **Common ground (first three rows):** every tool in this category manages independent per-package versions, writes a per-package CHANGELOG, and supports pre-release windows.
+- **Friction (rows below):** how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.
 
 The per-tool sections below dive into each tool's specific friction point for the Go-monorepo layout.
 
