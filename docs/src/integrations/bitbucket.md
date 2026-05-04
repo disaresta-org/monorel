@@ -63,9 +63,9 @@ The "Create API token" button (no scopes) at `id.atlassian.com` produces a token
 
 ### Username probing
 
-Bitbucket's git-over-HTTPS push expects the workspace's Bitbucket username, not the email on the API token. monorel probes `GET /2.0/user` once at constructor time with the email + token, reads the `username` field, and caches it on the client. You don't supply a username; it's resolved automatically from the token's identity.
+When monorel needs the Bitbucket workspace username (not the email on the API token), it probes `GET /2.0/user` lazily on the first call that needs it, reads the `username` field, and caches the result on the client. You don't supply a username; it's resolved automatically from the token's identity.
 
-This is why the API token MUST have `read:account`: without it, the probe fails and the provider can't construct.
+This is why the API token needs `read:account`: without it, the probe fails when monorel reaches a code path that needs the username.
 
 ## Workspace plan acceptance
 
@@ -90,7 +90,7 @@ Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `
 
 Setup:
 
-1. **Add `BITBUCKET_TOKEN` and `BB_USER` as repository secrets** under Repository settings → Repository variables. `BITBUCKET_TOKEN` is the Atlassian API token; `BB_USER` is the Bitbucket username (the same one monorel probes from `/2.0/user`; you can copy it from your Bitbucket profile URL). The pipeline uses both to authenticate the git push over HTTPS.
+1. **Add `BITBUCKET_EMAIL` and `BITBUCKET_TOKEN` as repository variables** under Repository settings → Repository variables. `BITBUCKET_EMAIL` is the Atlassian-account email that owns the token; `BITBUCKET_TOKEN` is the API token string. monorel reads both from the environment when constructing the Bitbucket API client. Bitbucket Pipelines exports repository variables to the runner's environment automatically, so no explicit `env:` mapping in the pipeline is needed. Pipelines also injects git credentials for pushes back to the same repo.
 2. **Pick a merge strategy.** Squash, fast-forward, and merge-commit all work via the API signal; pick whichever matches your repo's convention. Configure under Repository settings → Branch restrictions / Merge strategies.
 3. **Push the `bitbucket-pipelines.yml` to the default branch.** The pipeline fires on every push to `main`; it runs `monorel auto` and opens the always-open release PR once you have a `.changeset/<name>.md`.
 
@@ -147,6 +147,10 @@ Bitbucket calls these "branch restrictions." Two points:
 
 - **`monorel/release` should NOT have a `Prevent rewriting branch history` restriction.** The pipeline force-pushes to that branch on every feature-branch run. Either don't add a restriction covering `monorel/release`, or exempt the bot user / token.
 - **Any merge strategy works for the default branch's release PR** (see [Merge strategy](#merge-strategy-any-of-the-three-works)). Squash-merge adds a network hop for the trailers fallback; fast-forward and merge-commit avoid it.
+
+## Tokens and required status checks
+
+Bitbucket Cloud has no analogue to GitHub's required-status-check anti-recursion rule. Pipelines triggered by the always-open release PR run with the same Pipelines OAuth token as any other pipeline; there's no "PRs created by the auto-injected token don't trigger checks" pitfall to escalate around. If your repo enforces required reviews on the default branch, the standard PR-review approval flow applies; no special PAT escalation is needed for monorel itself.
 
 ## Troubleshooting
 

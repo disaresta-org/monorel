@@ -28,8 +28,8 @@ Three phases, four CI / local touchpoints:
 | Phase | Command(s) | Run by |
 |---|---|---|
 | First-time setup | `monorel init`, `monorel validate` | Maintainer (local) |
-| Daily contributor flow | `monorel add` (local), `monorel apply` + `monorel preview --upsert` (CI's release-pr.yml) | Contributor + CI |
-| Cutting a release | `monorel tag` + `git push --follow-tags` + `monorel publish` (CI's release.yml) | CI |
+| Daily contributor flow | `monorel add` (local), `monorel auto` (CI; auto's feature path runs `apply` + `git push -f` + `preview --upsert`) | Contributor + CI |
+| Cutting a release | `monorel auto` (CI; auto's release path runs `tag` + `git push --follow-tags` + `publish`) | CI |
 | Local one-shot release | `monorel release` (= apply + tag) + `git push --follow-tags` + `monorel publish` | Maintainer (local) |
 | Pre-release window | `monorel pre enter <channel>`, `monorel pre exit` | Maintainer (local) |
 
@@ -88,11 +88,15 @@ Bump levels: `major`, `minor`, `patch`. A package can appear in multiple changes
 
 `monorel status`: pending changesets summary.
 
-`monorel apply`: write CHANGELOGs, rewrite sub-module `go.mod` (strip dev replaces, pin sibling requires), tidy sub-module `go.sum` via offline `go mod tidy`, delete consumed `.changeset/*.md`, single commit with `monorel-Release:` body trailers. **No tag creation.** Used by CI's release-pr.yml on a staging branch.
+`monorel apply`: write CHANGELOGs, rewrite sub-module `go.mod` (strip dev replaces, pin sibling requires), tidy sub-module `go.sum` via offline `go mod tidy`, delete consumed `.changeset/*.md`, single commit with `monorel-Release:` body trailers. **No tag creation.** Invoked by `monorel auto`'s feature path on the staging branch.
 
 `monorel preview`: render the release plan as PR-body markdown. `--upsert` updates / opens the always-open release PR.
 
-`monorel tag`: read HEAD's `monorel-Release:` trailers, create per-package annotated tags. Used by CI's release.yml on the merge commit.
+`monorel tag`: read HEAD's `monorel-Release:` trailers, create per-package annotated tags. Invoked by `monorel auto`'s release path on the release-PR merge commit.
+
+`monorel detect-release`: pure detection. Exit 0 if HEAD is the merge of monorel's release PR (trailer signal OR provider-API signal), exit 1 otherwise, exit 2 on error.
+
+`monorel auto`: one-stop CI command. Runs `detect-release` then dispatches: feature path (`apply` + `push -f` + `preview --upsert`) or release path (`tag` + `push --follow-tags` + `publish`).
 
 `monorel publish`: create one provider release per tag at HEAD. Body sourced from each package's CHANGELOG entry. Pre-release tags get the provider's pre-release flag.
 
@@ -114,11 +118,11 @@ Bump levels: `major`, `minor`, `patch`. A package can appear in multiple changes
 ## Always-open release PR pattern
 
 1. Contributor opens a feature PR with `.changeset/<name>.md`.
-2. PR merges; release-pr.yml fires.
-3. Action wrapper runs `monorel apply` on a fresh `monorel/release` branch (off main), force-pushes, then `monorel preview --upsert`.
+2. PR merges; the workflow runs `monorel auto` on the new main commit. Detection: HEAD is a feature commit → feature path.
+3. Feature path: `monorel apply` on a fresh `monorel/release` branch (off main), force-push, then `monorel preview --upsert`.
 4. The release PR opens (or updates) with the rendered plan in the body and the actual file diff (CHANGELOG entries, `.changeset/*.md` deletions, `go.mod` / `go.sum` tidies).
 5. Maintainer reviews, approves, and merges the release PR.
-6. release.yml fires on the `chore(release):` merge commit. Action wrapper runs `monorel tag` → `git push --follow-tags` → `monorel publish`.
+6. The workflow runs `monorel auto` on the merge commit. Detection: HEAD is the release-PR merge → release path. `monorel tag` → `git push --follow-tags` → `monorel publish`.
 
 The PR's diff IS the release commit. Reviewers see exactly what will ship.
 
@@ -150,35 +154,27 @@ The release applier (`internal/release`), orchestrator (`internal/orchestrator`)
 
 ## CI pipelines
 
-GitHub Actions / Gitea Actions: use the composite action.
+GitHub Actions / Gitea Actions: use the composite action. Single workflow file, single step.
 
 ```yaml
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 }
 - uses: actions/setup-go@v5
   with: { go-version-file: go.mod }   # required: tidy needs `go` on PATH
 - uses: disaresta-org/monorel/ci/github@v1.0.0
-  with:
-    command: pr      # or "release" or "doctor"
 ```
 
-Two workflows: `release-pr.yml` (fires on push to main, runs `command: pr`) and `release.yml` (fires on `chore(release):` merge commits, runs `command: release`).
+The wrapper runs `monorel auto` internally; no `command:` input. Auto detects whether HEAD is a release-PR merge and dispatches to the feature path or release path.
 
-GitLab CI: use the published Docker image at `ghcr.io/disaresta-org/monorel:1.0.0`. The image bundles `git` and the Go toolchain.
+GitLab CI: use the published Docker image at `ghcr.io/disaresta-org/monorel:1.0.0`. The image bundles `git` and the Go toolchain. One job, one `monorel auto` call.
 
 ```yaml
 default:
   image: ghcr.io/disaresta-org/monorel:1.0.0
-release-pr:
+monorel:
   rules: [{ if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH' }]
   script:
-    - monorel apply
-    - git push -f origin HEAD:monorel/release
-    - monorel preview --upsert
-release:
-  rules: [{ if: '$CI_COMMIT_TITLE =~ /^chore\(release\):/' }]
-  script:
-    - monorel tag
-    - git push --follow-tags
-    - monorel publish
+    - monorel auto
 ```
 
 ## Provider auth

@@ -64,11 +64,11 @@ Delete:
 - `.release-please-config.json`.
 - `.release-please-manifest.json`.
 
-The workflow will be replaced by `release-pr.yml` + `release.yml` (see [GitHub Action](/integrations/github)).
+The workflow will be replaced by a single `release.yml` that runs `monorel auto` (see [GitHub Action](/integrations/github)).
 
-### 4. Add monorel workflows
+### 4. Add the monorel workflow
 
-Create `.github/workflows/release-pr.yml` and `release.yml` per the [GitHub Action](/integrations/github) page.
+Create `.github/workflows/release.yml` per the [GitHub Action](/integrations/github) page. The single workflow runs `monorel auto` on every push to the default branch and dispatches between feature-path (refresh the release PR) and release-path (cut tags + publish) automatically.
 
 ### 5. Initialize `.changeset/`
 
@@ -81,7 +81,7 @@ mkdir -p .changeset
 Stage all of the above:
 
 ```sh
-git add monorel.toml .github/workflows/{release-pr,release}.yml .changeset/
+git add monorel.toml .github/workflows/release.yml .changeset/
 git rm .release-please-config.json .release-please-manifest.json
 git rm .github/workflows/release-please.yml
 git commit -m "chore: migrate from release-please to monorel"

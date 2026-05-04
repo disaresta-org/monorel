@@ -48,7 +48,7 @@ monorel doesn't ship a Gitea-specific CI wrapper. Three viable approaches:
 
 Gitea Actions (since Gitea 1.21, Forgejo 1.21) implements GitHub Actions' workflow YAML format. Two things to know before reusing the GitHub workflow shape:
 
-1. **Token env var.** monorel reads `GITEA_TOKEN`, not `GITHUB_TOKEN`. Gitea Actions keeps the auto-injected token under `secrets.GITHUB_TOKEN` for compatibility with GitHub Actions' YAML; map it to the env var monorel reads.
+1. **Token wiring.** Gitea Actions auto-injects the `secrets.GITHUB_TOKEN` secret for GitHub-Actions YAML compatibility. The composite action exports whatever you pass as `with: token:` into both the `GITHUB_TOKEN` and `GITEA_TOKEN` env vars internally, so monorel reads whichever name matches the configured provider. Pass the auto-injected token for the basic case (see the workflow YAML below); pass a PAT for required-status-check repos (see [Tokens and required status checks](#tokens-and-required-status-checks) below).
 2. **`provider.host` must be set** in `monorel.toml` to your Gitea instance.
 
 One workflow file drives the entire lifecycle. On every push to the default branch, the wrapper runs [`monorel auto`](/cli-reference#monorel-auto), which detects whether HEAD is the merge of monorel's release PR and dispatches accordingly:
@@ -62,7 +62,7 @@ Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `
 
 <!--@include: ../_partials/gitea-release-yml.md-->
 
-The auto-injected `GITHUB_TOKEN` (mapped to `GITEA_TOKEN` via the action wrapper) is enough for the basic case. The PAT escalation for required-status-check repos is documented under [Tokens and required status checks](#tokens-and-required-status-checks) below.
+The auto-injected `secrets.GITHUB_TOKEN` is enough for the basic case (the action wrapper exports it under both the `GITHUB_TOKEN` and `GITEA_TOKEN` env vars internally). The PAT escalation for required-status-check repos is documented under [Tokens and required status checks](#tokens-and-required-status-checks) below.
 
 `.gitea/workflows/doctor.yml` (recommended pre-merge sanity check; mirrors the GitHub setup):
 

@@ -7,14 +7,12 @@ gitea/
 ├── monorel.toml
 ├── .changeset/README.md
 └── .gitea/workflows/
-    ├── release-pr.yml
-    ├── release.yml
-    └── doctor.yml      (recommended: pre-merge sanity check)
+    └── release.yml
 ```
 
-Copy these files into your repo, set `provider.host` to your instance (or `codeberg.org`, etc.), replace `acme/widget` with your owner/repo, then commit and push to `main`. The `release-pr` workflow opens / updates the always-open release MR; merging it triggers `release.yml`.
+Copy these files into your repo, set `provider.host` to your instance (or `codeberg.org`, etc.), replace `acme/widget` with your owner/repo, then commit and push to `main`. The single workflow runs `monorel auto` on every push, which detects whether HEAD is the merge of the always-open release PR and dispatches accordingly.
 
-The `env: GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}` mapping is necessary because monorel reads `GITEA_TOKEN` and Gitea Actions auto-injects its token under the GHA-compatible `GITHUB_TOKEN` name.
+The action wrapper takes the token via the `with: token:` input. The example wires it to `${{ secrets.GITHUB_TOKEN }}`, which Gitea Actions auto-injects for GitHub-Actions YAML compatibility. The action then exports the token under both `GITHUB_TOKEN` and `GITEA_TOKEN` env vars for the underlying `monorel auto` invocation, so monorel reads the name matching the configured Gitea provider.
 
 For Forgejo, the same files work: Forgejo maintains API compatibility with Gitea.
 

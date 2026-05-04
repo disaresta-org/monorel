@@ -24,7 +24,7 @@ The convention of tagging the root module with bare version tags (`v1.0.0`, `v1.
 
 ## Bump level
 
-How much a release advances the version: `major` (breaking changes), `minor` (backward-compatible features), `patch` (backward-compatible fixes). When multiple changesets target the same package, the **strongest** bump wins for that release.
+How much a release advances the version: `major` (breaking changes), `minor` (backward-compatible features), `patch` (backward-compatible fixes). When multiple changesets target the same package, the **highest** bump wins for that release (`major > minor > patch`).
 
 ## Changelog (CHANGELOG.md)
 

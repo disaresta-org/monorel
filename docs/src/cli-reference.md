@@ -172,13 +172,13 @@ monorel-Release: transports/zerolog v1.7.0
 monorel-PreRelease: false
 ```
 
-`apply` is the speculative-apply primitive used by the GitHub Action wrapper's `pr` command. See [GitHub Action](/integrations/github) for how it's wired.
+`apply` is the speculative-apply primitive invoked by `monorel auto`'s feature path on the staging branch. See [GitHub Action](/integrations/github) for how it's wired.
 
 In pre-release mode (`.changeset/pre.json` present), `apply` increments per-package counters in `pre.json` instead of writing CHANGELOGs and keeps the `.changeset/*.md` files. Tags carry the channel suffix (e.g. `v1.7.0-rc.0`).
 
 ## `monorel tag`
 
-Read HEAD's commit trailers and create the corresponding annotated git tags at HEAD. Does NOT mutate files. Used post-merge by the GitHub Action wrapper's `release` command.
+Read HEAD's commit trailers and create the corresponding annotated git tags at HEAD. Does NOT mutate files. Invoked post-merge by `monorel auto`'s release path.
 
 ```sh
 monorel tag
@@ -189,7 +189,7 @@ monorel tag
 
 Errors:
 
-- `ErrNoReleaseCommit`: HEAD has no `monorel-Release:` trailers. The release-pipeline workflow filters on the `chore(release):` subject, so this only fires if the filter is misconfigured.
+- `ErrNoReleaseCommit`: HEAD has no `monorel-Release:` trailers. In the auto-driven flow this only fires if `monorel tag` is invoked manually outside `monorel auto` on a non-release HEAD; auto's release path runs `tag` only after `detect-release` has confirmed the commit is a release-PR merge.
 - `ErrUnknownReleasedPackage`: a trailer names a package not declared in `monorel.toml`. The config drifted between `apply` and `tag`.
 - `ErrTagExists`: a derived tag is already present (preflight check). Investigate (probably a partial prior run) and delete the stale tag before re-running.
 
@@ -227,7 +227,7 @@ Accumulated changes are emitted to CHANGELOGs at the next stable release after `
 
 ## `monorel preview`
 
-Render the release plan as markdown and (with `--upsert`) open or update the always-open release PR's body. Used by the GitHub Action wrapper's `pr` command after `monorel apply` stages the file changes.
+Render the release plan as markdown and (with `--upsert`) open or update the always-open release PR's body. Invoked by `monorel auto`'s feature path after `monorel apply` stages the file changes.
 
 ```sh
 monorel preview
@@ -237,9 +237,11 @@ monorel preview --upsert
 # Created release PR #42: https://github.com/acme/widget/pull/42
 ```
 
-| Flag | Type | Description |
-|------|------|-------------|
-| `--upsert` | bool | Open or update the always-open release PR. Requires `pull-requests: write` and a configured provider token. Closes any open release PR if the plan is empty. |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--upsert` | bool | `false` | Open or update the always-open release PR. Requires `pull-requests: write` and a configured provider token. Closes any open release PR if the plan is empty. |
+| `--head-branch` | string | `monorel/release` | Source branch of the always-open release PR. Override only if you've changed the convention; auto's feature path force-pushes to this same branch before invoking preview. |
+| `--base-branch` | string | provider default | Target branch (typically `main`). Empty means "ask the provider for the default branch." |
 
 ## `monorel publish`
 
@@ -437,13 +439,16 @@ Used by every provider's example workflow / pipeline. See the integration pages 
 - [GitLab](/integrations/gitlab#workflows) (`monorel auto` in `.gitlab-ci.yml`).
 - [Bitbucket](/integrations/bitbucket#workflows) (`monorel auto` in `bitbucket-pipelines.yml`).
 
-## Persistent flags
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--config <path>` | string | `monorel.toml` | Path to the config file. The repo root is its parent directory. |
-
 ## Exit codes
 
-- `0`: success.
-- non-zero: an error occurred. The CLI prints the error to stderr; commands that do partial work (e.g. `monorel publish` failing on the second provider release) print a "created N/M" line before the error.
+Most commands follow the standard `0` for success, non-zero for errors pattern. The commands below have additional non-error exit semantics worth knowing:
+
+| Command | Exit codes |
+|---------|------------|
+| `monorel detect-release` | `0` HEAD is the merge of monorel's release PR. `1` HEAD is not. `2` detection error (network, repo state). |
+| `monorel validate` | `0` no findings. `1` errors found (or warnings under `--strict`). `2` warnings only without `--strict`. |
+| `monorel doctor` | `0` no findings. `1` error-severity findings. `2` warning-severity findings only. |
+| `monorel auto` | `0` dispatch succeeded. `1` either branch failed (with the specific error). `2` detection error before dispatch. |
+| `monorel publish` | `0` all releases created. Non-zero with a "Created N/M releases before failing" line on partial failure. |
+
+For the rest, treat `0` as success and any non-zero as a CLI-printed error to stderr.

@@ -78,7 +78,7 @@ No, git tags are write-once. Releasing `v1.6.0` and wanting to "undo it" means s
 
 ### Why does my root module need `tag_prefix = ""` (empty string)?
 
-The empty string is the explicit signal for bare-tag root (`vX.Y.Z` instead of `<prefix>/vX.Y.Z`). The validator requires the field to be set explicitly; omitting it is rejected so a missing field doesn't silently default to bare. Set `tag_prefix = ""` for the root module in your `monorel.toml`.
+`tag_prefix = ""` is how you opt into bare-tag root (`vX.Y.Z` instead of `<prefix>/vX.Y.Z`). Omitting the field is equivalent to setting it to `""`, but the explicit form is the recommended style: it makes the intent unambiguous in code review and avoids confusion when readers compare a root entry against sub-module entries (which always set `tag_prefix` explicitly).
 
 ### Can I rename a package after it's released?
 

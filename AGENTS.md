@@ -21,30 +21,39 @@ attribution scans) by construction.
 ```
 monorel/
 ├── cmd/monorel/main.go           Thin entrypoint
+├── config/                       monorel.toml schema + Load + Validate (public)
+├── changeset/                    .changeset/*.md format + pre.json (public)
+├── semver/                       Bump levels + Apply / InitialFromBump / ApplyPrerelease (public)
+├── plan/                         Pure-function planner: (config, changesets, tags, pre) -> ReleasePlan (public)
+├── changelog/                    Keep-a-Changelog writer (public)
+├── validate/                     Configuration + changeset validator (public)
+├── doctor/                       Repository-state diagnostics (public)
 ├── internal/
-│   ├── cli/                      Cobra commands: add, plan, status, release, preview, pre, init
-│   ├── config/                   monorel.toml schema + Load + Validate
-│   ├── changeset/                .changeset/*.md format: parse, write, name-gen, pre.json
-│   ├── semver/                   Bump levels + Apply / InitialFromBump / ApplyPrerelease
+│   ├── cli/                      Cobra commands: add, plan, status, release, preview, pre, init,
+│   │                             apply, tag, publish, doctor, detect-release, auto, validate
 │   ├── git/                      Repo interface + shell-out impl + in-memory fake
-│   ├── git/testutil/             On-disk git repo helper for integration tests
-│   ├── plan/                     Pure-function planner: (config, changesets, tags, pre) -> ReleasePlan
-│   ├── changelog/                Keep-a-Changelog writer (insert above first H2)
+│   ├── detect/                   IsReleaseMerge: trailer signal + provider-API signal
+│   ├── orchestrator/             Auto: dispatch release vs feature flow on top of detect
 │   ├── release/                  Apply ReleasePlan: write changelogs, tag, commit, publish
-│   ├── provider/                 Provider-neutral host API seam (PR upsert + release create)
-│   │   ├── factory/              Dispatch by config.ProviderConfig.Name
-│   │   └── github/               go-github implementation
-│   └── action/                   (Phase 9, not yet built) bot orchestrator
+│   └── provider/                 Provider-neutral host API seam
+│       ├── factory/              Dispatch by config.ProviderConfig.Name
+│       ├── github/               go-github implementation
+│       ├── gitea/                Gitea / Forgejo implementation
+│       ├── gitlab/               GitLab implementation
+│       └── bitbucket/            Bitbucket Cloud implementation
 ├── docs/                         VitePress documentation site
 │   ├── .vitepress/config.ts      Sidebar + OG meta
 │   └── src/                      Markdown source
-├── ci/                           (Phase 10, not yet built) per-CI-system wrappers
-│   └── github/action.yml         Composite GitHub Action
+├── ci/                           Per-CI-system wrappers
+│   └── github/action.yml         Composite GitHub Action (runs `monorel auto`)
+├── tests/e2e/                    Live-Forgejo integration suite (build tag `e2e`)
 ├── .changeset/                   Self-hosted changesets
 ├── monorel.toml                  Self-hosted config
 ├── lefthook.yml                  Git hooks
 └── Makefile
 ```
+
+The top-level `config`, `changeset`, `semver`, `plan`, `changelog`, `validate`, and `doctor` packages are part of the public Go API surface; they're SemVer-committed from v1.0.0 onward. Everything under `internal/` is implementation detail and may change without notice.
 
 ## Key Design Decisions
 
@@ -119,9 +128,11 @@ What runs:
   parser (same one release-please uses). Hard-fails if `bun` isn't on PATH
   or `node_modules` is missing; install bun (https://bun.sh) and run
   `bun install`.
-- **pre-commit** (parallel): `gofmt -l` on staged Go files, `go vet ./...`,
-  `staticcheck ./...`. Hard-fails if `staticcheck` isn't on PATH; install
-  with `go install honnef.co/go/tools/cmd/staticcheck@latest`.
+- **pre-commit** (parallel): `gofmt -w` on staged Go files (auto-fix +
+  re-stage), `go vet ./...`, `staticcheck ./...`, plus
+  `go run ./cmd/monorel validate` when `monorel.toml` or `.changeset/*.md`
+  changes. Hard-fails if `staticcheck` isn't on PATH; install with
+  `go install honnef.co/go/tools/cmd/staticcheck@latest`.
 - **pre-push**: `go test -race -count=1 ./...`.
 
 Skip a hook for one command with `git commit --no-verify` or

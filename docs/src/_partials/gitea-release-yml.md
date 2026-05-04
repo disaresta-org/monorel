@@ -20,5 +20,10 @@ jobs:
           go-version-file: go.mod
       - uses: disaresta-org/monorel/ci/github@v1.0.0
         with:
-          token: ${{ secrets.GITEA_TOKEN }}
+          # Gitea Actions auto-injects secrets.GITHUB_TOKEN for
+          # GitHub-Actions YAML compatibility. The action exports
+          # whatever you pass as `token:` into both GITHUB_TOKEN
+          # and GITEA_TOKEN env vars, so monorel reads the right
+          # one for the configured Gitea provider.
+          token: ${{ secrets.GITHUB_TOKEN }}
 ```

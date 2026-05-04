@@ -48,8 +48,8 @@ Identifies the version-control host that owns the repo. monorel is host-agnostic
 | `path` | string | required | Package directory relative to the repo root. Used to locate `go.mod` for v2+ major-version updates. |
 | `changelog` | string | required | Path (relative to repo root) of the per-package `CHANGELOG.md` monorel writes new entries to. |
 
-::: warning Bare-tag root requires explicit empty string
-The main module at the repo root needs `tag_prefix = ""` (the empty string) for monorel to produce bare `vX.Y.Z` tags. Omitting the field is currently rejected by the validator; setting it to `""` is the supported path.
+::: tip Bare-tag root
+The main module at the repo root takes `tag_prefix = ""` (the empty string) to produce bare `vX.Y.Z` tags. Omitting the field is equivalent to `""`; the explicit empty-string form is the recommended style because it makes the intent unambiguous in code review.
 :::
 
 ## Example: single-package repo
