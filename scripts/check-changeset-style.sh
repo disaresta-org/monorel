@@ -8,6 +8,13 @@
 # re-cutting a release. Other prose (docs/src, README) gets a normal
 # review cycle; this script intentionally does not police it.
 #
+# Scoping note: the script scans every `.changeset/*.md` on disk, not
+# just the ones currently staged. Lefthook's `glob:` controls when the
+# step fires, but once it fires the script checks all of them. A
+# latent em-dash in an older changeset still ships into CHANGELOG at
+# the next release, so it's worth catching on any commit that touches
+# the directory.
+#
 # Run locally:
 #   bash scripts/check-changeset-style.sh
 #
