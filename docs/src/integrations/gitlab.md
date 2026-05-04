@@ -165,14 +165,6 @@ GitLab CI doesn't have GitHub Actions' anti-recursion rule, but pipelines on the
 
 Check the project's CI/CD → Pipelines page for the actual status; usually a transient runner issue.
 
-### `tidy in <sub-module>: exit status 1` with `module lookup disabled by GOPROXY=off` (multi-module, clean runner)
+### `tidy in <sub-module>: exit status 1` with `module lookup disabled by GOPROXY=off`
 
-Known issue with multi-module repos on cold-cache GitLab runners. `monorel apply`'s offline `go mod tidy` step fails inside a sub-module that requires another in-plan sibling, with:
-
-```
-go: example.com/widget/<sub-module>: module lookup disabled by GOPROXY=off
-```
-
-The bug is in monorel's seed-and-tidy flow, not your config. It does NOT reproduce on a developer's machine (the local `GOMODCACHE` has accumulated state that masks it) but does reproduce reliably in shared CI runners and inside the published Docker image. Until it's fixed, the multi-module Go-monorepo path on GitLab is unverified end-to-end.
-
-Single-module repos are unaffected. Multi-module repos where no sub-module has an in-plan sibling `require` are unaffected.
+Indicates a stale `monorel` binary. Earlier builds did not pin `GOMODCACHE` for the offline-tidy subprocess, so on systems where `GOMODCACHE` is derived from `GOPATH` (notably `golang:alpine` images and cold-cache CI runners) the seed and the read pointed at different paths and tidy missed the cached in-plan sibling. Upgrade `monorel` to the latest release.

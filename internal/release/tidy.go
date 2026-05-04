@@ -26,13 +26,24 @@ import (
 //   - GOFLAGS=: clear caller-set flags (GOFLAGS=-mod=vendor in the
 //     environment would otherwise break tidy).
 //   - GOTOOLCHAIN=local: don't auto-download a different toolchain.
+//   - GOMODCACHE=<resolved>: pinned to the same path seedModuleCache
+//     wrote into. On distributions where GOMODCACHE is derived from
+//     GOPATH (e.g. golang:alpine has GOPATH=/go but no GOMODCACHE
+//     env var), the restricted env strips GOPATH and the subprocess
+//     would otherwise default to ~/go/pkg/mod — pointing at an
+//     empty cache while seeds live at /go/pkg/mod. Pinning makes
+//     the seed and the read use the same path.
 //
-// PATH, HOME, USER, TMPDIR, LANG, LC_*, GOMODCACHE pass through so
-// the toolchain itself can run.
+// PATH, HOME, USER, TMPDIR, LANG, LC_* pass through so the toolchain
+// itself can run.
 func runOfflineTidy(modDir string) error {
+	env, err := offlineTidyEnv()
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = modDir
-	cmd.Env = offlineTidyEnv()
+	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -48,14 +59,13 @@ func runOfflineTidy(modDir string) error {
 // offlineTidyEnv builds the explicit env slice for the tidy
 // subprocess. Variables NOT in the inherited list are dropped; see
 // runOfflineTidy's GoDoc for the rationale.
-func offlineTidyEnv() []string {
+func offlineTidyEnv() ([]string, error) {
 	inherit := []string{
 		"PATH",
 		"HOME",
 		"USER",
 		"TMPDIR",
 		"LANG",
-		"GOMODCACHE",
 		"GOCACHE", // tidy may compile to discover deps; let it reuse the build cache.
 	}
 	env := make([]string, 0, len(inherit)+8)
@@ -70,6 +80,15 @@ func offlineTidyEnv() []string {
 			env = append(env, e)
 		}
 	}
+	// Resolve GOMODCACHE under the host's full env and pin it
+	// explicitly. Without this, on systems that derive GOMODCACHE from
+	// GOPATH (e.g. golang:alpine), the restricted-env subprocess
+	// defaults to a different path than the seed wrote into.
+	mc, err := goModCache()
+	if err != nil {
+		return nil, err
+	}
+	env = append(env, "GOMODCACHE="+mc)
 	// Fixed values.
 	env = append(env,
 		"GOPROXY=off",
@@ -78,7 +97,7 @@ func offlineTidyEnv() []string {
 		"GOFLAGS=",
 		"GOTOOLCHAIN=local",
 	)
-	return env
+	return env, nil
 }
 
 // primeModuleCache populates the local module cache with the
@@ -156,10 +175,14 @@ func primeModuleCache(modDir string, inPlan map[string]string) error {
 		return nil
 	}
 
+	env, err := primeCacheEnv()
+	if err != nil {
+		return err
+	}
 	args := append([]string{"mod", "download"}, targets...)
 	cmd := exec.Command("go", args...)
 	cmd.Dir = modDir
-	cmd.Env = primeCacheEnv()
+	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -175,15 +198,15 @@ func primeModuleCache(modDir string, inPlan map[string]string) error {
 // primeCacheEnv builds the env slice for the prime-cache subprocess.
 // Mirrors offlineTidyEnv's "scratch env, no caller GOFLAGS leak"
 // shape, but inherits GOPROXY and GOSUMDB so download can fetch from
-// the network.
-func primeCacheEnv() []string {
+// the network. GOMODCACHE is pinned explicitly for the same reason
+// runOfflineTidy pins it.
+func primeCacheEnv() ([]string, error) {
 	inherit := []string{
 		"PATH",
 		"HOME",
 		"USER",
 		"TMPDIR",
 		"LANG",
-		"GOMODCACHE",
 		"GOCACHE",
 		"GOPROXY",
 		"GOSUMDB",
@@ -199,10 +222,15 @@ func primeCacheEnv() []string {
 			env = append(env, e)
 		}
 	}
+	mc, err := goModCache()
+	if err != nil {
+		return nil, err
+	}
+	env = append(env, "GOMODCACHE="+mc)
 	env = append(env,
 		"GOWORK=off",
 		"GOFLAGS=",
 		"GOTOOLCHAIN=local",
 	)
-	return env
+	return env, nil
 }
