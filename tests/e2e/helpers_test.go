@@ -5,7 +5,9 @@ package e2e_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -154,15 +156,15 @@ func (r *ScenarioRepo) ScaffoldMultiPackage(t *testing.T, pkgs ...string) {
 	r.WriteFile(t, "monorel.toml", sb.String())
 	for _, p := range pkgs {
 		readme := filepath.Join(r.Local, p, "README.md")
-		if _, err := os.Stat(readme); os.IsNotExist(err) {
+		if _, err := os.Stat(readme); errors.Is(err, fs.ErrNotExist) {
 			r.WriteFile(t, filepath.Join(p, "README.md"), "# "+p+"\n")
 		}
 		changelog := filepath.Join(r.Local, p, "CHANGELOG.md")
-		if _, err := os.Stat(changelog); os.IsNotExist(err) {
+		if _, err := os.Stat(changelog); errors.Is(err, fs.ErrNotExist) {
 			r.WriteFile(t, filepath.Join(p, "CHANGELOG.md"), "# Changelog\n\n## [Unreleased]\n\n")
 		}
 	}
-	if _, err := os.Stat(filepath.Join(r.Local, ".changeset/README.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(r.Local, ".changeset/README.md")); errors.Is(err, fs.ErrNotExist) {
 		r.WriteFile(t, ".changeset/README.md", "# Changesets\n")
 	}
 }
