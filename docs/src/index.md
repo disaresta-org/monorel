@@ -58,7 +58,9 @@ changelog  = "transports/zerolog/CHANGELOG.md"
 ```
 
 ```sh
-# Author a changeset describing this PR
+# Author a changeset describing this PR (or run `monorel add` with no
+# flags for an interactive picker — useful when bumping multiple
+# packages in one changeset).
 monorel add --package "transports/zerolog:minor" --message "Adds Lazy() helper."
 
 # Preview the next release locally
