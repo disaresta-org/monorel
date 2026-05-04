@@ -17,20 +17,19 @@ Every monorel subcommand, indexed by lifecycle phase + runner + purpose.
 | First-time setup | `monorel validate` | Maintainer (local) or PR-time CI | Confirm the config loads and paths exist. |
 | Daily contributor flow | `monorel add` | Contributor (local) | Author a `.changeset/<name>.md` for the current PR. |
 | Daily contributor flow | `monorel doctor` | PR-time CI (optional) | Diagnose revived-changeset issues (typically caused by stale-branch + squash-merge); non-zero exit fails the PR. |
-| Daily contributor flow | `monorel apply` | `release-pr.yml` (CI) | Stage the file changes the next release will produce (CHANGELOGs, go.mod / go.sum tidies, consumed-changeset removals) into a single commit on the staging branch. |
-| Daily contributor flow | `monorel preview --upsert` | `release-pr.yml` (CI) | Open or update the always-open release PR with the rendered plan. |
-| Cutting a release | `monorel tag` | `release.yml` (CI) | Read the merge commit's `monorel-Release:` trailers, create one annotated tag per released package. |
-| Cutting a release | `monorel publish` | `release.yml` (CI) | Create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry. |
+| Daily contributor flow | `monorel detect-release` | CI (auto) | Pure detection: exit 0 if HEAD is the merge of monorel's release PR, exit 1 otherwise, exit 2 on error. |
+| Daily contributor flow | `monorel auto` | CI (post-push) | One-stop CI command. Runs `detect-release` then dispatches: feature path (`apply` + `push -f` + `preview --upsert`) or release path (`tag` + `push --follow-tags` + `publish`). |
+| Daily contributor flow | `monorel apply` | `monorel auto` (feature path) | Stage the file changes the next release will produce (CHANGELOGs, go.mod / go.sum tidies, consumed-changeset removals) into a single commit on the staging branch. |
+| Daily contributor flow | `monorel preview --upsert` | `monorel auto` (feature path) | Open or update the always-open release PR with the rendered plan. |
+| Cutting a release | `monorel tag` | `monorel auto` (release path) | Read the merge commit's `monorel-Release:` trailers, create one annotated tag per released package. |
+| Cutting a release | `monorel publish` | `monorel auto` (release path) | Create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry. |
 | Pre-release cycle | `monorel pre enter <channel>` | Maintainer (local) | Switch into pre-release mode for the named channel. |
 | Pre-release cycle | `monorel pre exit` | Maintainer (local) | Leave pre-release mode; the next release is stable. |
 | Local one-shot release | `monorel release` | Maintainer (local) | `monorel apply` + `monorel tag` in one process. Skips the always-open-PR pattern; useful for local releases without CI. |
 | Diagnostic | `monorel plan` | Anyone (local) | Print the release plan that would be applied right now. Pure read; no mutation. |
 | Diagnostic | `monorel status` | Anyone (local) | Summarize pending changesets. |
 
-The `disaresta-org/monorel/ci/github` action groups these:
-
-- `command: pr` runs `monorel apply` → `git push -f` → `monorel preview --upsert`.
-- `command: release` runs `monorel tag` → `git push --follow-tags` → `monorel publish`.
+The `disaresta-org/monorel/ci/github` action runs `monorel auto`, which detects whether HEAD is a release-PR merge and dispatches to the feature path or release path automatically. Earlier action versions had `command: pr|release|doctor` inputs; v1.0.0 collapsed those into the single auto-dispatching step.
 
 ## Common one-liners
 
@@ -90,6 +89,5 @@ monorel pre exit            # the following release is stable
 | `GITHUB_TOKEN` / `GH_TOKEN` | `preview`, `publish` | Auth for the GitHub provider. |
 | `GITEA_TOKEN` | `preview`, `publish` | Auth for the Gitea / Forgejo provider. |
 | `GITLAB_TOKEN` | `preview`, `publish` | Auth for the GitLab provider. |
-| `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | `preview`, `publish` | Auth for the Bitbucket Cloud provider. Email is the Atlassian-account email; token is an API token with Bitbucket scopes. |
 | `VISUAL` / `EDITOR` | `monorel add --editor` | Editor to launch for the body. Falls back to `vi` / `nano` (Unix) or `notepad` (Windows). |
 | `GOMODCACHE`, `GOCACHE` | `monorel apply` | Inherited by the offline `go mod tidy` invocation; pre-populated by your normal dev / `go test ./...` runs. |

@@ -24,7 +24,7 @@ The convention of tagging the root module with bare version tags (`v1.0.0`, `v1.
 
 ## Bump level
 
-How much a release advances the version: `major` (breaking changes), `minor` (backward-compatible features), `patch` (backward-compatible fixes). When multiple changesets target the same package, the **strongest** bump wins for that release.
+How much a release advances the version: `major` (breaking changes), `minor` (backward-compatible features), `patch` (backward-compatible fixes). When multiple changesets target the same package, the **highest** bump wins for that release (`major > minor > patch`).
 
 ## Changelog (CHANGELOG.md)
 
@@ -77,7 +77,7 @@ The state when `.changeset/pre.json` exists. In this mode, `monorel release` pro
 
 ## Provider
 
-The version-control host (GitHub, GitLab, Gitea, Bitbucket, Forgejo). monorel's `internal/provider` interface abstracts the host-specific operations (find PR, create PR, create release, etc.). Selected by `provider.name` in `monorel.toml`. `github`, `gitea` (also covers `forgejo` via API compatibility), `gitlab`, and `bitbucket` (Bitbucket Cloud) are wired up.
+The version-control host (GitHub, GitLab, Gitea, Forgejo). monorel's `internal/provider` interface abstracts the host-specific operations (find PR, create PR, create release, etc.). Selected by `provider.name` in `monorel.toml`. `github`, `gitea` (also covers `forgejo` via API compatibility), and `gitlab` are wired up.
 
 ## Release PR
 

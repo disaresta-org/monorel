@@ -7,12 +7,10 @@ github/
 ├── monorel.toml
 ├── .changeset/README.md
 └── .github/workflows/
-    ├── release-pr.yml
-    ├── release.yml
-    └── doctor.yml      (recommended: pre-merge sanity check)
+    └── release.yml
 ```
 
-Copy these files into your repo, replace `acme/widget` with your owner/repo and the package keys with your own (`monorel init` will scaffold this from your `go.mod` files), then commit and push to `main`. The `release-pr` workflow opens / updates the always-open release PR; merging it triggers `release.yml` which creates tags and publishes GitHub Releases.
+Copy these files into your repo, replace `acme/widget` with your owner/repo and the package keys with your own (`monorel init` will scaffold this from your `go.mod` files), then commit and push to `main`. The single workflow runs `monorel auto` on every push, which detects whether HEAD is the merge of the always-open release PR: a feature commit refreshes the release PR; a release-PR merge cuts tags and publishes GitHub Releases.
 
 See [Getting Started](https://monorel.disaresta.com/getting-started) and the [GitHub integration page](https://monorel.disaresta.com/integrations/github) for the full walkthrough.
 

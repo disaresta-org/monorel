@@ -82,14 +82,10 @@ type Result struct {
 //   - Non-empty plan + existing open release PR: update title/body.
 //     Action = ActionUpdated.
 //
-// Run does NOT push commits to the head branch. In a "fully
-// orchestrated" world the CI wrapper would force-push speculative-
-// version commits (CHANGELOG edits, deleted changesets) to the head
-// branch before invoking Run, so the upserted PR shows the merged-
-// release diff. The v1 wrapper does NOT yet do this staging — the
-// PR body shows the rendered plan but the branch's diff is empty.
-// See ci/github/README.md and the "Notes" section of
-// docs/src/github-action.md.
+// Run does NOT push commits to the head branch itself. The caller
+// (typically [Auto]'s feature path in autoFeature) is responsible for
+// staging speculative-version commits onto the head branch before
+// invoking Run, so the upserted PR shows the merged-release diff.
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Plan == nil {
 		return nil, errors.New("orchestrator: nil Plan")

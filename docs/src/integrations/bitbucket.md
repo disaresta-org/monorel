@@ -5,10 +5,19 @@ description: "Wire up monorel against a Bitbucket Cloud repository: configuratio
 
 # Bitbucket
 
+::: danger Disabled in this build
+The Bitbucket provider is **disabled**. `provider.name = "bitbucket"` is rejected by the validator with `"is not recognized"`, and the factory does not dispatch to it. The provider implementation, the example pipeline, and the Atlassian API client code remain in-tree at `internal/provider/bitbucket/` for future re-enablement, but the workflow has not been verified end-to-end against a live Bitbucket Pipelines runner. Re-enabling requires:
+
+1. Successful end-to-end Pipelines runs of the canonical example (the maintainer hit a workspace 2FA enforcement that blocks the API enable path; verification is pending).
+2. Adding `ProviderBitbucket` back to `config.KnownProviders` and uncommenting the case in `internal/provider/factory/factory.go`.
+
+This page is preserved as a reference for the eventual re-enablement and for users who choose to compile against the in-tree provider directly. **Do not use the configuration shapes below in production until the provider is re-enabled.**
+:::
+
 monorel's Bitbucket provider talks to [Bitbucket Cloud](https://bitbucket.org) via the standard Bitbucket REST API v2. The implementation is hand-rolled against `net/http` (no SDK), so the provider has no extra direct dependencies and works on any platform Go does.
 
-::: warning Bitbucket Cloud only
-Only Bitbucket Cloud (`bitbucket.org`) is supported. Bitbucket Data Center / Server (the self-hosted product) uses a different REST surface and is not covered. The package layout is namespace-ready for a future `bitbucket/datacenter/` sibling, but that work is not on the roadmap.
+::: warning Bitbucket Cloud only (when re-enabled)
+Only Bitbucket Cloud (`bitbucket.org`) was targeted. Bitbucket Data Center / Server (the self-hosted product) uses a different REST surface and is not covered.
 :::
 
 ::: tip Example
@@ -46,6 +55,10 @@ Bitbucket Cloud no longer accepts username + app-password as a long-term auth sc
 
 Both must be set; missing either fails the constructor with a clear error.
 
+::: info `BITBUCKET_EMAIL` is for the API client only
+`BITBUCKET_EMAIL` is what the monorel binary uses as the Basic-auth username when calling Bitbucket's REST API. Manual `git push` from a workstation over HTTPS uses Bitbucket's account *username* (visible in the repo's HTTPS clone URL) as the Basic-auth user, NOT the Atlassian email. The two are different fields on a Bitbucket account. This only affects operator-driven pushes from a laptop; pushes inside Bitbucket Pipelines use auto-provided runner credentials and don't need either form configured manually.
+:::
+
 ### Creating an API token with Bitbucket scopes
 
 1. Go to [`id.atlassian.com/manage-profile/security/api-tokens`](https://id.atlassian.com/manage-profile/security/api-tokens) (the Atlassian-account API tokens page; works for any user with a Bitbucket workspace).
@@ -63,9 +76,9 @@ The "Create API token" button (no scopes) at `id.atlassian.com` produces a token
 
 ### Username probing
 
-Bitbucket's git-over-HTTPS push expects the workspace's Bitbucket username, not the email on the API token. monorel probes `GET /2.0/user` once at constructor time with the email + token, reads the `username` field, and caches it on the client. You don't supply a username; it's resolved automatically from the token's identity.
+When monorel needs the Bitbucket workspace username (not the email on the API token), it probes `GET /2.0/user` lazily on the first call that needs it, reads the `username` field, and caches the result on the client. You don't supply a username; it's resolved automatically from the token's identity.
 
-This is why the API token MUST have `read:account`: without it, the probe fails and the provider can't construct.
+This is why the API token needs `read:account`: without it, the probe fails when monorel reaches a code path that needs the username.
 
 ## Workspace plan acceptance
 
@@ -74,6 +87,14 @@ Bitbucket Cloud workspaces created (or upgraded) since the September 2024 plan m
 Resolution: a workspace admin visits `https://bitbucket.org/<workspace>/workspace/settings/plans` and clicks the plan-acceptance button (the page presents it the first time the workspace is loaded after migration). It's a one-time action per workspace and unrelated to billing.
 
 If you see `402 Payment Required` from a `monorel preview --upsert` or `monorel tag` step, hit that URL first and re-run the workflow. monorel surfaces the upstream HTTP status verbatim so the error is easy to recognize.
+
+## Enable Pipelines on the repo
+
+Bitbucket Cloud disables Pipelines on every repo by default. Before the example workflow can fire, enable Pipelines under Repository settings → Pipelines → Settings → On.
+
+::: warning Workspace 2FA enforces the API path
+If your workspace requires 2FA on the user account, the API call (`PUT /2.0/repositories/<ws>/<slug>/pipelines_config {"enabled": true}`) returns `403` with `account-service.user.2fa-required`. The Bitbucket UI path doesn't have this gate; click through it once in the browser and the repo is good to go. Repository variables (`BITBUCKET_EMAIL` / `BITBUCKET_TOKEN`) can be set via API regardless of 2FA status.
+:::
 
 ## Workflows
 
@@ -90,7 +111,7 @@ Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `
 
 Setup:
 
-1. **Add `BITBUCKET_TOKEN` and `BB_USER` as repository secrets** under Repository settings → Repository variables. `BITBUCKET_TOKEN` is the Atlassian API token; `BB_USER` is the Bitbucket username (the same one monorel probes from `/2.0/user`; you can copy it from your Bitbucket profile URL). The pipeline uses both to authenticate the git push over HTTPS.
+1. **Add `BITBUCKET_EMAIL` and `BITBUCKET_TOKEN` as repository variables** under Repository settings → Repository variables. `BITBUCKET_EMAIL` is the Atlassian-account email that owns the token; `BITBUCKET_TOKEN` is the API token string. monorel reads both from the environment when constructing the Bitbucket API client. Bitbucket Pipelines exports repository variables to the runner's environment automatically, so no explicit `env:` mapping in the pipeline is needed. Pipelines also injects git credentials for pushes back to the same repo.
 2. **Pick a merge strategy.** Squash, fast-forward, and merge-commit all work via the API signal; pick whichever matches your repo's convention. Configure under Repository settings → Branch restrictions / Merge strategies.
 3. **Push the `bitbucket-pipelines.yml` to the default branch.** The pipeline fires on every push to `main`; it runs `monorel auto` and opens the always-open release PR once you have a `.changeset/<name>.md`.
 
@@ -148,11 +169,15 @@ Bitbucket calls these "branch restrictions." Two points:
 - **`monorel/release` should NOT have a `Prevent rewriting branch history` restriction.** The pipeline force-pushes to that branch on every feature-branch run. Either don't add a restriction covering `monorel/release`, or exempt the bot user / token.
 - **Any merge strategy works for the default branch's release PR** (see [Merge strategy](#merge-strategy-any-of-the-three-works)). Squash-merge adds a network hop for the trailers fallback; fast-forward and merge-commit avoid it.
 
+## Tokens and required status checks
+
+Bitbucket Cloud has no analogue to GitHub's required-status-check anti-recursion rule. Pipelines triggered by the always-open release PR run with the same Pipelines OAuth token as any other pipeline; there's no "PRs created by the auto-injected token don't trigger checks" pitfall to escalate around. If your repo enforces required reviews on the default branch, the standard PR-review approval flow applies; no special PAT escalation is needed for monorel itself.
+
 ## Troubleshooting
 
-### `provider: unknown provider "bitbucket"`
+### `provider.name "bitbucket" is not recognized`
 
-monorel binary doesn't recognize the `bitbucket` provider name. Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
+The Bitbucket provider is **disabled in shipped binaries** pending live Pipelines verification (see the danger callout at the top of this page). Every released monorel binary rejects `provider.name = "bitbucket"`; upgrading does not change this. To compile a custom binary against the in-tree provider, see the re-enablement steps in the disclaimer above.
 
 ### `bitbucket: probe username: 401 Unauthorized`
 

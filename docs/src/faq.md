@@ -15,7 +15,7 @@ Yes, until it's consumed at release time. A changeset file is just markdown; edi
 
 ### Can I delete a changeset to skip a release?
 
-Yes. Delete the file from `main` (open a PR that removes it). The next `release-pr` workflow run will recompute the plan without that changeset. If the changeset was the only one pending, the always-open release PR will close itself.
+Yes. Delete the file from `main` (open a PR that removes it). The next push to `main` runs `monorel auto`, which recomputes the plan without that changeset. If the changeset was the only one pending, the always-open release PR will close itself.
 
 ### What if I forget to add a changeset?
 
@@ -43,6 +43,10 @@ Three ways, depending on how much markdown you're writing:
 
 Yes. Multiple changesets stacking on one package combine: the **strongest bump level** wins, and every changeset's body appears in the rendered CHANGELOG entry. Three PRs each adding a `patch` changeset to `transports/foo` plus one PR adding a `minor` produce a single `minor` release containing all four entries.
 
+### Can I use Conventional Commits to drive releases instead of changeset files?
+
+No. monorel reads only `.changeset/*.md` files. Mixing commit messages and changeset files re-introduces the inference failures changesets exist to avoid (squash-merge stripping footers, full-history scans leaking footers across packages, path-attribution misses). If a PR doesn't need a release, it doesn't need a changeset; if it does, write the changeset.
+
 ## The release PR
 
 ### Does the release PR auto-rebase?
@@ -64,7 +68,7 @@ There's intentionally no "release subset" mode: separating the decision ("which 
 
 ### What happens if I push a commit directly to `main` while the release PR is open?
 
-The next `release-pr` workflow run rebuilds the staging branch off the new `main`. The release PR's diff updates to include the new commit's effect (a new changeset, if any). If the commit is unrelated to releases (no new changeset), the release PR's diff stays the same, just rebased.
+On the next push to `main`, `monorel auto`'s feature path rebuilds the staging branch off the new `main`. The release PR's diff updates to include the new commit's effect (a new changeset, if any). If the commit is unrelated to releases (no new changeset), the release PR's diff stays the same, just rebased.
 
 ## Tags and versions
 
@@ -78,11 +82,15 @@ No, git tags are write-once. Releasing `v1.6.0` and wanting to "undo it" means s
 
 ### Why does my root module need `tag_prefix = ""` (empty string)?
 
-The empty string is the explicit signal for bare-tag root (`vX.Y.Z` instead of `<prefix>/vX.Y.Z`). The validator requires the field to be set explicitly; omitting it is rejected so a missing field doesn't silently default to bare. Set `tag_prefix = ""` for the root module in your `monorel.toml`.
+`tag_prefix = ""` is how you opt into bare-tag root (`vX.Y.Z` instead of `<prefix>/vX.Y.Z`). Omitting the field is equivalent to setting it to `""`, but the explicit form is the recommended style: it makes the intent unambiguous in code review and avoids confusion when readers compare a root entry against sub-module entries (which always set `tag_prefix` explicitly).
 
 ### Can I rename a package after it's released?
 
 Yes, but the tag prefix stays for historical tags. Edit `monorel.toml`'s package key (the `[packages."<name>"]` block name) and `tag_prefix`. Existing tags under the old prefix continue to point at their commits; future releases use the new prefix. Update changeset frontmatter keys accordingly.
+
+### Can I link two packages so they always share a version?
+
+No. Each package versions independently. Two packages bumped in the same changeset get separate version transitions and separate tags. Linked releases were left out deliberately: forcing N packages to share a version creates coupling problems in practice (a fix in one package forces a no-op bump on the other) and the feature can be added later without breaking single-package configs if real demand emerges.
 
 ## Pre-release mode
 
@@ -145,7 +153,7 @@ No. The planner reads tags from git history to determine the current version per
 
 ### Does monorel require GitHub?
 
-No. `provider.name` accepts `"github"`, `"gitea"`, `"gitlab"`, and `"bitbucket"` (Bitbucket Cloud). The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). The provider seam is documented in `internal/provider/factory/factory.go` for users who need a different forge.
+No. `provider.name` accepts `"github"`, `"gitea"`, and `"gitlab"`. The Gitea implementation also covers Forgejo via API compatibility (set `host` to your Forgejo instance). The provider seam is documented in `internal/provider/factory/factory.go` for users who need a different forge.
 
 ### Can monorel coordinate releases across multiple repos?
 

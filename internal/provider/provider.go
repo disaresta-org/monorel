@@ -23,6 +23,12 @@ import (
 // TokenEnvVars returns the environment variable names to consult for
 // a given provider's auth token, in priority order. Unknown providers
 // (or providers that don't use a static env-var token) yield nil.
+//
+// The Bitbucket case is intentionally retained while the provider is
+// disabled at the factory layer (see internal/provider/factory). The
+// in-tree bitbucket package's tests exercise this path; removing the
+// case would force a parallel disable there. Restore at-the-factory
+// dispatch first; the env-var routing here is correct already.
 func TokenEnvVars(provider string) []string {
 	switch config.ResolveProvider(provider) {
 	case config.ProviderGitHub:

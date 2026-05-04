@@ -5,10 +5,28 @@ description: "monorel exists because the Go ecosystem doesn't have a release too
 
 # Why monorel?
 
-The Go ecosystem doesn't have a release tool that handles the canonical Go monorepo layout cleanly. The layout in question:
+monorel handles both single-module and multi-module Go repos, but it's designed for the multi-module case. That's where the Go ecosystem currently has a gap: no battle-tested release tool handles the canonical Go monorepo layout cleanly. The layout in question:
 
-- **Main module** at the repo root with bare `vX.Y.Z` tags. `go install <module>@v1.2.3` requires this.
-- **Sub-modules** in subdirectories with `<path>/vX.Y.Z` tags. `go get <module>/transports/foo@v1.2.3` requires this.
+```
+my-repo/                        ← main module (root)
+├── go.mod                        module example.com/widget
+├── widget.go
+├── transports/
+│   └── foo/                    ← sub-module
+│       ├── go.mod                module example.com/widget/transports/foo
+│       └── foo.go
+└── plugins/
+    └── bar/                    ← sub-module
+        ├── go.mod                module example.com/widget/plugins/bar
+        └── bar.go
+
+tags:  v1.2.3                   ← root: BARE tag (required by go install)
+       transports/foo/v0.5.1    ← sub-module: PATH-PREFIXED tag (required by go get)
+       plugins/bar/v2.0.0
+```
+
+- **Main module** at the repo root takes bare `vX.Y.Z` tags. `go install <module>@v1.2.3` requires this.
+- **Sub-modules** in subdirectories take `<path>/vX.Y.Z` tags. `go get <module>/transports/foo@v1.2.3` requires this.
 
 The off-the-shelf options each have a sharp edge for this layout.
 
@@ -18,19 +36,20 @@ The off-the-shelf options each have a sharp edge for this layout.
 |------------|:---:|:---:|:---:|:---:|
 | Per-package versioning | ✅ | ✅ | ✅ | ✅ |
 | Auto-generated CHANGELOG | ✅ | ✅ | ✅ | ✅ |
-| Pre-release / RC support | ✅ | ✅ | ✅ | ✅ |
+| Pre-release / RC support | ⚠️ via `Release-As:` footers | ✅ | ✅ | ✅ |
 | Always-open release PR | ✅ | ✅ via changesets-bot | ⚠️ via custom workflow | ✅ |
 | Local CLI (works off-CI) | ⚠️ via npm package | ✅ | ✅ | ✅ |
 | Bare-tag root (`vX.Y.Z`) | ✅ | n/a (JS layout) | ❌ prefixes mandatory | ✅ |
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
 | Cleans `go.mod` for proxy publish | ❌ | n/a (JS) | ❌ | ✅ |
 | Tidies sub-module `go.sum` at release | ❌ | n/a (JS) | ❌ | ✅ |
-| Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
+| Source of truth | Conventional Commits in git history | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
-| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab + Bitbucket Cloud |
+| Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab |
 | Polyglot / non-language-specific | ✅ | ⚠️ JS-shaped (`package.json` per package) | ✅ | ❌ Go-only by design |
 
-The first three rows are the common ground: every tool in this category will manage independent per-package versions, write a per-package CHANGELOG, and support pre-release windows. The friction shows up below those rows: how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.
+- **Common ground (first three rows):** every tool in this category manages independent per-package versions, writes a per-package CHANGELOG, and supports pre-release windows.
+- **Friction (rows below):** how releases are *triggered* (commit messages vs explicit files), what tag shapes are supported, and which language ecosystem the tool is native to.
 
 The per-tool sections below dive into each tool's specific friction point for the Go-monorepo layout.
 
@@ -38,8 +57,8 @@ The per-tool sections below dive into each tool's specific friction point for th
 
 Works, with friction. The friction lives in three sharp edges:
 
-- **Squash-merge strips Conventional Commits footers.** GitHub's squash uses the PR title as the subject and the PR body as the message body. Per-commit `Release-As:` or `BREAKING CHANGE:` footers don't survive. Workarounds (put it in the PR body) are easy to forget.
-- **Full-history scans on new packages leak footers.** A `Release-As:` footer in any commit in repo history can apply to a newly-registered package because release-please has no "first release" boundary to stop the scan. We hit this on `loglayer-go`: an old `Release-As: 1.1.0` on an unrelated change set the initial version of a new sub-module to `v1.1.0`.
+- **Squash-merge strips Conventional Commits footers.** GitHub's squash collapses the branch's commits into one; per-commit `Release-As:` or `BREAKING CHANGE:` footers either get demoted into bullet-list text in the squash body or vanish, depending on the repo's squash-message defaults. Workarounds (put the footer in the PR title or body) are easy to forget.
+- **Full-history scans on new packages leak footers.** When a new package is registered, release-please scans the entire git history for Conventional Commits affecting that path. A stray `Release-As:` footer anywhere in repo history can apply to it. The documented escape hatch is per-package `bootstrap-sha`, but it's opt-in and easy to forget. We hit this on `loglayer-go`: an old `Release-As: 1.1.0` on an unrelated change set the initial version of a new sub-module to `v1.1.0`.
 - **`exclude-paths` doesn't catch path-attribution leaks for everything.** A docs-only PR can still bump the main module if the path-attribution rules don't cover the directory. The list grows over time and is easy to forget.
 
 These are all recoverable, but recovery means manual `release-as` cleanup, manual tag deletes, manual manifest fixes. The tool's mental model is "infer intent from commit history"; the failures are all variations of "the inference got confused."
@@ -60,19 +79,9 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 - **Tag format is per-package.** `tag_prefix = ""` for the main module yields bare `vX.Y.Z`; `tag_prefix = "transports/foo"` for a sub-module yields `transports/foo/vX.Y.Z`. Both work in the same repo.
 - **Always-open release PR.** The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Merging the PR runs `monorel release` on the merge commit, pushes tags, and publishes per-tag releases.
 - **Pre-release support.** `monorel pre enter rc` switches the repo to release-candidate mode; subsequent releases append `-rc.N` to the next stable version and increment a per-package counter. `pre exit` returns to stable.
-- **Provider-neutral.** GitHub, Gitea / Forgejo, GitLab, and Bitbucket Cloud are all built in. The orchestrator never sees provider-specific types; add a subpackage to support a host that isn't covered.
+- **Provider-neutral.** GitHub, Gitea / Forgejo, and GitLab are all wired up. The orchestrator never sees provider-specific types; add a subpackage to support a host that isn't covered.
 - **Clean `go.mod` at release time.** Sub-modules carry dev `replace` directives and placeholder `require` versions for local cross-module work; monorel strips and pins them in the release commit so downstream consumers' `go mod tidy` resolves the published versions.
 - **Tidy sub-module `go.sum` at release time.** Pinning sibling requires shifts the `go.sum` drift problem onto consumers. monorel runs `go mod tidy` (offline, against a seeded local cache) in every released sub-module that requires an in-plan sibling, so the release commit's `go.sum` is canonically clean. No proxy roundtrip; main is `go mod tidy`-clean for every consumer on the next pull.
-
-## When monorel is overkill
-
-If your repo is a single Go module with a single CHANGELOG and no plans to grow into a monorepo, `git tag` and a hand-written CHANGELOG are fine. monorel's value shows up when you have:
-
-- two or more packages that version independently,
-- a public API where downstream users `go get` specific sub-modules at specific tags,
-- a release cadence frequent enough that hand-crafting changelogs is friction.
-
-Below that threshold, the tool's overhead (a `monorel.toml`, `.changeset/*.md` per PR, a release workflow) costs more than it saves.
 
 ## Where monorel sits
 

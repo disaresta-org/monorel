@@ -17,12 +17,13 @@ The diagrams below cover the three lifecycles every monorel user touches: openin
    └─> sanity-checks the generated config (paths exist, no
        duplicate tag prefixes, etc.)
 
-3. Add .github/workflows/release-pr.yml + release.yml
+3. Add .github/workflows/release.yml
    (copy from Getting Started, or fork github.com/disaresta-org/monorel-example)
 
 4. Commit and push to main
-   └─> release-pr.yml runs, finds no changesets, no release PR opens
-       (this is the expected steady state until your first changeset)
+   └─> release.yml runs `monorel auto`, finds no changesets, no
+       release PR opens (this is the expected steady state until
+       your first changeset)
 ```
 
 After this, every release-affecting PR includes a `.changeset/<name>.md` and the release PR opens automatically. See [Getting Started](/getting-started) for the full walkthrough.
@@ -44,9 +45,14 @@ What happens when a contributor opens a PR with a changeset and merges it.
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │ 2. main has the new commit                              │
-│    release-pr.yml fires automatically                   │
+│    release.yml fires; runs `monorel auto`               │
+│                                                         │
+│    auto's detect step: HEAD is a feature commit         │
+│    (no monorel-Release: trailer, no PR matches)         │
+│    → dispatch to feature path                           │
 └────────────────────────┬────────────────────────────────┘
-                         │  on a fresh monorel/release branch:
+                         │  feature path on a fresh
+                         │  monorel/release branch:
                          │    monorel apply
                          │    git push --force
                          │    monorel preview --upsert
@@ -83,9 +89,13 @@ What happens when a maintainer merges the always-open release PR.
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │ 2. main has the chore(release): merge commit            │
-│    release.yml fires (matched by commit subject)        │
+│    release.yml fires; runs `monorel auto`               │
+│                                                         │
+│    auto's detect step: HEAD is the release-PR merge     │
+│    (trailer in body OR API: head ref == monorel/release)│
+│    → dispatch to release path                           │
 └────────────────────────┬────────────────────────────────┘
-                         │  inside the action wrapper:
+                         │  release path:
                          │    monorel tag                ──┐
                          │    git push --follow-tags     │ in this order
                          │    monorel publish            ──┘
@@ -142,8 +152,9 @@ How a beta / rc window works. Multiple pre-release cuts accumulate changes; a si
 │ 4. monorel pre exit                                     │
 │    └─> removes .changeset/pre.json                      │
 └────────────────────────┬────────────────────────────────┘
-                         │  push to main; release-pr fires
-                         │  release PR now shows stable versions
+                         │  push to main; `monorel auto`
+                         │  refreshes the release PR with
+                         │  stable versions
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │ 5. Stable release: merge release PR                     │
@@ -166,63 +177,3 @@ Switching channels (e.g. `rc` → `beta`) requires `monorel pre exit` first; ent
 - [GitHub Action](/integrations/github) for the workflow YAML and token setup.
 - [FAQ](/faq) for the questions that come up after the first release.
 
-## CI environment requirements
-
-Any CI system invoking `monorel release` (GitHub Actions, GitLab CI, Gitea Actions, CircleCI, Drone, self-hosted runners) must provide the following:
-
-- **Go installed at a version compatible with every released sub-module's `go` directive.** monorel runs `go mod tidy` with `GOTOOLCHAIN=local` during release; the env var is intentional and part of the offline-tidy determinism guarantee. Auto-toolchain-download is blocked. Pin the runner's Go to the highest floor explicitly (or use `go-version-file: go.mod` if the root module's `go` directive matches the highest sub-module floor).
-- **`GOPROXY` set to a real proxy or `direct`.** monorel's release pipeline includes a "prime cache" step that runs `go mod download` (with the inherited `GOPROXY`) to populate the local module cache for third-party deps. The offline tidy that follows uses `GOPROXY=off` regardless of this setting; only the priming step honors `GOPROXY`. If `GOPROXY` is empty or missing, `go mod download` falls back to its default (`https://proxy.golang.org,direct`), which is what most CI systems already provide implicitly.
-- **Push permissions for tags.** The `release` command runs `git push --follow-tags` to publish the per-package tags created by `monorel release`. The runner's git config needs commit + push credentials.
-- **Provider API token.** For the `pr` command (always-open release PR maintenance) and the `publish` step inside `release`, the provider API token needs `contents: write` and `pull-requests: write` (GitHub naming; equivalent on GitLab / Gitea).
-
-For GitHub Actions, see [`ci/github/README.md`](../../ci/github/README.md) for the canonical workflow examples that satisfy these requirements.
-
-For GitLab CI, the equivalent setup is a `before_script:` block that installs Go (e.g., via the `golang:1.25` image or a `gimme` install) and a `rules:` clause on each job (see "Avoiding the chore(release) CI race" below). The token requirement maps to `CI_JOB_TOKEN` for read-only access plus a project access token for push/release operations.
-
-For Gitea Actions, the syntax matches GitHub Actions (Gitea Actions is API-compatible). Substitute `disaresta-org/monorel/ci/github@<version>` references with whatever path your Gitea instance uses for the same action.
-
-## Avoiding the chore(release) CI race
-
-The release commit `chore(release): ...` (created when the always-open release PR is merged) updates module `go.mod` files to require new in-plan sibling versions. The matching tags are created and pushed by the workflow running `monorel release` on the same push. Any *other* workflow that fires on the same push and resolves Go module versions will race the tag push and may transiently fail with:
-
-```
-go: example.com/foo/v2: reading example.com/foo/go.mod at revision v2.1.0: unknown revision v2.1.0
-```
-
-The release succeeds and the tags get pushed, but the racing workflow's red mark stays in the UI. The fix is to skip the racing workflow when the head commit subject begins with `chore(release):`. The principle is universal; the syntax varies per CI system.
-
-### GitHub Actions / Gitea Actions
-
-Same syntax: an `if:` clause on each job that runs Go module resolution.
-
-```yaml
-jobs:
-  test:
-    if: github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(release):')
-    # ... rest of job ...
-```
-
-See [`ci/github/README.md`](../../ci/github/README.md#skipping-ci-on-chorerelease-commits) for the full GitHub Actions snippet.
-
-### GitLab CI
-
-Use a `rules:` clause on each job:
-
-```yaml
-test:
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_TITLE =~ /^chore\(release\):/'
-      when: never
-    - when: on_success
-  script:
-    - go test ./...
-```
-
-The two-clause `rules` first allows merge-request runs through unconditionally, then explicitly drops `chore(release):` push runs on the default branch, then defaults to running.
-
-### Other CI systems
-
-The principle is universal: skip the workflow when the head commit subject starts with `chore(release):`. Most CI systems support a per-job filter on commit message; the exact key varies (`commit.message`, `CI_COMMIT_MESSAGE`, `BUILDKITE_MESSAGE`, etc.). Apply the same `^chore(release):` regex check.
-
-The release-pipeline workflow itself (the one running `monorel release`) does NOT need this filter; its own filter is the *opposite* shape (only run on `chore(release):`), so it's mutually exclusive with the skip pattern above.

@@ -45,8 +45,8 @@ monorel add
 git commit -am "feat: add Lazy() helper"
 git push
 
-# 5. CI's release-pr.yml opens the always-open release PR.
-#    Merge it to ship.
+# 5. CI's release.yml runs `monorel auto`, which opens (or
+#    refreshes) the always-open release PR. Merge it to ship.
 ```
 
 ## monorel.toml
@@ -57,7 +57,7 @@ The configuration file at the repo root. Top-level provider info plus one `[pack
 # Layout: bare vX.Y.Z tags for the root, <path>/vX.Y.Z for sub-modules.
 
 [provider]
-name  = "github"             # one of "github" / "gitea" / "gitlab" / "bitbucket"
+name  = "github"             # one of "github" / "gitea" / "gitlab"
 owner = "acme"
 repo  = "widget"
 host  = ""                   # set for self-hosted Gitea / Forgejo / GitLab Enterprise
@@ -79,7 +79,7 @@ Field reference:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `provider.name` | string | yes | `github` / `gitea` / `gitlab` / `bitbucket`. |
+| `provider.name` | string | yes | `github` / `gitea` / `gitlab`. |
 | `provider.owner` | string | yes | Repository owner (org or user). |
 | `provider.repo` | string | yes | Repository name (no `.git` suffix). |
 | `provider.host` | string | no | For self-hosted instances; defaults to the provider's public host. |
@@ -202,7 +202,7 @@ Pending changesets summary; reports counts and lists files.
 
 ### `monorel apply`
 
-Stage the file changes the next release will produce, into a single commit. Used by CI's release-pr.yml on a fresh `monorel/release` staging branch.
+Stage the file changes the next release will produce, into a single commit. Invoked by `monorel auto`'s feature path on a fresh `monorel/release` staging branch.
 
 What it does (in order, all in one commit):
 
@@ -224,7 +224,7 @@ Render the release plan as PR-body markdown. With `--upsert`, opens or updates t
 
 ### `monorel tag`
 
-Read HEAD's `monorel-Release:` trailers, look each released package up in `monorel.toml`, and create one annotated git tag per package at HEAD. Used by CI's release.yml on the `chore(release):` merge commit.
+Read HEAD's `monorel-Release:` trailers, look each released package up in `monorel.toml`, and create one annotated git tag per package at HEAD. Invoked by `monorel auto`'s release path on the release-PR merge commit.
 
 Errors out (no mutation) if HEAD's commit has no `monorel-Release:` trailers (it's not a release commit), if a trailer names a package that no longer exists in `monorel.toml`, or if any derived tag already exists in the repo.
 
@@ -372,10 +372,10 @@ The release applier (`internal/release`), orchestrator (`internal/orchestrator`)
 
 ### GitHub Actions (canonical)
 
-Two workflows. `.github/workflows/release-pr.yml`:
+Single workflow file, single step. The composite action runs `monorel auto`, which detects whether HEAD is the merge of monorel's release PR (trailer signal OR provider-API signal) and dispatches to the feature path or release path automatically.
 
 ```yaml
-name: release-pr
+name: release
 on:
   push:
     branches: [main]
@@ -383,31 +383,7 @@ permissions:
   contents: write
   pull-requests: write
 jobs:
-  release-pr:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-go@v5
-        with: { go-version-file: go.mod }
-      - uses: disaresta-org/monorel/ci/github@v1.0.0
-        with: { command: pr }
-```
-
-`.github/workflows/release.yml`:
-
-```yaml
-name: release
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-permissions:
-  contents: write
-jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -415,129 +391,52 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
       - uses: disaresta-org/monorel/ci/github@v1.0.0
-        with: { command: release }
 ```
 
 `actions/setup-go` is required: `monorel apply` runs `go mod tidy` against the released sub-modules so the release commit's `go.sum` is canonically clean.
 
 ### Gitea Actions / Forgejo
 
-Same composite action; pass `GITEA_TOKEN` for the secret.
+Same composite action; pass the Gitea token via the `with: token:` input. The action exports it to both `GITHUB_TOKEN` and `GITEA_TOKEN` env vars internally.
 
 ```yaml
 - uses: disaresta-org/monorel/ci/github@v1.0.0
-  with: { command: pr }
-  env:
-    GITEA_TOKEN: ${{ secrets.MONOREL_GITEA_TOKEN }}
+  with:
+    token: ${{ secrets.GITEA_TOKEN }}
 ```
 
 ### GitLab CI
 
-Use the published Docker image (bundles `git` and the Go toolchain).
+Use the published Docker image (bundles `git` and the Go toolchain). One job, one `monorel auto` call. Auto detects whether HEAD is the merge of the always-open release MR (via the GitLab API's `merged_pull_request` query) and dispatches accordingly.
 
 ```yaml
 default:
   image: ghcr.io/disaresta-org/monorel:1.0.0
 
-stages: [doctor, release-pr, release]
-
-doctor:
-  stage: doctor
+monorel:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  script:
-    - monorel doctor
-
-release-pr:
-  stage: release-pr
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE !~ /^chore\(release\):/
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
     GITLAB_TOKEN: $MONOREL_GITLAB_TOKEN
   script:
     - git config user.name  "monorel-bot[automation]"
     - git config user.email "monorel-bot@users.noreply.example.com"
-    - git fetch origin "$CI_DEFAULT_BRANCH"
-    - git checkout -B monorel/release "origin/$CI_DEFAULT_BRANCH"
-    - apply_out=$(monorel apply); echo "$apply_out"
-    - |
-      if echo "$apply_out" | grep -qF "Nothing to apply."; then exit 0; fi
-    - git push -f "https://oauth2:${MONOREL_GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" monorel/release
-    - monorel preview --upsert
-
-release:
-  stage: release
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TITLE =~ /^chore\(release\):/
-  variables:
-    GITLAB_TOKEN: $MONOREL_GITLAB_TOKEN
-  script:
-    - git config user.name  "monorel-bot[automation]"
-    - git config user.email "monorel-bot@users.noreply.example.com"
-    - monorel tag
-    - git push --follow-tags "https://oauth2:${MONOREL_GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
-    - monorel publish
+    - monorel auto
 ```
 
-GitLab requires the project's merge method set to **Fast-forward** (Settings → Merge requests) so the `monorel-Release:` body trailers reach `main` post-merge.
+Squash, merge-commit, and fast-forward merge strategies all work because the API signal sees through any of them.
 
-### Bitbucket Pipelines
+### Action wrapper inputs
 
-Bitbucket Cloud-only (`bitbucket.org`); Bitbucket Data Center / Server is not supported. Use the Docker image. One pipeline that branches on whether the just-landed commit is a `chore(release):` merge:
+The `disaresta-org/monorel/ci/github` action takes three inputs (all optional):
 
-```yaml
-# bitbucket-pipelines.yml
-image: ghcr.io/disaresta-org/monorel:1.0.0
+| Input | Default | Purpose |
+|---|---|---|
+| `version` | `latest` | monorel binary version. |
+| `config` | `monorel.toml` | Path to monorel config. |
+| `token` | `${{ github.token }}` | Provider token. Exported to both `GITHUB_TOKEN` and `GITEA_TOKEN` env vars so monorel reads whichever name matches the configured provider. |
 
-pipelines:
-  branches:
-    main:
-      - step:
-          name: monorel
-          script:
-            - export GIT_AUTHOR_NAME="monorel-bot[automation]"
-            - export GIT_AUTHOR_EMAIL="monorel-bot@users.noreply.example.com"
-            - export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
-            - export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
-            # Detect release-merge commits by scanning the FULL commit
-            # message (subject + body) for the chore(release): trailer
-            # marker. Bitbucket's merge strategies replace the source
-            # subject with `Merged in <branch> (pull request #N)`, so a
-            # subject-only check would never match. Both squash and
-            # merge_commit preserve the source subject as a body line.
-            - HEAD_MSG=$(git log -1 --format=%B)
-            - if echo "$HEAD_MSG" | grep -qE '(^|\n)chore\(release\):'; then
-                monorel tag &&
-                git push --follow-tags "https://${BB_USER}:${BITBUCKET_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" &&
-                monorel publish;
-              else
-                git fetch origin "$BITBUCKET_BRANCH" &&
-                git checkout -B monorel/release "origin/$BITBUCKET_BRANCH";
-                apply_out=$(monorel apply); echo "$apply_out";
-                if ! echo "$apply_out" | grep -qF "Nothing to apply."; then
-                  git push -f "https://${BB_USER}:${BITBUCKET_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" monorel/release;
-                fi;
-                git checkout "$BITBUCKET_BRANCH" &&
-                monorel preview --upsert;
-              fi
-```
-
-Bitbucket-specific notes:
-
-- Auth uses two env vars (`BITBUCKET_EMAIL` + `BITBUCKET_TOKEN`); both must be set for the provider to construct. The provider probes `GET /2.0/user` once at construction and caches the Bitbucket username; `read:account` is required for that probe.
-- A one-time **workspace plan acceptance** at `bitbucket.org/<workspace>/workspace/settings/plans` is required before any push or REST call succeeds; the symptom is HTTP 402 Payment Required even on free-tier workspaces.
-- Bitbucket Cloud has no first-class Release concept, so `monorel publish` is a no-op (exits cleanly without making API calls). Per-package `CHANGELOG.md` is the canonical release-notes source.
-- All three Bitbucket merge strategies work: fast-forward and merge-commit preserve the `monorel-Release:` body trailers; squash-merge rewrites the body but the universal trailers fallback (a `<!-- monorel-trailers ... -->` comment that `monorel preview` writes into the PR body, retrieved post-merge via `FindPRByMergeCommit`) recovers.
-
-### Composite-action commands
-
-The `disaresta-org/monorel/ci/github` action wraps the multi-step sequences into single inputs:
-
-| `command:` | Runs |
-|---|---|
-| `pr` | `monorel apply` → `git push -f origin HEAD:monorel/release` (if there's something to apply) → `monorel preview --upsert`. |
-| `release` | `monorel tag` → `git push --follow-tags` → `monorel publish`. |
-| `doctor` | `monorel doctor`. |
+Earlier action versions had a `command: pr|release|doctor` input; v1.0.0 collapsed those into automatic dispatch via `monorel auto`. To run `monorel doctor` (pre-merge sanity check), invoke it as its own workflow step rather than through this wrapper.
 
 ## Provider auth
 
@@ -547,7 +446,6 @@ The `disaresta-org/monorel/ci/github` action wraps the multi-step sequences into
 | GitHub (with branch protection) | Personal Access Token or App token | PRs created by the auto token don't trigger required-status-check workflows (anti-recursion). | Same scopes. |
 | Gitea / Forgejo | `GITEA_TOKEN` | PAT generated at `/-/user/settings/applications`. | `repository: write`, `user: read`. |
 | GitLab | `GITLAB_TOKEN` | Personal or project access token. | `api`. |
-| Bitbucket Cloud | `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | Atlassian API token created via "Create API token with scopes" at `id.atlassian.com/manage-profile/security/api-tokens`. The plain "Create API token" button produces a token without Bitbucket scopes (returns 401). | `read:repository:bitbucket`, `write:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`, `read:account` (for the username probe). |
 
 The `doctor` command needs no token; `contents: read` alone is sufficient.
 
@@ -576,7 +474,7 @@ monorel-PreRelease: false
 
 `monorel tag` reads the `monorel-Release:` trailers from HEAD's commit message to derive the tag list (no need to re-thread the plan through the apply→tag handoff). The trailers are stable across versions; they're the contract `apply` and `tag` share.
 
-The commit subject also drives CI's `release.yml` predicate: `if: startsWith(github.event.head_commit.message, 'chore(release):')`.
+The chore(release) subject is no longer used as a workflow predicate; `release.yml` runs on every push and `monorel auto` decides which path runs internally via `detect-release`.
 
 ## Always-open release PR pattern
 
@@ -584,8 +482,8 @@ The full lifecycle:
 
 ```
 1. Contributor opens feature PR with .changeset/<name>.md
-2. PR merges; release-pr.yml fires
-3. Action wrapper:
+2. PR merges; release.yml runs `monorel auto`
+3. auto detects HEAD is a feature commit, takes the feature path:
      git checkout -B monorel/release origin/<default-branch>
      monorel apply
      git push -f origin HEAD:monorel/release   (only if apply produced output)
@@ -596,8 +494,8 @@ The full lifecycle:
      - Diff: actual file changes (CHANGELOGs, go.mod/go.sum, .changeset/*.md deletions)
 5. Subsequent feature PRs re-trigger the workflow; the release PR diff updates
 6. Maintainer reviews, approves, merges
-7. release.yml fires on the chore(release): merge commit
-8. Action wrapper:
+7. release.yml runs `monorel auto` on the merge commit
+8. auto detects HEAD is the release-PR merge, takes the release path:
      monorel tag                      (reads body trailers, creates tags)
      git push --follow-tags
      monorel publish                  (creates one provider release per tag)
@@ -636,7 +534,7 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 
 - **No commit-message-driven release detection.** That's by design (it's the class of failures the tool exists to eliminate), but if your team relies on Conventional Commits to drive releases, you'd need to bridge.
 - **No multi-repo / cross-repo coordination.** monorel runs against one git repo at a time.
-- **GitLab requires fast-forward merge mode.** Squash / merge-commit modes drop the `monorel-Release:` trailers from the merge commit body.
+- **(Removed in v1.0)** Earlier versions required GitLab's fast-forward merge mode because trailer extraction was the only release-detection signal. Since `monorel auto` landed (the provider-API signal looks up the merged MR directly), all three merge methods (squash, merge-commit, fast-forward) work.
 - **Pre-release windows can't be re-entered with the same channel.** Once you `pre exit`, re-entering with the same channel resets counters from 0.
 - **Per-call go.sum tidy assumes the developer's local cache has the transitive deps.** For substantive releases that introduce new transitive deps in a sibling, the cache is normally pre-populated by the dev's prior `go test ./...` runs. CI runners that haven't run tests first need `go mod download all` before `monorel apply`. The pre-flight check surfaces a precise error in that case.
 
@@ -649,9 +547,8 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - `monorel.disaresta.com/workflows`: ASCII diagrams of the lifecycles.
 - `monorel.disaresta.com/changesets`: changeset file format reference.
 - `monorel.disaresta.com/configuration`: `monorel.toml` field reference.
-- `monorel.disaresta.com/integrations/{github,gitea,gitlab,bitbucket}`: per-provider setup.
+- `monorel.disaresta.com/integrations/{github,gitea,gitlab}`: per-provider setup.
 - `monorel.disaresta.com/api`: library API reference.
-- `monorel.disaresta.com/design`: design principles + tradeoffs.
 - `monorel.disaresta.com/docker`: running monorel via container.
 - `monorel.disaresta.com/faq`: frequently asked questions.
 - `monorel.disaresta.com/glossary`: canonical terminology.

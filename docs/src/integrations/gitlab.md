@@ -81,6 +81,31 @@ Works on a contributor's laptop or any non-GitLab-CI runner. The release commit,
 
 monorel is a single static binary; any CI that can run a shell command can run it. Pattern is the same as the local CLI flow: download the binary (or use the Docker image), set `GITLAB_TOKEN`, run `monorel release` + `git push --follow-tags` + `monorel publish`. There's no monorel-specific machinery to install.
 
+### Skipping CI on chore(release) commits
+
+The release commit `chore(release): ...` (created when the always-open release MR is merged) updates module `go.mod` files to require new in-plan sibling versions. monorel's release pipeline creates and pushes the matching tags on the same push. Any *other* job that fires on that push and resolves Go module versions (lint, test, deploy) races the tag push and may transiently fail with:
+
+```
+go: example.com/foo/v2: reading example.com/foo/go.mod at revision v2.1.0: unknown revision v2.1.0
+```
+
+The release succeeds and the tags get pushed; the racing job's red mark stays in the UI. Skip the racing job on `chore(release):` commits with a `rules:` clause:
+
+```yaml
+test:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_TITLE =~ /^chore\(release\):/'
+      when: never
+    - when: on_success
+  script:
+    - go test ./...
+```
+
+The two-clause shape: allow merge-request runs through unconditionally, then explicitly drop `chore(release):` push runs on the default branch, then default to running.
+
+monorel's own release pipeline does NOT need this filter. On a `chore(release):` push it's the pipeline doing the tagging; on every other push `monorel auto` falls through to the upsert path.
+
 ## Branch protection
 
 `monorel auto` force-pushes to `monorel/release` on every feature-branch run. Two GitLab-specific points:

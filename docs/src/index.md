@@ -7,7 +7,7 @@ layout: home
 hero:
   name: monorel
   text: Releases for Go monorepos
-  tagline: Explicit per-PR changesets. Native Go tag conventions.
+  tagline: Explicit per-PR changesets. Native Go tag conventions. Single and multi-module support.
   image:
     src: /logo-v2.webp
     alt: "monorel logo: many incoming rails merging into one"
@@ -19,22 +19,22 @@ hero:
       text: Quickstart
       link: /getting-started
     - theme: alt
-      text: GitHub (MIT Licensed)
-      link: https://github.com/disaresta-org/monorel
+      text: Coming from release-please?
+      link: /recipes/migration-from-release-please
 
 features:
-  - title: Changeset files, not commit messages
-    details: Every release-affecting PR includes a .changeset/{name}.md file naming affected packages and bump levels. No path-attribution leaks, no Release-As footers stripped by squash-merges.
+  - title: Changesets, not commit messages
+    details: One .changeset/{name}.md per PR names the affected packages and bump levels. Squash-merges can't strip footers because monorel doesn't read commit messages.
   - title: Native Go tag conventions
-    details: Bare vX.Y.Z for the main module, {path}/vX.Y.Z for sub-modules. The format go install actually expects, configurable per package.
+    details: Bare vX.Y.Z at the root, {path}/vX.Y.Z for sub-modules. What go install expects, configurable per package.
+  - title: Clean go.mod + tidy go.sum at release
+    details: Strips dev replace directives, pins sibling versions, runs offline go mod tidy. main stays clean for proxy consumers.
   - title: Always-open release PR
-    details: The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Reviewable, mergeable. The CLI also works standalone for local dry-runs.
+    details: Each release stages on a monorel/release branch. The PR's diff IS the file changes the release will produce.
   - title: Pre-release support
-    details: monorel pre enter rc switches the repo into release-candidate mode; pre exit returns to stable. Per-package counters; multi-channel.
-  - title: Provider-neutral host seam
-    details: Four providers wired up out of the box (GitHub, GitLab, Gitea / Forgejo, Bitbucket Cloud); add a subpackage to support others. Renames, hosts, and auth shapes are encapsulated in the provider, not the orchestrator.
-  - title: Self-hosted from day one
-    details: monorel releases itself with monorel. The same binary that ships your library cuts its own tags.
+    details: pre enter rc for release-candidate mode; pre exit for stable. Per-package counters, multi-channel.
+  - title: GitHub, GitLab, Gitea / Forgejo
+    details: One workflow file, one step. monorel auto opens release PRs, creates tags, publishes Releases.
 ---
 
 ## Quick Example
@@ -58,7 +58,9 @@ changelog  = "transports/zerolog/CHANGELOG.md"
 ```
 
 ```sh
-# Author a changeset describing this PR
+# Author a changeset describing this PR (or run `monorel add` with no
+# flags for an interactive picker — useful when bumping multiple
+# packages in one changeset).
 monorel add --package "transports/zerolog:minor" --message "Adds Lazy() helper."
 
 # Preview the next release locally
@@ -73,4 +75,10 @@ monorel release
 git push --follow-tags
 ```
 
-That's the loop. The [GitHub Action](/integrations/github) drives the same flow as an always-open release PR; merging the PR runs `monorel release` on the merge commit and publishes one GitHub Release per tag.
+That's the loop. The CI workflow (one file, one step on any of the three supported providers) drives the same flow as an always-open release PR; merging the PR runs the release path and publishes one Release per tag.
+
+monorel runs in production on [loglayer-go](https://github.com/loglayer/loglayer-go) (multi-module Go monorepo) and on monorel itself. Pair it with [GoReleaser](https://goreleaser.com) for binary builds and Docker image distribution; monorel handles versions, tags, and CHANGELOGs.
+
+---
+
+monorel is made with ❤️ by [Theo Gravity](https://suteki.nu) / [Disaresta](https://disaresta.com).

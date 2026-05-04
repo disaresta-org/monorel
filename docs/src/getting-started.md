@@ -15,11 +15,9 @@ The shortest version: every release-affecting PR includes a changeset; the bot m
 go install monorel.disaresta.com/cmd/monorel@latest
 ```
 
-You'll use the local binary for `monorel init` and `monorel add`. CI uses a published binary via the action wrapper (no install step in your repo).
+`monorel.disaresta.com` is a vanity import path that resolves to [`github.com/disaresta-org/monorel`](https://github.com/disaresta-org/monorel) via Go's `go-import` meta tag. You can also `git clone` and `go install ./cmd/monorel` directly.
 
-::: tip On macOS or Windows?
-Pre-built binaries are unsigned, so Gatekeeper / SmartScreen will warn the first time you run one. If that's friction, use the [container image](/docker) instead (same binary, inside Linux).
-:::
+You'll use the local binary for `monorel init` and `monorel add`. CI uses a published binary via the action wrapper (no install step in your repo).
 
 ## Scaffold the repo
 
@@ -52,8 +50,8 @@ Next steps:
 ::: info Looking for a working example?
 The [`examples/`](https://github.com/disaresta-org/monorel/tree/main/examples) directory in the monorel repo has minimal reference setups for each provider:
 
-- [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github): composite action wrapper + two workflow files.
-- [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea): same wrapper, Gitea Actions YAML format, `provider.host` set, Forgejo-compatible.
+- [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github): composite action wrapper, single workflow file.
+- [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea): same wrapper on Gitea Actions, `provider.host` set, Forgejo-compatible.
 - [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab): single `.gitlab-ci.yml` using the published Docker image.
 
 Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy into your repo.
@@ -61,31 +59,23 @@ Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy 
 For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 26 sub-modules.
 :::
 
-## Wire up the GitHub Action
+## Wire up your provider
 
-Two workflow files drive the release lifecycle. The walkthrough below uses GitHub; if you're on Gitea or Forgejo, see the [Gitea / Forgejo integration page](/integrations/gitea) for the equivalent workflow files.
+A single workflow file drives the entire release lifecycle. It runs `monorel auto` on every push to the default branch; auto detects whether HEAD is the merge of monorel's release PR and dispatches between the feature path (`apply` + `git push -f` + `preview --upsert`) and the release path (`tag` + `git push --follow-tags` + `publish`).
 
-**`.github/workflows/release-pr.yml`** maintains the always-open release PR. Fires on every push to `main`:
+Per-provider walkthroughs cover the workflow YAML, token shape, branch-protection setup, and any provider-specific gotchas:
 
-<!--@include: ./_partials/github-release-pr-yml.md-->
-
-**`.github/workflows/release.yml`** cuts the release after the always-open release PR is merged:
-
-<!--@include: ./_partials/github-release-yml.md-->
-
-Commit both files. The `release-pr` workflow will fire on the next push to `main`; the release PR opens once there's a changeset to release. The [GitHub integration page](/integrations/github) covers the Inputs table, branch-protection setup, and the PAT / App token escalation; this Getting Started section shows the canonical YAML.
-
-::: warning Branch protection with required status checks
-If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the wiring.
-:::
+- [GitHub](/integrations/github)
+- [Gitea / Forgejo](/integrations/gitea)
+- [GitLab](/integrations/gitlab)
 
 ## How releases work
 
 Three steps across the lifecycle:
 
 1. **Author a feature PR.** Include a `.changeset/<name>.md` file naming the affected packages and the bump level for each. Code change and changeset land in the same PR; merge as normal.
-2. **The `release-pr` workflow updates the always-open release PR.** On each push to `main`, monorel runs a speculative apply on a `monorel/release` branch (writes the staged CHANGELOG entries, deletes the consumed changeset files, makes one `chore(release): ...` commit) and force-pushes. The release PR's diff IS the file changes the next release will produce.
-3. **Merge the release PR when ready to ship.** The `release` workflow reads the merge commit's body trailers, creates per-package tags, pushes them, and creates one GitHub Release per tag.
+2. **`monorel auto` (feature path) updates the always-open release PR.** On each push to `main`, the workflow detects that HEAD is not yet a release-PR merge, runs a speculative apply on a `monorel/release` branch (writes the staged CHANGELOG entries, deletes the consumed changeset files, makes one `chore(release): ...` commit), force-pushes that branch, and upserts the release PR. The PR's diff IS the file changes the next release will produce.
+3. **Merge the release PR when ready to ship.** On the next push to `main` (the merge commit), `monorel auto` detects the release-PR merge, reads the body trailers, creates per-package tags, pushes them, and creates one GitHub Release per tag.
 
 A PR without a changeset doesn't trigger a release. The release PR auto-updates as more changesets accumulate; closing it without merging cancels that release window.
 
@@ -99,7 +89,7 @@ Full reference for the file format, multi-package shape, and other authoring mod
 
 ## Watch the release PR
 
-After your PR merges, the `release-pr` workflow runs against the new `main`. It:
+After your PR merges, the workflow runs `monorel auto` against the new `main`. Auto detects this is a feature commit (not a release-PR merge) and:
 
 1. Stages a `monorel/release` branch off `main`.
 2. Runs `monorel apply` on it: writes the speculative `CHANGELOG.md` entries, deletes the consumed `.changeset/*.md` files, makes one `chore(release): <pkg> <ver>` commit.
@@ -108,11 +98,11 @@ After your PR merges, the `release-pr` workflow runs against the new `main`. It:
 
 The release PR's diff IS the actual file changes the release will produce, so reviewers see real CHANGELOG content rather than just a body summary.
 
-If you merge another feature PR with another changeset, the release-pr workflow reruns and the release PR's diff updates.
+If you merge another feature PR with another changeset, the workflow reruns and the release PR's diff updates.
 
 ## Cut the release
 
-Merge the release PR. The `release` workflow fires on the merge commit and:
+Merge the release PR. On the resulting push to `main`, the workflow runs `monorel auto` again. This time auto detects HEAD is the release-PR merge and:
 
 1. Reads the commit's `monorel-Release:` body trailers.
 2. Creates per-package annotated tags at the merge commit.

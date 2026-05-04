@@ -1,4 +1,10 @@
 # monorel configuration. See https://monorel.disaresta.com/configuration
+#
+# NOTE: the bitbucket provider is currently disabled in shipped
+# monorel binaries (see ./README.md). `monorel validate` against
+# this file will fail with `provider.name "bitbucket" is not
+# recognized`. The example is preserved for the eventual
+# re-enablement.
 
 [provider]
 name  = "bitbucket"

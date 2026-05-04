@@ -6,7 +6,7 @@ Thanks for taking a look. This is the on-ramp for a local dev loop.
 
 | Tool | Why | Install |
 |------|-----|---------|
-| Go 1.23+ | Build, test, run. | <https://go.dev/dl/> |
+| Go 1.26+ | Build, test, run. | <https://go.dev/dl/> |
 | lefthook | pre-commit / commit-msg / pre-push hooks. | `go install github.com/evilmartians/lefthook@latest` |
 | staticcheck | Pre-commit lint that mirrors CI. | `go install honnef.co/go/tools/cmd/staticcheck@latest` |
 | Bun | Commit-msg linter + docs site. | <https://bun.sh/> |
@@ -52,28 +52,35 @@ make build       # build the monorel binary
 ```
 monorel/
 ├── cmd/monorel/                CLI entrypoint
+├── config/                     monorel.toml schema (public)
+├── changeset/                  .changeset/*.md format + pre.json (public)
+├── semver/                     bump levels + initial-release rules (public)
+├── plan/                       pure-function planner: the core (public)
+├── changelog/                  Keep-a-Changelog generator (public)
+├── validate/                   configuration + changeset validator (public)
+├── doctor/                     repository-state diagnostics (public)
 ├── internal/
 │   ├── cli/                    cobra commands
-│   ├── config/                 monorel.toml schema
-│   ├── changeset/              .changeset/*.md format + pre.json
-│   ├── semver/                 bump levels + initial-release rules
 │   ├── git/                    interface + shell-out impl + fake + testutil
-│   ├── plan/                   pure-function planner (the core)
-│   ├── changelog/              Keep-a-Changelog generator
+│   ├── detect/                 release-merge detection (trailer + provider-API signal)
+│   ├── orchestrator/           `monorel auto` dispatch: release vs feature path
 │   ├── release/                applies a ReleasePlan; renders preview markdown
-│   ├── provider/               provider-neutral host API seam
-│   │   ├── factory/            dispatch by config.ProviderConfig.Name
-│   │   └── github/             go-github implementation
-│   └── orchestrator/           drives the always-open PR pattern
+│   └── provider/               provider-neutral host API seam
+│       ├── factory/            dispatch by config.ProviderConfig.Name
+│       ├── github/             go-github implementation
+│       ├── gitea/              Gitea / Forgejo implementation
+│       ├── gitlab/             GitLab implementation
+│       └── bitbucket/          Bitbucket Cloud implementation
 ├── ci/                         per-CI-system action wrappers
-│   └── github/action.yml       composite GitHub Action
+│   └── github/action.yml       composite GitHub Action (runs `monorel auto`)
+├── tests/e2e/                  live-Forgejo integration suite (build tag `e2e`)
 ├── docs/                       VitePress docs site
 └── .changeset/                 self-hosted changesets
 ```
 
-The pure-function planner (`internal/plan`) is the heart. Most logic lives there as `(config, []Changeset, []Tag, *PreState) -> ReleasePlan`; everything else is plumbing around it. Tests for `Plan` cover the version-math matrix exhaustively.
+The pure-function planner (`plan`) is the heart. Most logic lives there as `(config, []Changeset, []Tag, *PreState) -> ReleasePlan`; everything else is plumbing around it. Tests for `Plan` cover the version-math matrix exhaustively. The top-level `config`, `changeset`, `semver`, `plan`, `changelog`, `validate`, and `doctor` packages are public Go API; everything under `internal/` is implementation detail.
 
-Adding a new provider: see [`AGENTS.md`](AGENTS.md) "Adding a New Provider". The interface is `provider.Client` (six methods); each provider lives in `internal/provider/<name>/` and the factory dispatches by config.
+Adding a new provider: see [`AGENTS.md`](AGENTS.md) "Adding a New Provider". The interface is `provider.Client` (seven methods); each provider lives in `internal/provider/<name>/` and the factory dispatches by config.
 
 ## License
 

@@ -101,7 +101,7 @@ Pages aimed at *callers* (getting-started, configuration, cli-reference, changes
 - The factory dispatch mechanism.
 - Internal package layout.
 
-Implementer-only material lives in `design.md` and the per-provider creator material (none yet). Casual-user pages can mention that those creator pages exist (one-liner pointer is fine), but should not paraphrase their content.
+Implementer-only material lives in `CONTRIBUTING.md`, `AGENTS.md`, and the public Go API docs (`api.md`). Casual-user pages can mention that those references exist (one-liner pointer is fine), but should not paraphrase their content.
 
 ## README Requirements
 
@@ -123,7 +123,6 @@ docs/src/
 ├── index.md                    Homepage (hero + Quick Example + sidebar entry list)
 ├── introduction.md             "Why monorel?" Why not release-please / changesets / knope?
 ├── getting-started.md          Install + init + first release end-to-end
-├── design.md                   Design principles + tradeoffs
 ├── configuration.md            monorel.toml reference
 ├── cli-reference.md            Per-command reference with flags
 ├── changesets.md               File format, naming, multi-package changesets, pre-mode interaction
@@ -164,6 +163,44 @@ Collapsible block for optional lengthy information.
 ```
 
 Use `:::danger` sparingly. Reserve it for cases like "this command rewrites tags" or "this flag bypasses the idempotency check."
+
+## VitePress + GitHub Actions / GitLab CI syntax
+
+VitePress treats `{{ ... }}` as Vue template interpolation, even inside backtick code spans at the start of the span. Writing `${{ secrets.GITHUB_TOKEN }}` in inline prose breaks the build with `Cannot read properties of undefined (reading 'GITHUB_TOKEN')`.
+
+Two safe patterns:
+
+- **Move the literal into a fenced code block.** ` ```yaml ` + the YAML + ` ``` ` always renders verbatim.
+- **Rephrase to avoid the literal in inline prose.** "Pass the auto-injected token via `with: token:`" does the same job without the `${{ }}` literal.
+
+Don't try to escape the braces in markdown. `\{\{` doesn't help, and HTML entities (`&#123;&#123;`) read terribly inside backticks. Pick one of the two patterns above.
+
+## Don't pin runner-specific file names in conceptual docs
+
+Workflow file names (`release.yml`, `release-pr.yml`, `.gitlab-ci.yml`, `bitbucket-pipelines.yml`) belong on the per-provider integration pages. In CLI reference, cheat-sheet, workflows / design docs, and the recipes, refer to commands and abstractions (`monorel auto`, "the auto feature path") rather than specific files.
+
+Why: when the workflow shape changes (the `monorel auto` consolidation, the `command: pr|release` removal), the integration pages get updated as part of the change. Conceptual docs that name workflow files independently drift out of sync, often invisibly.
+
+```markdown
+✅ "`monorel apply` is the speculative-apply primitive invoked by `monorel auto`'s feature path on the staging branch."
+❌ "`monorel apply` is used by `release-pr.yml` (CI)."
+```
+
+The same rule applies to action wrapper inputs. If you reference `command: pr` or `with: token:` in conceptual docs, that reference will go stale when the wrapper's input shape changes. Keep wrapper specifics on `ci/github/README.md` and the integration pages; refer to monorel commands by name elsewhere.
+
+## Code-verifiable claims need code-verification
+
+Doc claims of the form "the validator rejects X", "the parser requires Y", "the planner deduplicates Z", "the provider client probes once at constructor time" are not prose decoration; they are factual claims about runtime behavior. Each one must be either:
+
+1. Linked to (or co-located with) a test that proves it, or
+2. Verified against the relevant code at write time (read the function; confirm the claim).
+
+Two recent failures the audit caught:
+
+- `configuration.md` and `faq.md` claimed `tag_prefix` was rejected by the validator. `validate/`'s `Validate` doesn't check it; omit decodes to `""`. Doc lied; nothing enforced the claim.
+- `integrations/bitbucket.md` claimed the username probe runs "once at constructor time." `internal/provider/bitbucket/identity.go` probes lazily on first call. Doc was written from the spec, not the code.
+
+When in doubt, soften the claim ("monorel reads `tag_prefix` from `[packages]` blocks; the empty string produces bare tags") rather than assert specific validator / parser behavior the doc author hasn't verified.
 
 ## Pitfalls / traps: inline, not centralized
 

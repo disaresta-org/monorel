@@ -4,16 +4,20 @@
 //  1. implement [provider.Client] in internal/provider/<name>.
 //  2. add a case to [New].
 //  3. add the provider name to config.KnownProviders.
+//
+// internal/provider/bitbucket is in-tree but not currently dispatched
+// from [New]: the maintainer hasn't been able to verify the workflow
+// end-to-end against a live Bitbucket Pipelines runner. Re-enabling
+// is a two-line change (uncomment the case below and add
+// ProviderBitbucket to config.KnownProviders).
 package factory
 
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"monorel.disaresta.com/config"
 	"monorel.disaresta.com/internal/provider"
-	"monorel.disaresta.com/internal/provider/bitbucket"
 	"monorel.disaresta.com/internal/provider/gitea"
 	"monorel.disaresta.com/internal/provider/github"
 	"monorel.disaresta.com/internal/provider/gitlab"
@@ -45,21 +49,8 @@ func New(ctx context.Context, cfg config.ProviderConfig, token string) (provider
 			Host:  cfg.Host,
 			Token: token,
 		})
-	case config.ProviderBitbucket:
-		var email string
-		for _, name := range provider.EmailEnvVars(config.ProviderBitbucket) {
-			if v := os.Getenv(name); v != "" {
-				email = v
-				break
-			}
-		}
-		return bitbucket.New(ctx, bitbucket.Options{
-			Workspace: cfg.Owner,
-			Repo:      cfg.Repo,
-			Host:      cfg.Host,
-			Email:     email,
-			Token:     token,
-		})
+	// case config.ProviderBitbucket: see package doc; not dispatched
+	// until end-to-end Pipelines verification is complete.
 	default:
 		return nil, fmt.Errorf("provider: unknown provider %q", cfg.Name)
 	}

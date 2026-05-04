@@ -21,30 +21,39 @@ attribution scans) by construction.
 ```
 monorel/
 ├── cmd/monorel/main.go           Thin entrypoint
+├── config/                       monorel.toml schema + Load + Validate (public)
+├── changeset/                    .changeset/*.md format + pre.json (public)
+├── semver/                       Bump levels + Apply / InitialFromBump / ApplyPrerelease (public)
+├── plan/                         Pure-function planner: (config, changesets, tags, pre) -> ReleasePlan (public)
+├── changelog/                    Keep-a-Changelog writer (public)
+├── validate/                     Configuration + changeset validator (public)
+├── doctor/                       Repository-state diagnostics (public)
 ├── internal/
-│   ├── cli/                      Cobra commands: add, plan, status, release, preview, pre, init
-│   ├── config/                   monorel.toml schema + Load + Validate
-│   ├── changeset/                .changeset/*.md format: parse, write, name-gen, pre.json
-│   ├── semver/                   Bump levels + Apply / InitialFromBump / ApplyPrerelease
+│   ├── cli/                      Cobra commands: add, plan, status, release, preview, pre, init,
+│   │                             apply, tag, publish, doctor, detect-release, auto, validate
 │   ├── git/                      Repo interface + shell-out impl + in-memory fake
-│   ├── git/testutil/             On-disk git repo helper for integration tests
-│   ├── plan/                     Pure-function planner: (config, changesets, tags, pre) -> ReleasePlan
-│   ├── changelog/                Keep-a-Changelog writer (insert above first H2)
+│   ├── detect/                   IsReleaseMerge: trailer signal + provider-API signal
+│   ├── orchestrator/             Auto: dispatch release vs feature flow on top of detect
 │   ├── release/                  Apply ReleasePlan: write changelogs, tag, commit, publish
-│   ├── provider/                 Provider-neutral host API seam (PR upsert + release create)
-│   │   ├── factory/              Dispatch by config.ProviderConfig.Name
-│   │   └── github/               go-github implementation
-│   └── action/                   (Phase 9, not yet built) bot orchestrator
+│   └── provider/                 Provider-neutral host API seam
+│       ├── factory/              Dispatch by config.ProviderConfig.Name
+│       ├── github/               go-github implementation
+│       ├── gitea/                Gitea / Forgejo implementation
+│       ├── gitlab/               GitLab implementation
+│       └── bitbucket/            Bitbucket Cloud implementation
 ├── docs/                         VitePress documentation site
 │   ├── .vitepress/config.ts      Sidebar + OG meta
 │   └── src/                      Markdown source
-├── ci/                           (Phase 10, not yet built) per-CI-system wrappers
-│   └── github/action.yml         Composite GitHub Action
+├── ci/                           Per-CI-system wrappers
+│   └── github/action.yml         Composite GitHub Action (runs `monorel auto`)
+├── tests/e2e/                    Live-Forgejo integration suite (build tag `e2e`)
 ├── .changeset/                   Self-hosted changesets
 ├── monorel.toml                  Self-hosted config
 ├── lefthook.yml                  Git hooks
 └── Makefile
 ```
+
+The top-level `config`, `changeset`, `semver`, `plan`, `changelog`, `validate`, and `doctor` packages are part of the public Go API surface; they're SemVer-committed from v1.0.0 onward. Everything under `internal/` is implementation detail and may change without notice.
 
 ## Key Design Decisions
 
@@ -69,8 +78,10 @@ monorel/
   versions and increment per-package counters. `pre exit` returns to
   stable, applying accumulated changesets cumulatively.
 - **Provider-neutral host seam**: `internal/provider.Client` abstracts
-  GitHub today, GitLab/Gitea/Bitbucket/Forgejo by adding a subpackage
-  + factory case + KnownProviders entry.
+  GitHub, GitLab, and Gitea (Forgejo via API compatibility) today.
+  New providers (e.g. Bitbucket, currently in-tree but disabled at
+  the factory pending live Pipelines verification) need a subpackage
+  + factory case + `KnownProviders` entry.
 - **Pure-function planner**: `plan.Plan` takes static inputs and
   returns a ReleasePlan. No I/O. Exhaustively table-tested. From
   v0.2.0 it lives at `monorel.disaresta.com/plan` (public API)
@@ -119,9 +130,11 @@ What runs:
   parser (same one release-please uses). Hard-fails if `bun` isn't on PATH
   or `node_modules` is missing; install bun (https://bun.sh) and run
   `bun install`.
-- **pre-commit** (parallel): `gofmt -l` on staged Go files, `go vet ./...`,
-  `staticcheck ./...`. Hard-fails if `staticcheck` isn't on PATH; install
-  with `go install honnef.co/go/tools/cmd/staticcheck@latest`.
+- **pre-commit** (parallel): `gofmt -w` on staged Go files (auto-fix +
+  re-stage), `go vet ./...`, `staticcheck ./...`, plus
+  `go run ./cmd/monorel validate` when `monorel.toml` or `.changeset/*.md`
+  changes. Hard-fails if `staticcheck` isn't on PATH; install with
+  `go install honnef.co/go/tools/cmd/staticcheck@latest`.
 - **pre-push**: `go test -race -count=1 ./...`.
 
 Skip a hook for one command with `git commit --no-verify` or
@@ -174,14 +187,17 @@ it with the right env vars.
 - **ci.yml**: build, gofmt, vet, test -race, staticcheck.
 - **docs.yml**: build VitePress docs on PR (verify clean), deploy to
   GitHub Pages on release.
-- **release-pr.yml**: `monorel preview` on push to `main`. Maintains
-  the always-open release PR.
-- **release.yml**: `monorel release --publish` on release-PR merge.
+- **release.yml**: runs `monorel auto` on every push to `main`. The
+  command's internal detect step decides which path runs (feature
+  path: `apply` + `push -f` + `preview --upsert`; release path: `tag`
+  + `push --follow-tags` + `publish`), so the workflow file itself
+  is unconditional.
 - **pr-title.yml**: validates PR titles follow conventional commits.
 
-To trigger a release: merge the release PR. The release workflow
-runs `monorel release --publish`, pushes tags, and creates one
-GitHub Release per tag.
+To trigger a release: merge the release PR. On the resulting push to
+`main`, `monorel auto`'s detect step recognizes the merge commit as
+a release-PR merge and runs the release path, pushing tags and
+creating one GitHub Release per tag.
 
 ## Thread Safety
 

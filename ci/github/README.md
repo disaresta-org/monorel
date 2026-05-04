@@ -77,7 +77,7 @@ jobs:
 
   If the runner's Go is older than the highest sub-module's `go` directive, tidy fails with `go.mod requires go >= X.Y; running Z; GOTOOLCHAIN=local`. The fix is always to bump the runner's Go (raise the `go-version`), not to remove `GOTOOLCHAIN=local` from monorel's tidy step (the env var is part of monorel's offline-tidy determinism guarantee).
 
-  See [Avoiding the chore(release) CI race](../../docs/src/workflows.md#avoiding-the-chorerelease-ci-race) for the related skip-filter pattern other workflows on the same branch should apply.
+  See "Skipping CI on chore(release) commits" below for the related skip-filter pattern other workflows on the same branch should apply.
 
 ## Notes
 
@@ -108,4 +108,4 @@ Apply the filter to every job (`test`, `staticcheck`, `govulncheck`, etc.) that 
 
 The monorel workflow itself does NOT need this filter; on a `chore(release):` push it's the workflow doing the tagging, and on every other push `monorel auto` falls through to the upsert path.
 
-For non-GitHub-Actions CI systems, see the [universal recipe](../../docs/src/workflows.md#avoiding-the-chorerelease-ci-race) covering GitHub / GitLab / Gitea filter syntax.
+For non-GitHub-Actions CI systems, see the equivalent in the [Gitea](https://monorel.disaresta.com/integrations/gitea#skipping-ci-on-chorerelease-commits) and [GitLab](https://monorel.disaresta.com/integrations/gitlab#skipping-ci-on-chorerelease-commits) integration pages.

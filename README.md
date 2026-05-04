@@ -11,43 +11,46 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-A changesets-style release tool for multi-module Go monorepos.
+A changesets-style release tool for multi-module Go monorepos. Single-module repos work too (config is just one `[packages]` entry).
 
-`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with CI on your provider (GitHub, Gitea / Forgejo, GitLab, or Bitbucket Cloud) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
+`monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with CI on your provider (GitHub, Gitea / Forgejo, or GitLab) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
 
 ## Why monorel?
 
-The Go ecosystem has a real gap: no battle-tested release tool fits "main module at repo root with bare `vX.Y.Z` tags + sub-modules with `<path>/vX.Y.Z` tags" cleanly.
+The Go ecosystem has a real gap: no battle-tested release tool fits "main module at repo root with bare `vX.Y.Z` tags + sub-modules with `<path>/vX.Y.Z` tags" cleanly. Bare `vX.Y.Z` tags are required for `go install` against the root module; per-path-prefix tags are required by Go's module-versioning convention for sub-modules.
 
-- **release-please** works with friction (`Release-As:` footers leak across packages, full-history scans cause initial-release surprises, squash-merge strips footers).
-- **Knope** doesn't support per-package tag-prefix overrides, so it can't do bare-tag root + prefixed sub-modules.
-- **changesets** is JS-native and needs synthetic `package.json` files in every Go module.
+- **release-please** parses Conventional Commits from git history. Friction shows up at squash-merges (per-commit footers don't survive) and on newly-registered packages (full-history scans can leak stray `Release-As:` overrides from unrelated commits unless you remember to set `bootstrap-sha`).
+- **Knope** makes per-package tag prefixes mandatory, so the root module can't get the bare `vX.Y.Z` tags `go install` needs.
+- **changesets** is JS-native and needs a synthetic `package.json` in every Go module.
 
-`monorel` fills that gap. See [the introduction](https://monorel.disaresta.com/introduction) for the side-by-side comparison table.
+See [the introduction](https://monorel.disaresta.com/introduction) for the side-by-side comparison table.
 
 ## Quickstart
 
 In a Go repo with at least one `go.mod`:
 
 ```sh
-# 1. Install
+# 1. Install. monorel.disaresta.com is a vanity import path that
+#    resolves to github.com/disaresta-org/monorel via Go's go-import
+#    meta tag.
 go install monorel.disaresta.com/cmd/monorel@latest
 
 # 2. Scaffold monorel.toml + .changeset/ from your repo
 monorel init
 
-# 3. Wire up CI: copy the provider-specific workflow files from
+# 3. Wire up CI: copy the provider-specific workflow file from
 #    examples/{github,gitea,gitlab}/ into your repo
 
 # 4. Author a changeset on a feature branch
 monorel add
 git commit && gh pr create
 
-# 5. Merge the PR. The release-pr workflow opens (or updates) an
-#    always-open release PR. Merge it when ready to ship.
+# 5. Merge the PR. On the next push to the default branch, the CI
+#    workflow runs `monorel auto`, which opens (or refreshes) the
+#    always-open release PR. Merge that PR when ready to ship.
 ```
 
-Reference setups for each provider live in [`examples/`](examples/) (GitHub, Gitea / Forgejo, GitLab, Bitbucket). Copy the files you need; the [Getting Started](https://monorel.disaresta.com/getting-started) walkthrough explains the full lifecycle.
+Reference setups for each provider live in [`examples/`](examples/) (GitHub, Gitea / Forgejo, GitLab). Copy the files you need; the [Getting Started](https://monorel.disaresta.com/getting-started) walkthrough explains the full lifecycle.
 
 ## Documentation
 
@@ -58,7 +61,7 @@ Reference setups for each provider live in [`examples/`](examples/) (GitHub, Git
 - [Configuration](https://monorel.disaresta.com/configuration): `monorel.toml` reference.
 - [CLI](https://monorel.disaresta.com/cli-reference): every command and flag.
 - [Changesets](https://monorel.disaresta.com/changesets): file format and authoring conventions.
-- Integration guides: [GitHub](https://monorel.disaresta.com/integrations/github), [Gitea / Forgejo](https://monorel.disaresta.com/integrations/gitea), [GitLab](https://monorel.disaresta.com/integrations/gitlab), [Bitbucket](https://monorel.disaresta.com/integrations/bitbucket).
+- Integration guides: [GitHub](https://monorel.disaresta.com/integrations/github), [Gitea / Forgejo](https://monorel.disaresta.com/integrations/gitea), [GitLab](https://monorel.disaresta.com/integrations/gitlab).
 - [FAQ](https://monorel.disaresta.com/faq): the questions that come up after the first release.
 - [Use with AI / LLMs](https://monorel.disaresta.com/llms): paste-ready `llms.txt` and `llms-full.txt` for coding assistants.
 - [Glossary](https://monorel.disaresta.com/glossary): canonical definitions of monorel terminology.
@@ -66,27 +69,26 @@ Reference setups for each provider live in [`examples/`](examples/) (GitHub, Git
 
 ## CI integration
 
-monorel ships a composite GitHub Action wrapper plus first-class support for Gitea / Forgejo, GitLab CI, and Bitbucket Pipelines. Each provider has a working reference setup under [`examples/`](examples/):
+monorel ships a composite GitHub Action wrapper plus first-class support for Gitea / Forgejo and GitLab CI. Each provider has a working reference setup under [`examples/`](examples/):
 
 | Provider | Example | Notes |
 |---|---|---|
-| GitHub | [`examples/github/`](examples/github/) | Composite action wrapper + two workflow files. |
+| GitHub | [`examples/github/`](examples/github/) | Composite action wrapper, single workflow file. |
 | Gitea / Forgejo | [`examples/gitea/`](examples/gitea/) | Same wrapper on Gitea Actions; `provider.host` set; covers Forgejo via API compatibility. |
-| GitLab | [`examples/gitlab/`](examples/gitlab/) | Single `.gitlab-ci.yml` using `ghcr.io/disaresta-org/monorel`. Project must use fast-forward merge. |
-| Bitbucket Cloud | [`examples/bitbucket/`](examples/bitbucket/) | Single `bitbucket-pipelines.yml` using `ghcr.io/disaresta-org/monorel`. Cloud-only; needs the [workspace plan acceptance](https://monorel.disaresta.com/integrations/bitbucket#workspace-plan-acceptance) step. |
+| GitLab | [`examples/gitlab/`](examples/gitlab/) | Single `.gitlab-ci.yml` using `ghcr.io/disaresta-org/monorel`. |
 
 The GitHub flow looks like this:
 
 ```yaml
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 }
 - uses: actions/setup-go@v5
   with:
     go-version-file: go.mod
 - uses: disaresta-org/monorel/ci/github@v1.0.0
-  with:
-    command: pr      # or 'release' for the post-merge tag + push + publish step
 ```
 
-`actions/setup-go` is required because monorel's apply step runs `go mod tidy` against a seeded local cache so the release commit's `go.sum` is canonically clean. See the [GitHub integration page](https://monorel.disaresta.com/integrations/github) for the full workflow.
+The single step runs `monorel auto`, which detects whether HEAD is the merge of monorel's release PR and dispatches to either the release-cut path (`tag` + `push --follow-tags` + `publish`) or the feature path (`apply` + `push -f` + `preview --upsert`). `actions/setup-go` is required because monorel's apply step runs `go mod tidy` against a seeded local cache so the release commit's `go.sum` is canonically clean. See the [GitHub integration page](https://monorel.disaresta.com/integrations/github) for the full workflow.
 
 If your repo enforces required status checks on the default branch, the bot-created release PR's checks won't fire on the auto-injected token (anti-recursion). Switch to a PAT or GitHub App token. See [Tokens and required status checks](https://monorel.disaresta.com/integrations/github#tokens-and-required-status-checks).
 
@@ -109,3 +111,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev-loop reference.
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Made with ❤️ by [Theo Gravity](https://suteki.nu) / [Disaresta](https://disaresta.com).

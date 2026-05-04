@@ -4,6 +4,16 @@ package config
 // values that `provider.name` in monorel.toml can take. Adding a
 // new provider: append to KnownProviders and wire up a provider
 // implementation under internal/provider/<name>/.
+//
+// ProviderBitbucket names a constant retained for the in-tree
+// `internal/provider/bitbucket` implementation, which is intentionally
+// NOT in [KnownProviders]: end-to-end verification against a live
+// Bitbucket Pipelines runner has not been completed (the workspace
+// 2FA enforcement on the maintainer's account blocks the API enable
+// path). The constant and the provider package are kept on disk so a
+// future re-enablement is a one-line change in [KnownProviders] and
+// the factory dispatch; until then the validator rejects
+// `name = "bitbucket"` with "is not recognized."
 const (
 	ProviderGitHub    = "github"
 	ProviderGitea     = "gitea"
@@ -20,7 +30,6 @@ const DefaultProvider = ProviderGitHub
 // in alphabetical order. The slice is shared and read-only; callers
 // should not mutate it.
 var KnownProviders = []string{
-	ProviderBitbucket,
 	ProviderGitea,
 	ProviderGitHub,
 	ProviderGitLab,

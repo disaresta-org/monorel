@@ -1,5 +1,7 @@
 # Bitbucket example
 
+> ⚠️ **The Bitbucket provider is currently disabled.** `provider.name = "bitbucket"` is rejected by the validator. The example files in this directory are preserved for future re-enablement and for users who choose to compile a custom monorel against the in-tree `internal/provider/bitbucket/` package. The workflow has not been verified end-to-end against a live Bitbucket Pipelines runner. See the [Bitbucket integration page](https://monorel.disaresta.com/integrations/bitbucket) for details.
+
 Minimal monorel setup for a Bitbucket Cloud-hosted project with two packages (root + one sub-module under `transports/foo/`). Uses Bitbucket Pipelines with the published Docker image (`ghcr.io/disaresta-org/monorel`).
 
 ```
@@ -12,11 +14,11 @@ bitbucket/
 Copy these files into your repo, replace `your-workspace` / `your-repo` with your workspace slug and repo slug, then:
 
 1. Generate an Atlassian API token **with Bitbucket scopes** at [`id.atlassian.com/manage-profile/security/api-tokens`](https://id.atlassian.com/manage-profile/security/api-tokens) (the plain "Create API token" button generates a token without Bitbucket scopes; use **Create API token with scopes** instead). Required scopes: `read:repository:bitbucket`, `write:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`, `read:account`.
-2. Add the token as `BITBUCKET_TOKEN` and your Bitbucket username as `BB_USER` under Repository settings → Repository variables. Both are referenced by the pipeline's git-push command.
+2. Add `BITBUCKET_EMAIL` (the Atlassian-account email that owns the token) and `BITBUCKET_TOKEN` (the token string) under Repository settings → Repository variables. monorel reads both from the environment to construct the Bitbucket API client.
 3. **Accept the workspace plan** at `https://bitbucket.org/<workspace>/workspace/settings/plans` if you haven't already. Workspaces created or migrated since September 2024 require this one-time acceptance step or every push will return HTTP 402 Payment Required.
 4. Push `bitbucket-pipelines.yml` to your default branch.
 
-The single pipeline branches on whether the just-landed commit is a `chore(release):` merge: non-release commits run `monorel apply` + `monorel preview --upsert` to maintain the always-open release PR; release commits run `monorel tag` + `git push --follow-tags` + `monorel publish`.
+The pipeline runs `monorel auto` on every push to the default branch. `monorel auto` queries Bitbucket's REST API to detect whether HEAD is the merge of monorel's release PR; if so it runs `monorel tag` + `git push --follow-tags` + `monorel publish`, otherwise it runs the feature path (`monorel apply` + `git push -f` + `monorel preview --upsert`).
 
 Bitbucket Cloud has no first-class Release concept, so `monorel publish` is a no-op on Bitbucket; per-package `CHANGELOG.md` is the canonical release-notes source.
 
