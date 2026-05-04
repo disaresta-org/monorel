@@ -3,24 +3,33 @@ name: release
 # Cuts monorel's own release after the always-open release PR is merged.
 # Self-hosted: this workflow is monorel-specific. Other consumers go
 # through the disaresta-org/monorel/ci/github composite action, which
-# additionally calls `monorel publish` (those repos don't run goreleaser
-# themselves; their releases need monorel publish to set bodies and
-# create the GitHub Release in the first place).
+# wraps `monorel auto` (detect-release + tag + push + publish). Those
+# repos don't run goreleaser themselves; their releases need monorel
+# publish to set bodies and create the GitHub Release in the first
+# place.
 #
 # Triggers:
-#   push (main, "chore(release):") — the release PR's merge commit
-#     subject by monorel convention. Non-chore-release pushes are
-#     filtered out via the if guard on the `release` job.
+#   push (main) — every push. The detect-release step decides which
+#     path runs (release-side tag + push, or feature-side preview
+#     --upsert), so no if-guard is needed at the job level.
 #   workflow_dispatch — manual escape hatch (the v0.1.0 bootstrap path).
 #
 # Pipeline (release job):
-#   1. monorel tag           — read HEAD's monorel-Release: trailers
+#   1. monorel detect-release — exit 0 when HEAD is the release-PR
+#                              merge commit (trailer or provider-API
+#                              signal); exit 1 on a regular feature
+#                              push.
+#   2a. release path:
+#       monorel tag           — read HEAD's monorel-Release: trailers
 #                              (written by `monorel apply` on the
 #                              staging branch upstream) and create per-
 #                              package tags. The merge commit already
 #                              has the file changes; only the tags
 #                              still need creating.
-#   2. git push --follow-tags — push the new tags to the remote.
+#       git push --follow-tags — push the new tags to the remote.
+#   2b. feature path:
+#       monorel preview --upsert — refresh the always-open release PR
+#                              against the new main tip.
 #
 # Notice the absence of `monorel publish`: monorel's own pipeline lets
 # goreleaser (in build-binaries) create the GitHub Release in one step
@@ -32,6 +41,12 @@ name: release
 # Even deleting the immutable release doesn't free the tag-name
 # (GitHub permanently retains it). Letting goreleaser own release
 # creation avoids the conflict entirely.
+#
+# That's why this workflow expands `monorel auto` into its constituent
+# subcommands instead of calling it verbatim: auto's release path runs
+# `tag + push + publish`, and we need to drop the trailing publish.
+# Other consumers use the action wrapper, which calls `monorel auto`
+# in full.
 #
 # Trade-off: monorel's own GitHub Release bodies are goreleaser's
 # auto-generated commit list, not the curated CHANGELOG entry.
@@ -57,16 +72,11 @@ permissions:
 
 jobs:
   release:
-    # Require BOTH the chore(release): subject prefix AND a
-    # monorel-Release: trailer in the body. Subject prefix alone is
-    # not sufficient: a feature PR titled `chore(release): graduate
-    # to v1.0.0` also starts with the prefix but doesn't carry the
-    # trailer monorel tag needs to know which tags to create.
-    if: github.event_name == 'workflow_dispatch' || (startsWith(github.event.head_commit.message, 'chore(release):') && contains(github.event.head_commit.message, 'monorel-Release:'))
     runs-on: ubuntu-latest
     outputs:
-      # Latest bare vX.Y.Z tag created by `monorel release`. Empty when
-      # the release was sub-module-only (no root tag); the chained
+      # Latest bare vX.Y.Z tag created by `monorel tag`. Empty when
+      # the push wasn't a release merge (detect-release exited 1) or
+      # when the release was sub-module-only (no root tag); the chained
       # build jobs skip themselves in that case. monorel itself is
       # single-package today, so this output is always set on a real
       # release; the empty-output path is forward-looking.
@@ -87,25 +97,31 @@ jobs:
           git config user.name  "monorel-bot[automation]"
           git config user.email "monorel-bot@users.noreply.github.com"
 
-      - name: monorel tag + push
+      - name: monorel auto (release-only path; goreleaser owns publish)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # The merge commit already has the file changes (CHANGELOGs +
-        # changeset deletions) from the always-open release PR. We
-        # just need to create the tags, push, and let build-binaries
-        # take it from there. No `monorel publish` (see workflow
-        # header comment for why).
+        # monorel itself omits the publish step (goreleaser owns
+        # GitHub Release creation; see the v0.2 incident note at
+        # the top of this file). detect-release + tag + push is
+        # the same thing as `monorel auto` without the trailing
+        # publish call.
         run: |
           set -euo pipefail
-          go run ./cmd/monorel tag
-          git push --follow-tags
+          if go run ./cmd/monorel detect-release; then
+            go run ./cmd/monorel tag
+            git push --follow-tags
+          else
+            go run ./cmd/monorel preview --upsert
+          fi
 
       - name: Capture root tag
         id: root_tag
         # Pick the latest bare vX.Y.Z tag that points at the just-
         # pushed release commit. Sub-module tags (path/vX.Y.Z) are
         # excluded by the regex; if none of the released tags match,
-        # the output is empty and the chained build jobs skip.
+        # the output is empty and the chained build jobs skip. Also
+        # empty when detect-release exited 1 (feature push), since
+        # no new tags were created.
         run: |
           set -euo pipefail
           root_tag=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
