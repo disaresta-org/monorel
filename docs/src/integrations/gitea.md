@@ -56,7 +56,7 @@ One workflow file drives the entire lifecycle. On every push to the default bran
 - **Feature commit** (the common case): stage the always-open release PR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release PR is closed.
 - **Release-PR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one Release per tag.
 
-Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR an API lookup that finds the PR whose merge produced HEAD and confirms its source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
 
 `.gitea/workflows/release.yml`:
 
@@ -114,7 +114,7 @@ monorel's own release workflow does NOT need this filter. On a `chore(release):`
 `monorel auto` detects a release-PR merge using two independent signals OR'd together:
 
 - **Trailer signal** (fast path): HEAD's commit body contains a `monorel-Release:` trailer. Hits when squash- or rebase-merge propagated the source commit's body.
-- **API signal** (network): provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason.
+- **API signal** (network): monorel asks the host to identify the PR whose merge produced HEAD; if its source branch is `monorel/release`, this is a release-PR merge. Hits when the trailer is missing for any reason.
 
 Either signal alone is enough. Squash, rebase, and merge-commit are all fine merge strategies for the release PR; pick whichever matches the rest of your repo's convention. `monorel tag` (run on the release path) reads the trailer when present and falls back to the universal trailers source (a `<!-- monorel-trailers ... -->` HTML comment in the merged PR's body) when it isn't, so tag creation also works regardless of merge strategy.
 

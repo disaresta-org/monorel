@@ -17,5 +17,9 @@ monorel:
   script:
     - git config user.name  "monorel-bot[automation]"
     - git config user.email "monorel-bot@users.noreply.example.com"
+    # The runner's auto-cloned remote uses CI_JOB_TOKEN, which is
+    # read-only by default. Replace it with MONOREL_GITLAB_TOKEN so
+    # `monorel auto`'s git push to monorel/release can write.
+    - git remote set-url origin "https://oauth2:${MONOREL_GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
     - monorel auto
 ```

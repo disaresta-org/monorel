@@ -110,13 +110,13 @@ Run `monorel pre exit` first, then `monorel pre enter beta`. monorel rejects ent
 
 ### `monorel publish` failed partway through. What now?
 
-Re-run it. `CreateRelease` is idempotent on the tag name: each tag the prior run already published returns "release exists" from the provider, which monorel's partial-success path treats as success. The remaining tags publish on the second run. The output line reports `Created N/M releases before failing.` on the first run; the re-run completes the rest.
+Re-run it. Each release is keyed by its tag name, so a re-run skips any release the prior run already created and resumes from the first one missing. The output line reports `Created N/M releases before failing.` on the first run; the re-run completes the rest.
 
 ### A release PR merged without `monorel-Release:` body trailers, and `monorel tag` returned `ErrNoReleaseCommit`. What now?
 
 The merge stripped the trailer block. Most likely cause: a squash-merge setting that drops the commit body (see [Branch protection](/integrations/github#branch-protection)).
 
-**First, the universal trailers fallback usually recovers automatically.** `monorel preview` writes a `<!-- monorel-trailers ... -->` HTML comment into the PR body whenever it opens or updates the always-open release PR. When `monorel tag` finds no `monorel-Release:` trailers on HEAD, it walks back to the merged PR via the provider's `FindPRByMergeCommit` lookup and parses trailers from that comment block. So even a force-applied squash-merge that rewrote the body still completes the release. Fixing the squash-merge setting is still recommended (one fewer round-trip, one fewer failure mode), but not urgent.
+**First, the universal trailers fallback usually recovers automatically.** `monorel preview` writes a `<!-- monorel-trailers ... -->` HTML comment into the PR body whenever it opens or updates the always-open release PR. When `monorel tag` finds no `monorel-Release:` trailers on HEAD, it asks the host for the PR whose merge produced HEAD and parses trailers from that comment block. So even a force-applied squash-merge that rewrote the body still completes the release. Fixing the squash-merge setting is still recommended (one fewer round-trip, one fewer failure mode), but not urgent.
 
 The fallback fails only when **both** the commit body AND the PR body's comment block are absent. The latter happens when a contributor edited the PR body and removed the comment block before merge, or when an older `monorel preview` wrote the body without the comment. In that case, hand-create the tags pointing at the merge commit:
 

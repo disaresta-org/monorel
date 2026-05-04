@@ -51,15 +51,11 @@ monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLa
 - **Feature commit** (the common case): stage the always-open release MR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release MR is closed.
 - **Release-MR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one Release per tag.
 
-Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge method.
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR an API lookup that finds the PR whose merge produced HEAD and confirms its source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge method.
 
 `.gitlab-ci.yml`:
 
 <!--@include: ../_partials/gitlab-ci-yml.md-->
-
-::: warning Image entrypoint override required
-The `image:` block uses the long form with `entrypoint: [""]`. The published `ghcr.io/disaresta-org/monorel` image is an entrypoint-binary container (its entrypoint is `monorel` itself). GitLab's `docker+machine` executor wraps every script as `sh -c '...'` and passes that to the container's entrypoint, which produces `monorel sh -c '...'` and fails with `unknown command "sh"`. Clearing the entrypoint with `[""]` lets the runner's shell wrapper take over. The short-form `image: <name>` in the example will NOT work; use the long form verbatim.
-:::
 
 Setup:
 
@@ -165,14 +161,10 @@ GitLab CI doesn't have GitHub Actions' anti-recursion rule, but pipelines on the
 
 Check the project's CI/CD → Pipelines page for the actual status; usually a transient runner issue.
 
-### `tidy in <sub-module>: exit status 1` with `module lookup disabled by GOPROXY=off` (multi-module, clean runner)
+### `tidy in <sub-module>: exit status 1` with `module lookup disabled by GOPROXY=off`
 
-Known issue with multi-module repos on cold-cache GitLab runners. `monorel apply`'s offline `go mod tidy` step fails inside a sub-module that requires another in-plan sibling, with:
+Indicates a stale `monorel` binary. Earlier builds did not pin `GOMODCACHE` for the offline-tidy subprocess, so on systems where `GOMODCACHE` is derived from `GOPATH` (notably `golang:alpine` images and cold-cache CI runners) the seed and the read pointed at different paths and tidy missed the cached in-plan sibling. Upgrade `monorel` to the latest release.
 
-```
-go: example.com/widget/<sub-module>: module lookup disabled by GOPROXY=off
-```
+### `403: You are not allowed to push code to this project`
 
-The bug is in monorel's seed-and-tidy flow, not your config. It does NOT reproduce on a developer's machine (the local `GOMODCACHE` has accumulated state that masks it) but does reproduce reliably in shared CI runners and inside the published Docker image. Until it's fixed, the multi-module Go-monorepo path on GitLab is unverified end-to-end.
-
-Single-module repos are unaffected. Multi-module repos where no sub-module has an in-plan sibling `require` are unaffected.
+The runner is using `CI_JOB_TOKEN` (read-only) on the `origin` remote. The example `.gitlab-ci.yml` includes a `git remote set-url origin` step that swaps in `MONOREL_GITLAB_TOKEN`; if you adapted the example and dropped that step, add it back. A typical `monorel auto` run pushes both `monorel/release` and per-package tags, which all need write access through the same remote.

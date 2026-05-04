@@ -1,21 +1,22 @@
 //go:build e2e_tidy
 
-// Package e2e_tidy isolates the multi-module + offline `go mod tidy`
+// Package e2e_tidy exercises the multi-module + offline `go mod tidy`
 // path from `monorel apply` against a clean Go module cache, the
 // shape every CI runner sees on first run.
 //
 // The default `tests/e2e/` suite runs against the developer's local
 // GOMODCACHE, which has accumulated state from prior monorel dev
-// runs and accidentally masks a real bug: when a multi-module repo
-// has sub-modules that `require` an in-plan sibling, `monorel
-// apply`'s offline tidy fails with `module lookup disabled by
-// GOPROXY=off` on a fresh runner. The Forgejo lifecycle scenarios
-// don't catch this because they share the host's cache.
+// runs and accidentally masked a real bug: GOPATH-derived GOMODCACHE
+// defaults (e.g. inside `golang:alpine` images) caused the tidy
+// subprocess to read from a different path than the seed-cache
+// step wrote into, surfacing as `module lookup disabled by
+// GOPROXY=off`. The Forgejo lifecycle scenarios don't surface this
+// because they share the host's cache (so the host's GOPATH-default
+// matches at both ends).
 //
-// This test runs `monorel apply` inside `golang:1.26-alpine` (the
-// same image the published `ghcr.io/disaresta-org/monorel` is
-// built from), so the GOMODCACHE is empty. The bug surfaces every
-// time on every machine.
+// This test pins the contract by running `monorel apply` inside
+// `golang:1.26-alpine` (the same image `ghcr.io/disaresta-org/monorel`
+// is built from), where GOMODCACHE is empty and GOPATH is /go.
 //
 // Build tag `e2e_tidy` keeps it out of the default `go test ./...`
 // run; CI invokes it with `go test -tags=e2e_tidy ./tests/e2e/`.
@@ -38,25 +39,16 @@ const tidyImage = "golang:1.26-alpine"
 
 // TestApply_MultiModule_CleanCache pins the contract that
 // `monorel apply` succeeds end-to-end on a clean Go module cache for
-// a multi-module repo with sibling `require`s. Reproduces against a
-// fresh `golang:1.26-alpine` container; the bug fix lives in the
-// seed-and-tidy ordering in `internal/release/`.
+// a multi-module repo with sibling `require`s. Runs `monorel apply`
+// inside `golang:1.26-alpine` so GOMODCACHE is empty (the shape every
+// CI runner sees on first run); the developer's local cache happens
+// to mask the failure on a workstation.
 //
-// Currently SKIPPED by default because it surfaces a known
-// outstanding bug in monorel apply's offline tidy path (multi-module
-// + sibling-require + clean GOMODCACHE causes go's tidy to attempt a
-// proxy lookup of the module-being-tidied, which fails under
-// GOPROXY=off). The user-facing manifestation is documented in
-// docs/src/integrations/gitlab.md's troubleshooting section. To
-// validate the bug status, run with MONOREL_TIDY_REPRO=1:
-//
-//	MONOREL_TIDY_REPRO=1 go test -tags=e2e_tidy ./tests/e2e/...
-//
-// Once the seed-and-tidy ordering fix lands, drop the skip guard.
+// Regression coverage for the GOMODCACHE-divergence bug fixed in
+// internal/release/tidy.go (offlineTidyEnv now pins GOMODCACHE
+// explicitly so the tidy subprocess and the cache-seed step agree on
+// the cache path even when GOPATH-derived defaults would diverge).
 func TestApply_MultiModule_CleanCache(t *testing.T) {
-	if os.Getenv("MONOREL_TIDY_REPRO") != "1" {
-		t.Skip("known bug; set MONOREL_TIDY_REPRO=1 to run the deterministic repro")
-	}
 	ctx := context.Background()
 
 	// Build a static linux/amd64 monorel binary from the current
@@ -74,7 +66,20 @@ func TestApply_MultiModule_CleanCache(t *testing.T) {
 	// ScaffoldMultiModule: root + transports/foo + plugins/bar,
 	// each sub-module with a `replace example.com/widget => ../..`
 	// and `import _ "example.com/widget"` in its source.
-	repoDir := t.TempDir()
+	//
+	// Use MkdirTemp + manual cleanup instead of t.TempDir(): the
+	// container runs as root and writes git refs the host user can't
+	// remove. Manual cleanup runs `chmod -R` first inside the
+	// container before the host removes the directory tree.
+	repoDir, err := os.MkdirTemp("", "monorel-tidy-")
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	// Register host-side removal immediately so an early failure
+	// (scaffold writes, container start) doesn't leak repoDir. The
+	// happy-path defer below chmods inside the container first so
+	// this RemoveAll has writable trees to walk.
+	t.Cleanup(func() { _ = os.RemoveAll(repoDir) })
 	scaffoldMultiModuleForTidy(t, repoDir)
 
 	// Spin up an alpine container with the repo + binary mounted.
@@ -96,7 +101,14 @@ func TestApply_MultiModule_CleanCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start container: %v", err)
 	}
-	defer func() { _ = container.Terminate(ctx) }()
+	defer func() {
+		// Inside the container is root; it created repoDir/.git contents
+		// that aren't writable by the host user. Make everything host-
+		// removable before terminating the container so the host-side
+		// RemoveAll registered above has writable trees to walk.
+		_, _, _ = container.Exec(ctx, []string{"sh", "-c", "chmod -R 0777 /work || true"})
+		_ = container.Terminate(ctx)
+	}()
 
 	// Install git (golang:alpine doesn't ship it) and init the repo.
 	// monorel apply needs a clean working tree, so the scaffold has to

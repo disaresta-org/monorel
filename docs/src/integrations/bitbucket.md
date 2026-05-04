@@ -103,7 +103,7 @@ monorel doesn't ship a Bitbucket-specific CI wrapper. The simplest setup uses Bi
 - **Feature commit** (the common case): stage the always-open release PR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release PR is closed.
 - **Release-PR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags. (`monorel publish` is a no-op on Bitbucket Cloud; see [No native releases](#no-native-releases-changelog-md-is-canonical) below.)
 
-Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR an API lookup that finds the PR whose merge produced HEAD and confirms its source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
 
 `bitbucket-pipelines.yml`:
 
@@ -140,7 +140,7 @@ monorel is a single static binary. Any CI that can run a shell command can run i
 `monorel auto` detects a release-PR merge using two independent signals OR'd together:
 
 - **Trailer signal** (fast path): HEAD's commit body contains a `monorel-Release:` trailer. Hits when fast-forward or merge-commit propagated the source body.
-- **API signal** (network): provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason.
+- **API signal** (network): monorel asks the host to identify the PR whose merge produced HEAD; if its source branch is `monorel/release`, this is a release-PR merge. Hits when the trailer is missing for any reason.
 
 Either signal alone is enough. So all three Bitbucket merge strategies work for the release PR; pick whichever matches your repo's convention:
 
