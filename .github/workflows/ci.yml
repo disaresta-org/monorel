@@ -10,7 +10,20 @@ permissions:
   contents: read
 
 jobs:
+  # Skip on `chore(release):` push commits across every job that
+  # resolves Go module versions (`test`, `lint`, `tidy`). PR runs
+  # are unaffected because the filter checks `head_commit.message`
+  # which is null for `pull_request` events.
+  #
+  # The dogfood: monorel's own `ci/github/README.md` documents this
+  # recipe (Recipes -> "Skipping CI on chore(release) commits") for
+  # downstream consumers; this workflow demonstrates it in monorel's
+  # own setup. Today monorel is single-module so the chore(release)
+  # commit doesn't add new versions to its go.sum and the race the
+  # filter prevents wouldn't bite. Forward-compatible if monorel
+  # ever grows sub-modules.
   test:
+    if: github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -26,6 +39,7 @@ jobs:
       - run: go test -race -count=1 ./...
 
   lint:
+    if: github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +58,7 @@ jobs:
       - run: staticcheck ./...
 
   tidy:
+    if: github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
