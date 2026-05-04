@@ -39,11 +39,8 @@ func TestIsReleaseMerge_TrailerHits(t *testing.T) {
 	if res.Source != SourceTrailer {
 		t.Errorf("Source = %q, want %q", res.Source, SourceTrailer)
 	}
-	// Trailer signal short-circuits: API should not be called.
-	// provider.Fake doesn't track call counts directly, but we can
-	// prove the API was not invoked by setting FailNext: if the API
-	// call had happened, the test would have failed with that error.
-	// (Re-run a fresh call with FailNext set to confirm.)
+	// Prove the trailer signal short-circuits: arm provider.FailNext
+	// so any API call would surface as an error, then re-run.
 	pf.FailNext = provider.FailOnce(errors.New("API should not have been called"))
 	res2, err := IsReleaseMerge(context.Background(), repo, pf, "")
 	if err != nil {
