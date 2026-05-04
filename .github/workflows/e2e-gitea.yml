@@ -1,0 +1,69 @@
+name: e2e-gitea
+
+# End-to-end tests against a live Forgejo container (Forgejo is API-
+# compatible with Gitea). The container is managed by
+# testcontainers-go from inside the test process; the runner needs
+# only a working Docker daemon (default on ubuntu-latest).
+#
+# Triggers:
+#   push (main)         — full validation on every merge.
+#   pull_request        — path-filtered to changes that could affect
+#                         release detection / dispatch / provider-side
+#                         contracts. See `paths:` below.
+#   workflow_dispatch   — manual trigger for ad-hoc validation.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'cmd/monorel/**'
+      - 'internal/cli/**'
+      - 'internal/detect/**'
+      - 'internal/orchestrator/**'
+      - 'internal/release/**'
+      - 'internal/provider/**'
+      - 'internal/git/**'
+      - 'config/**'
+      - 'changeset/**'
+      - 'plan/**'
+      - 'semver/**'
+      - 'changelog/**'
+      - 'tests/e2e/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/e2e-gitea.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Cache Go module download
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-e2e-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-
+
+      # testcontainers-go expects a working Docker daemon at
+      # /var/run/docker.sock. ubuntu-latest's default image has it.
+      - name: Verify docker is up
+        run: docker info >/dev/null
+
+      - name: Run e2e suite
+        run: go test -tags=e2e -count=1 -timeout 15m -v ./tests/e2e/...
