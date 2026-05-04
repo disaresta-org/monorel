@@ -44,6 +44,45 @@ func TestErrors_TagConflict(t *testing.T) {
 	}
 }
 
+// TestErrors_TrailerInProseDoesNotMatch is the e2e regression test
+// for the false-positive that broke main's release CI: a non-release
+// commit body that mentions the literal text "monorel-Release:" in
+// prose (typical of docs / test commits about the trailer) was
+// detected as a release commit because detect.IsReleaseMerge used a
+// substring check. Fixed in detect.go by line-anchoring to match the
+// canonical release.parseReleaseTrailers parser.
+//
+// The test pushes a commit whose body mentions the trailer marker in
+// prose (no actual trailer line) and asserts that detect-release
+// exits 1 (not a release). Without the fix, detect-release would
+// exit 0 and the release pipeline would attempt to tag a non-release
+// commit.
+func TestErrors_TrailerInProseDoesNotMatch(t *testing.T) {
+	r := newScenarioRepo(t, "trailer-prose")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	// Commit body mentions "monorel-Release:" in prose but has no
+	// actual trailer line. The shape mirrors what GitHub's squash UI
+	// produced for PR #65 (e2e suite expansion): sub-commit
+	// descriptions discussing the trailer parser.
+	r.WriteFile(t, "pkg-a/notes.txt",
+		"docs: explain monorel-Release: trailer parsing in the apply step\n")
+	body := "docs(release): expand explanation of monorel-Release: trailers\n\n" +
+		"The release commit body carries one monorel-Release: line per\n" +
+		"released package. Detect's trailer fast path agrees with\n" +
+		"release.parseReleaseTrailers on what counts as a real trailer.\n"
+	r.CommitAll(t, body)
+	r.PushMain(t)
+
+	res := r.Monorel(t, "detect-release")
+	if res.ExitCode != 1 {
+		t.Errorf("detect-release on prose-mention commit should exit 1; got %d\nstdout: %s\nstderr: %s",
+			res.ExitCode, res.Stdout, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "not a release-PR merge") {
+		t.Errorf("stderr should explain 'not a release-PR merge'; got:\n%s", res.Stderr)
+	}
+}
+
 // TestErrors_TrailersFallbackFailure: when
 // neither signal can fire (HEAD body has no trailer AND no PR
 // matches the SHA), monorel tag returns ErrNoReleaseCommit and
@@ -115,6 +154,7 @@ func TestErrors_ValidateStrict(t *testing.T) {
 	r := newScenarioRepo(t, "validate-strict")
 	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
 	r.CommitAll(t, "init")
+	r.PushMain(t)
 
 	// Construct a warning-only state by tagging a non-semver tag.
 	// validate --check-tags surfaces that as a warning. We use the

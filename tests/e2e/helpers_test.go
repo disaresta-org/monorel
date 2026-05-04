@@ -129,6 +129,44 @@ changelog = %q
 	r.WriteFile(t, ".changeset/README.md", "# Changesets\n")
 }
 
+// ScaffoldMultiPackage writes a monorel.toml plus README + CHANGELOG
+// stubs for N flat packages where the package name, tag prefix, and
+// path are all the same string (the common multi-package shape used
+// in versioning scenarios). Single-module repo: no go.mod, no
+// `replace` directives. For the multi-module loglayer-shaped layout
+// use ScaffoldMultiModule.
+//
+// The TOML is always rewritten with name == path == tag_prefix for
+// every listed package; if the prior TOML had a different tag_prefix
+// or path, it is replaced. Per-package README + CHANGELOG files are
+// written only if they don't already exist, so calling this helper
+// mid-life (to register a NEW package alongside an existing one)
+// preserves the existing package's release history on disk.
+func (r *ScenarioRepo) ScaffoldMultiPackage(t *testing.T, pkgs ...string) {
+	t.Helper()
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "[provider]\nname = \"gitea\"\nhost = %q\nowner = %q\nrepo = %q\n",
+		giteaHost, r.Owner, r.Name)
+	for _, p := range pkgs {
+		fmt.Fprintf(&sb, "\n[packages.%q]\ntag_prefix = %q\npath = %q\nchangelog = %q\n",
+			p, p, p, filepath.Join(p, "CHANGELOG.md"))
+	}
+	r.WriteFile(t, "monorel.toml", sb.String())
+	for _, p := range pkgs {
+		readme := filepath.Join(r.Local, p, "README.md")
+		if _, err := os.Stat(readme); os.IsNotExist(err) {
+			r.WriteFile(t, filepath.Join(p, "README.md"), "# "+p+"\n")
+		}
+		changelog := filepath.Join(r.Local, p, "CHANGELOG.md")
+		if _, err := os.Stat(changelog); os.IsNotExist(err) {
+			r.WriteFile(t, filepath.Join(p, "CHANGELOG.md"), "# Changelog\n\n## [Unreleased]\n\n")
+		}
+	}
+	if _, err := os.Stat(filepath.Join(r.Local, ".changeset/README.md")); os.IsNotExist(err) {
+		r.WriteFile(t, ".changeset/README.md", "# Changesets\n")
+	}
+}
+
 // ScaffoldMultiModule writes a 3-module scaffold mirroring the
 // loglayer-go layout: a bare-tag root + two path-prefixed sub-modules
 // with `replace` directives during dev. Returns the package keys.
@@ -560,4 +598,23 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(data)
+}
+
+// contains reports whether s appears in slice.
+func contains(slice []string, s string) bool {
+	for _, e := range slice {
+		if e == s {
+			return true
+		}
+	}
+	return false
+}
+
+// mapKeys returns the keys of m as a slice (unordered).
+func mapKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
