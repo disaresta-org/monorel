@@ -88,3 +88,13 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 monorel is a CLI plus a thin GitHub Action wrapper. There is no GitHub App, no hosted service, no per-repo install beyond a workflow file. The same binary runs in CI and on your laptop.
 
 The next page walks through wiring it up: [Getting Started](/getting-started).
+
+## How monorel is tested
+
+Three layers, all running under `go test ./...`:
+
+- **Unit tests, pure-function shape.** Around 320 tests across 17 packages, table-driven where the logic is finite: the planner's version-math matrix, semver bumps, changeset frontmatter parsing, `monorel.toml` schema validation, and changelog merging. The release planner (the load-bearing part of the codebase) has 20 dedicated cases covering single-package, multi-package, max-bump, initial-release, pre-release, unknown-package, and non-semver-tag-ignore matrices.
+- **End-to-end lifecycle scenarios against a live host.** 27 scenarios under `tests/e2e/` boot a Forgejo container via [testcontainers-go](https://golang.testcontainers.org/) and exercise the full pipeline against a real provider API: `apply`, `preview`, `tag`, `publish`, `auto`, and `doctor`, plus pre-release mode, multi-module `go.mod` rewrites, manually-closed release-PR recovery, stale-branch overwrites, concurrent-contributor races, every error path, and the squash / rebase / merge-commit matrix.
+- **Clean-cache regression test.** Build tag `e2e_tidy` runs `monorel apply` inside a fresh `golang:1.26-alpine` container so `GOMODCACHE`-class bugs that the developer's local cache happens to mask surface deterministically on every machine.
+
+CI runs the unit suite and the Forgejo suite on every PR. The clean-cache test is opt-in via its build tag and runs locally in seconds.

@@ -223,11 +223,12 @@ Update all of these in the same change:
 
 1. **Relevant doc page** (`configuration.md` for a Config field, `cli-reference.md` for a flag, `changesets.md` for a frontmatter shape).
 2. **`docs/src/cheat-sheet.md`** if the change adds a command, file, or env var (the cheat sheet is the at-a-glance index; new surface should appear there).
-3. **`docs/src/public/llms.txt`**: concise LLM-facing reference. Add a bullet, table row, or short snippet for the new surface.
-4. **`docs/src/public/llms-full.txt`**: comprehensive LLM-facing reference. Add a section, table row, or snippet describing the new surface in full.
-5. **`docs/src/index.md`** if the change is a real selling point (rare).
-6. **`.changeset/<name>.md`**: ship the change via `monorel add` (or hand-roll the file). The root `CHANGELOG.md` is written from changesets by `monorel release`; do not edit it by hand.
-7. **`AGENTS.md`** "Key Design Decisions" if the change introduces a new concept (rare).
+3. **`docs/src/whats-new.md`**: add a bullet under today's `## MMM DD, YYYY` date section beneath the appropriate `` `module-or-version`: `` paragraph (creating the section and/or paragraph if they don't exist). Format per "What's new" page format below.
+4. **`docs/src/public/llms.txt`**: concise LLM-facing reference. Add a bullet, table row, or short snippet for the new surface.
+5. **`docs/src/public/llms-full.txt`**: comprehensive LLM-facing reference. Add a section, table row, or snippet describing the new surface in full.
+6. **`docs/src/index.md`** if the change is a real selling point (rare).
+7. **`.changeset/<name>.md`**: ship the change via `monorel add` (or hand-roll the file). The root `CHANGELOG.md` is written from changesets by `monorel release`; do not edit it by hand.
+8. **`AGENTS.md`** "Key Design Decisions" if the change introduces a new concept (rare).
 
 For a brand-new provider, also follow `AGENTS.md` "Adding a New Provider".
 
@@ -274,6 +275,63 @@ When documenting a config struct, prefer a table for quick scanning:
 ```
 
 Use code blocks for the full struct shape only when the type/default columns would push line length too far.
+
+## "What's new" page format (`docs/src/whats-new.md`)
+
+User-facing release notes maintained by hand. Distinct from the auto-generated root `CHANGELOG.md` (`monorel release` writes that from `.changeset/*.md` files); this page surfaces the highlights.
+
+```markdown
+## MMM DD, YYYY
+
+`module-or-version`:
+
+- **Title**: brief description of the change. See [Doc Page](/path).
+```
+
+Rules:
+
+- **Top of page**: a one-bullet intro pointing at the root `CHANGELOG.md`. Nothing else.
+- **`## MMM DD, YYYY`** date sections (e.g. `## May 04, 2026`), reverse chronological. The date is when the entries landed on `main`. If the date already exists, add to the existing section.
+- Inside a date, group bullets by **scope** as a backticked plain paragraph followed by a colon (not a heading). For monorel:
+  - Cross-cutting work tied to a release: `` `vX.Y.Z`: `` (e.g. `` `v1.0.0`: ``, `` `v1.1.0`: ``).
+  - Provider-scoped work: the provider name in backticks: `` `gitlab`: ``, `` `bitbucket`: ``.
+  - Library-API surface changes: the import path in backticks: `` `monorel.disaresta.com/plan`: ``, `` `monorel.disaresta.com/doctor`: ``.
+- **Bullets only when listing multiple items.** A scope with a single change reads as a plain paragraph (or a few paragraphs) under the `scope:` line, not as a one-bullet list. Bullets are for genuine enumerations.
+- **For initial releases** (the tool itself, a new provider integration, a new library sub-package), the entry is one short paragraph: what it is and a link to the doc page. Don't enumerate config knobs or implementation details; that's the doc page's job.
+- **Make the link text name the project's component, not the upstream product.** `[GitLab integration](/integrations/gitlab)` (clear: this links to our integration docs), not `[GitLab](/integrations/gitlab)` (ambiguous: looks like it should go to gitlab.com). Same for the CLI command pages and the Library API. The inline link replaces a trailing `See [...](...)` link; don't include both.
+- **Lead with the conclusion.** The first sentence (or for multi-item bulleted scopes, the title before the colon) names the change in plain terms. Don't paraphrase the doc page; link to it.
+- **Length: pick the shortest form that fits the change.** Most fixes and minor features are one or two sentences. For substantial changes (multi-aspect features, anything where forcing it into a single sentence produces a parenthetical wall), break the elaboration into paragraphs separated by blank lines so the reader can scan rather than parse. One idea per paragraph.
+- Code or diff blocks belong attached to the entry: indented two spaces under a bullet, or as their own block separated by blank lines under a paragraph entry.
+- Apply the project's general docs-style rules: no em dashes, no comma splices, no filler.
+
+### Examples of each shape
+
+**Single-item scope, brief (initial release):**
+
+```markdown
+`v1.0.0`:
+
+Initial release.
+```
+
+**Multi-paragraph entry (substantial feature):**
+
+```markdown
+`v1.1.0`:
+
+**Provider-API release detection.** `monorel auto` now detects release-PR merges using two signals OR'd together: HEAD's `monorel-Release:` trailer, and an API lookup that finds the PR whose merge produced HEAD. Either signal alone is sufficient, so squash, rebase, and merge-commit are all viable merge strategies. See [`monorel auto`](/cli-reference#monorel-auto).
+
+The trailer remains the fast path; the API call only fires when the trailer is missing.
+```
+
+**Multi-item bulleted scope:**
+
+```markdown
+`v1.2.0`:
+
+- **`monorel doctor`**: stale-branch + squash-merge revival diagnostic. See [`monorel doctor`](/cli-reference#monorel-doctor).
+- **Bitbucket Cloud provider**: tag pushes work; Cloud lacks Releases so `monorel publish` is a no-op. See [Bitbucket integration](/integrations/bitbucket).
+```
 
 ## Versioning Note
 
