@@ -83,18 +83,6 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 - **Clean `go.mod` at release time.** Sub-modules carry dev `replace` directives and placeholder `require` versions for local cross-module work; monorel strips and pins them in the release commit so downstream consumers' `go mod tidy` resolves the published versions.
 - **Tidy sub-module `go.sum` at release time.** Pinning sibling requires shifts the `go.sum` drift problem onto consumers. monorel runs `go mod tidy` (offline, against a seeded local cache) in every released sub-module that requires an in-plan sibling, so the release commit's `go.sum` is canonically clean. No proxy roundtrip; main is `go mod tidy`-clean for every consumer on the next pull.
 
-## Single-module repos
-
-monorel works on single-module repos. It's the trivial N=1 case of the multi-module config: one `[packages]` entry with `tag_prefix = ""`, and the same workflow (changesets, always-open release PR, per-package CHANGELOG) drives a single bare `vX.Y.Z` tag instead of a tag-per-sub-module.
-
-The overhead (a `monorel.toml`, a release workflow, `.changeset/*.md` per PR) is real. monorel's strongest value shows up when you have:
-
-- two or more packages that version independently,
-- a public API where downstream users `go get` specific sub-modules at specific tags,
-- a release cadence frequent enough that hand-crafting changelogs is friction.
-
-For a small single-module repo with infrequent releases, `git tag` plus a hand-written CHANGELOG is also a reasonable choice.
-
 ## Where monorel sits
 
 monorel is a CLI plus a thin GitHub Action wrapper. There is no GitHub App, no hosted service, no per-repo install beyond a workflow file. The same binary runs in CI and on your laptop.
