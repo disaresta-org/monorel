@@ -19,7 +19,7 @@ A changesets-style release tool for multi-module Go monorepos. Single-module rep
 
 The Go ecosystem has a real gap: no battle-tested release tool fits "main module at repo root with bare `vX.Y.Z` tags + sub-modules with `<path>/vX.Y.Z` tags" cleanly. Bare `vX.Y.Z` tags are required for `go install` against the root module; per-path-prefix tags are required by Go's module-versioning convention for sub-modules.
 
-- **release-please** works with friction (`Release-As:` footers leak across packages, full-history scans cause initial-release surprises, squash-merge strips footers).
+- **release-please** parses Conventional Commits from git history. Friction shows up at squash-merges (per-commit footers don't survive) and on newly-registered packages (full-history scans can leak stray `Release-As:` overrides from unrelated commits unless you remember to set `bootstrap-sha`).
 - **Knope** makes per-package tag prefixes mandatory, so the root module can't get the bare `vX.Y.Z` tags `go install` needs.
 - **changesets** is JS-native and needs a synthetic `package.json` in every Go module.
 
