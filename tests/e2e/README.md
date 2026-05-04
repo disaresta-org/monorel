@@ -34,11 +34,12 @@ testcontainers is skipped; the suite uses your existing instance and per-test re
 |------|-------|
 | `basic_test.go` | Multi-module mixed-bump release; empty-plan noop; in-flight release-PR refresh |
 | `signals_test.go` | Squash / rebase / merge-commit detection matrix; direct-push (no PR) |
-| `versioning_test.go` | Initial-release matrix (`:major` / `:minor` / `:patch`); new package mid-life; sub-module-only release |
-| `errors_test.go` | Tag conflict; trailers fallback failure (both signals absent); `monorel validate` config errors |
-| `lifecycle_test.go` | Pre-release rc cycle (rc.0 → rc.1 → stable); manually-closed release PR; doctor revival detection |
+| `versioning_test.go` | Initial-release matrix (`:major` / `:minor` / `:patch`); new package mid-life; sub-module-only release; max-bump precedence; overlapping-changeset bump merge |
+| `errors_test.go` | Tag conflict; trailers fallback failure (both signals absent); `monorel validate` config errors; auto idempotency on already-tagged HEAD; `validate --strict`; `validate --check-tags` non-semver warning |
+| `lifecycle_test.go` | Pre-release rc cycle (rc.0 → rc.1 → stable); manually-closed release PR; doctor revival detection; noop-after-release; pre-release counter increments; stale `monorel/release` overwrite; concurrent contributors; pre-mode error paths; doctor on clean state |
+| `content_test.go` | Markdown (backticks, fenced blocks, links) survives in PR body and Release body |
 
-15 scenarios in 5 files. Each scenario runs against a fresh Gitea repo (cleaned up at test end unless `MONOREL_E2E_KEEP=1`). Total runtime: ~45s on a modern laptop, ~80% of which is the per-test repo create + clone overhead.
+27 scenarios in 6 files. Each scenario runs against a fresh Gitea repo (cleaned up at test end unless `MONOREL_E2E_KEEP=1`). Total runtime: ~72s on a modern laptop, ~80% of which is the per-test repo create + clone overhead.
 
 ## Helpers
 

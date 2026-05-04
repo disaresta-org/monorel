@@ -76,6 +76,84 @@ func TestErrors_TrailersFallbackFailure(t *testing.T) {
 	}
 }
 
+// TestErrors_AutoIdempotentTagged covers Scenario 3: re-running
+// auto on a HEAD that's already been tagged should error with the
+// tag-conflict path. (Auto's release branch always tries to create
+// the derived tags; if they already exist locally, ErrTagExists
+// fires.) This pins the contract that auto is NOT a silent no-op
+// when the release was already cut.
+func TestErrors_AutoIdempotentTagged(t *testing.T) {
+	r := newScenarioRepo(t, "idempotent")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.WriteChangeset(t, "feat", map[string]string{"pkg-a": "minor"}, "feat.")
+	r.CommitAll(t, "init+feat")
+	r.PushMain(t)
+
+	r.MonorelOK(t, "auto")
+	prs := r.PRs(t, "open")
+	r.MergePR(t, prs[0].Number, "squash")
+	r.CheckoutMain(t)
+	r.MonorelOK(t, "auto") // creates the tag, runs publish
+
+	// Second auto call on the SAME commit. Detection still says yes
+	// (HEAD is the merge of the release PR; both signals would still
+	// fire). release.Tag tries to create the tag, errors because it
+	// already exists.
+	res := r.Monorel(t, "auto")
+	if res.ExitCode == 0 {
+		t.Errorf("expected non-zero exit on idempotent re-run, got 0\nstdout: %s", res.Stdout)
+	}
+	if !strings.Contains(res.Stderr, "tag already exists") {
+		t.Errorf("stderr missing 'tag already exists':\n%s", res.Stderr)
+	}
+}
+
+// TestErrors_ValidateStrict covers Scenario 9: validate --strict
+// exits non-zero when only warnings are present. The plain validate
+// run on the same state would exit 0.
+func TestErrors_ValidateStrict(t *testing.T) {
+	r := newScenarioRepo(t, "validate-strict")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.CommitAll(t, "init")
+
+	// Construct a warning-only state by tagging a non-semver tag.
+	// validate --check-tags surfaces that as a warning. We use the
+	// combination: --check-tags --strict together, since plain
+	// validate doesn't walk tags by default.
+	r.run(t, "git", "tag", "pkg-a/garbage-not-semver")
+
+	// validate --check-tags alone: warnings, exits 0.
+	res := r.Monorel(t, "validate", "--check-tags")
+	if res.ExitCode != 0 {
+		t.Errorf("validate --check-tags should exit 0 on warnings; got %d\nstdout: %s\nstderr: %s",
+			res.ExitCode, res.Stdout, res.Stderr)
+	}
+
+	// validate --check-tags --strict: warnings → exit 2.
+	res = r.Monorel(t, "validate", "--check-tags", "--strict")
+	if res.ExitCode != 2 {
+		t.Errorf("validate --check-tags --strict should exit 2 on warnings; got %d\nstdout: %s\nstderr: %s",
+			res.ExitCode, res.Stdout, res.Stderr)
+	}
+}
+
+// TestErrors_ValidateCheckTags covers Scenario 10: --check-tags
+// surfaces non-semver tags as warnings.
+func TestErrors_ValidateCheckTags(t *testing.T) {
+	r := newScenarioRepo(t, "check-tags")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.CommitAll(t, "init")
+	r.run(t, "git", "tag", "pkg-a/v1.2.3")       // valid
+	r.run(t, "git", "tag", "pkg-a/garbage")      // invalid; warning expected
+	r.run(t, "git", "tag", "pkg-a/v-not-semver") // also invalid
+
+	res := r.Monorel(t, "validate", "--check-tags")
+	combined := res.Stdout + "\n" + res.Stderr
+	if !strings.Contains(combined, "pkg-a/garbage") {
+		t.Errorf("--check-tags should mention pkg-a/garbage:\n%s", combined)
+	}
+}
+
 // TestErrors_ValidateConfigErrors covers Scenario 12: monorel
 // validate detects:
 //   - missing package path

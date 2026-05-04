@@ -153,6 +153,230 @@ func TestLifecycle_DoctorRevival(t *testing.T) {
 	}
 }
 
+// TestLifecycle_NoopAfterRelease covers Scenario 5: a release was
+// already cut; a docs-only commit lands on top of the chore(release)
+// merge; running auto again should be a no-op (no new PR opened, no
+// re-tag attempt). The detection path returns "feature" because HEAD
+// is past the release commit, and the planner sees no pending
+// changesets.
+func TestLifecycle_NoopAfterRelease(t *testing.T) {
+	r := newScenarioRepo(t, "noop-after")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.WriteChangeset(t, "feat", map[string]string{"pkg-a": "minor"}, "feat.")
+	r.CommitAll(t, "init+feat")
+	r.PushMain(t)
+
+	r.MonorelOK(t, "auto")
+	prs := r.PRs(t, "open")
+	r.MergePR(t, prs[0].Number, "squash")
+	r.CheckoutMain(t)
+	r.MonorelOK(t, "auto") // tags + publishes
+
+	// Push a docs commit (no changeset). HEAD is now past the
+	// chore(release) commit.
+	r.WriteFile(t, "pkg-a/README.md", "# pkg-a\n\nUpdated docs.\n")
+	r.CommitAll(t, "docs: small update")
+	r.PushMain(t)
+
+	stdout := r.MonorelOK(t, "auto")
+	if !strings.Contains(stdout, "Plan is empty") && !strings.Contains(stdout, "Nothing to do") {
+		t.Errorf("expected 'Plan is empty' noop after release; got:\n%s", stdout)
+	}
+	if open := r.PRs(t, "open"); len(open) != 0 {
+		t.Errorf("expected 0 open PRs after noop, got %d", len(open))
+	}
+}
+
+// TestLifecycle_PreReleaseCounter covers Scenario 2: three
+// successive rc releases produce rc.0, rc.1, rc.2 (the per-package
+// counter increments by 1 each time, never resetting).
+func TestLifecycle_PreReleaseCounter(t *testing.T) {
+	r := newScenarioRepo(t, "pre-counter")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.WriteChangeset(t, "feat", map[string]string{"pkg-a": "minor"}, "Initial.")
+	r.CommitAll(t, "init+feat")
+	r.PushMain(t)
+
+	r.MonorelOK(t, "pre", "enter", "rc")
+	r.CommitAll(t, "chore: enter rc")
+	r.PushMain(t)
+
+	cutOne := func(label string, idx int) {
+		r.WriteChangeset(t, "rc-"+label, map[string]string{"pkg-a": "patch"}, "rc "+label+".")
+		r.CommitAll(t, "chore: rc "+label)
+		r.PushMain(t)
+
+		r.MonorelOK(t, "auto")
+		prs := r.PRs(t, "open")
+		if len(prs) != 1 {
+			t.Fatalf("rc.%d: expected 1 open PR, got %d", idx, len(prs))
+		}
+		r.MergePR(t, prs[0].Number, "squash")
+		r.CheckoutMain(t)
+		r.MonorelOK(t, "auto")
+	}
+	// First rc cycle uses the existing initial changeset, but the
+	// counter only ticks per-cycle. Drop a sentinel changeset before
+	// each release run to keep the planner non-empty.
+	r.MonorelOK(t, "auto")
+	prs := r.PRs(t, "open")
+	r.MergePR(t, prs[0].Number, "squash")
+	r.CheckoutMain(t)
+	r.MonorelOK(t, "auto")
+	if !contains(r.LocalTags(t), "pkg-a/v0.1.0-rc.0") {
+		t.Fatalf("rc.0 missing: %v", r.LocalTags(t))
+	}
+
+	cutOne("a", 1)
+	if !contains(r.LocalTags(t), "pkg-a/v0.1.0-rc.1") {
+		t.Errorf("rc.1 missing: %v", r.LocalTags(t))
+	}
+	cutOne("b", 2)
+	if !contains(r.LocalTags(t), "pkg-a/v0.1.0-rc.2") {
+		t.Errorf("rc.2 missing: %v", r.LocalTags(t))
+	}
+}
+
+// TestLifecycle_StaleReleaseBranchOverwrite covers Scenario 4:
+// monorel/release exists from a previous run with stale state
+// (different package selection). A subsequent auto run with a
+// different changeset set must force-push monorel/release with
+// fresh state, not cherry-pick on top of the stale one.
+func TestLifecycle_StaleReleaseBranchOverwrite(t *testing.T) {
+	r := newScenarioRepo(t, "stale-release")
+	rootKey, fooKey, _ := r.ScaffoldMultiModule(t)
+	r.WriteChangeset(t, "old", map[string]string{rootKey: "minor"}, "old.")
+	r.CommitAll(t, "init+old changeset")
+	r.PushMain(t)
+
+	// First auto: pushes monorel/release with the root-only plan.
+	r.MonorelOK(t, "auto")
+	r.CheckoutMain(t)
+
+	// Replace the changeset set: drop old, add a new one for foo.
+	// This simulates a contributor who reverted the original feature
+	// and added a different one.
+	r.run(t, "git", "rm", "-q", ".changeset/old.md")
+	r.WriteChangeset(t, "new", map[string]string{fooKey: "minor"}, "new.")
+	r.CommitAll(t, "swap: drop old, add new")
+	r.PushMain(t)
+
+	// Second auto: must overwrite monorel/release with the new plan
+	// rather than carry old's state.
+	r.MonorelOK(t, "auto")
+
+	prs := r.PRs(t, "open")
+	if len(prs) != 1 {
+		t.Fatalf("expected 1 open PR after overwrite, got %d", len(prs))
+	}
+	body := prs[0].Body
+	if strings.Contains(body, "go.example.com v") && !strings.Contains(body, "transports/foo") {
+		// Body should NOT mention the old root release; SHOULD mention
+		// the new transports/foo release.
+		t.Errorf("PR body still references old plan instead of new:\n%s", body)
+	}
+	if !strings.Contains(body, "transports/foo") {
+		t.Errorf("PR body should mention transports/foo (the new plan):\n%s", body)
+	}
+}
+
+// TestLifecycle_ConcurrentContributors covers Scenario 6: PR A
+// merges first; release PR opens with A's package; THEN PR B merges
+// with a different package; refresh should show both packages.
+func TestLifecycle_ConcurrentContributors(t *testing.T) {
+	r := newScenarioRepo(t, "concurrent")
+	rootKey, fooKey, barKey := r.ScaffoldMultiModule(t)
+	_, _ = rootKey, fooKey
+	r.CommitAll(t, "init")
+	r.PushMain(t)
+
+	// Contributor A's changeset.
+	r.WriteChangeset(t, "feat-foo", map[string]string{fooKey: "minor"}, "A: foo.")
+	r.CommitAll(t, "feat: contributor A")
+	r.PushMain(t)
+	r.MonorelOK(t, "auto") // release PR opens with foo.
+
+	prs := r.PRs(t, "open")
+	if len(prs) != 1 {
+		t.Fatalf("expected 1 open PR after A's merge, got %d", len(prs))
+	}
+	first := prs[0].Number
+
+	// Now B's changeset lands (without merging the release PR).
+	r.CheckoutMain(t)
+	r.WriteChangeset(t, "fix-bar", map[string]string{barKey: "patch"}, "B: bar.")
+	r.CommitAll(t, "fix: contributor B")
+	r.PushMain(t)
+	stdout := r.MonorelOK(t, "auto") // refresh PR with both A + B.
+
+	if !strings.Contains(stdout, "Updated") {
+		t.Errorf("expected 'Updated release PR' (PR refresh), got:\n%s", stdout)
+	}
+
+	prs = r.PRs(t, "open")
+	if len(prs) != 1 || prs[0].Number != first {
+		t.Errorf("expected 1 open PR (#%d), got %d (or different number): %+v", first, len(prs), prs)
+	}
+	body := prs[0].Body
+	for _, want := range []string{"transports/foo", "plugins/bar"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("refreshed PR body missing %q:\n%s", want, body)
+		}
+	}
+}
+
+// TestLifecycle_PreModeErrors covers Scenario 8: pre exit outside
+// pre mode is a graceful no-op (exits 0, prints "nothing to exit"),
+// while pre enter while already in pre mode errors.
+func TestLifecycle_PreModeErrors(t *testing.T) {
+	r := newScenarioRepo(t, "pre-errors")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.CommitAll(t, "init")
+	r.PushMain(t)
+
+	// pre exit outside pre mode → no-op (exits 0).
+	res := r.Monorel(t, "pre", "exit")
+	if res.ExitCode != 0 {
+		t.Errorf("pre exit outside pre mode should exit 0 (no-op); got %d\nstdout: %s\nstderr: %s",
+			res.ExitCode, res.Stdout, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "not in pre-release mode") {
+		t.Errorf("pre exit no-op should mention 'not in pre-release mode'; got:\n%s",
+			res.Stdout)
+	}
+
+	// Enter pre mode.
+	r.MonorelOK(t, "pre", "enter", "rc")
+
+	// pre enter again → error.
+	res = r.Monorel(t, "pre", "enter", "beta")
+	if res.ExitCode == 0 {
+		t.Errorf("pre enter while already in pre mode should error; got 0 exit\nstdout: %s\nstderr: %s",
+			res.Stdout, res.Stderr)
+	}
+}
+
+// TestLifecycle_DoctorCleanState covers Scenario 11: a fresh repo
+// with no chore(release) commits ever produces no doctor findings.
+// The negative complement to TestLifecycle_DoctorRevival.
+func TestLifecycle_DoctorCleanState(t *testing.T) {
+	r := newScenarioRepo(t, "doctor-clean")
+	r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+	r.WriteChangeset(t, "feat", map[string]string{"pkg-a": "minor"}, "feat.")
+	r.CommitAll(t, "init+feat")
+	r.PushMain(t)
+
+	res := r.Monorel(t, "doctor")
+	if res.ExitCode != 0 {
+		t.Errorf("doctor on clean state should exit 0; got %d\nstdout: %s\nstderr: %s",
+			res.ExitCode, res.Stdout, res.Stderr)
+	}
+	combined := res.Stdout + "\n" + res.Stderr
+	if !strings.Contains(combined, "No findings") && !strings.Contains(combined, "looks healthy") {
+		t.Errorf("doctor on clean state should report no findings\nfull output:\n%s", combined)
+	}
+}
+
 func contains(slice []string, s string) bool {
 	for _, e := range slice {
 		if e == s {

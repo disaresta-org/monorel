@@ -175,6 +175,97 @@ func TestVersioning_SubModuleOnlyRelease(t *testing.T) {
 	}
 }
 
+// TestVersioning_MaxBumpPrecedence covers Scenario 1: when two
+// changesets bump the same package at different levels, the max
+// level wins. Verifies the planner's max-across-changesets rule
+// end-to-end against a real release.
+func TestVersioning_MaxBumpPrecedence(t *testing.T) {
+	cases := []struct {
+		name    string // also used as repo-name suffix; keep alphanumeric+dash only
+		bump1   string
+		bump2   string
+		wantTag string // tag suffix; tag prefix is "pkg-a"
+	}{
+		{"patch-minor", "patch", "minor", "v0.1.0"},
+		{"minor-major", "minor", "major", "v1.0.0"},
+		{"patch-major", "patch", "major", "v1.0.0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newScenarioRepo(t, "max-"+tc.name)
+			r.ScaffoldSinglePackage(t, "pkg-a", "pkg-a", "pkg-a")
+			r.WriteChangeset(t, "first", map[string]string{"pkg-a": tc.bump1}, "First.")
+			r.WriteChangeset(t, "second", map[string]string{"pkg-a": tc.bump2}, "Second.")
+			r.CommitAll(t, "init+two-changesets")
+			r.PushMain(t)
+
+			r.MonorelOK(t, "auto")
+			prs := r.PRs(t, "open")
+			r.MergePR(t, prs[0].Number, "squash")
+			r.CheckoutMain(t)
+			r.MonorelOK(t, "auto")
+
+			tags := r.LocalTags(t)
+			want := "pkg-a/" + tc.wantTag
+			if len(tags) != 1 || tags[0] != want {
+				t.Errorf("tags = %v, want [%s]", tags, want)
+			}
+		})
+	}
+}
+
+// TestVersioning_OverlappingChangesetsMergeBumps covers Scenario 7:
+// two changesets that BOTH bump pkg-a (one :minor, one :patch) plus
+// one that bumps pkg-b (:patch). The resulting plan has pkg-a at
+// minor (max of minor + patch) and pkg-b at patch. Verifies the
+// per-package merge across changeset files.
+func TestVersioning_OverlappingChangesetsMergeBumps(t *testing.T) {
+	r := newScenarioRepo(t, "overlap")
+	r.WriteFile(t, "monorel.toml", `[provider]
+name = "gitea"
+host = "`+giteaHost+`"
+owner = "`+r.Owner+`"
+repo = "`+r.Name+`"
+
+[packages."pkg-a"]
+tag_prefix = "pkg-a"
+path = "pkg-a"
+changelog = "pkg-a/CHANGELOG.md"
+
+[packages."pkg-b"]
+tag_prefix = "pkg-b"
+path = "pkg-b"
+changelog = "pkg-b/CHANGELOG.md"
+`)
+	for _, p := range []string{"pkg-a", "pkg-b"} {
+		r.WriteFile(t, p+"/README.md", "# "+p+"\n")
+		r.WriteFile(t, p+"/CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n")
+	}
+	r.WriteFile(t, ".changeset/README.md", "# Changesets\n")
+
+	r.WriteChangeset(t, "feat", map[string]string{"pkg-a": "minor"}, "feat A.")
+	r.WriteChangeset(t, "fix", map[string]string{"pkg-a": "patch", "pkg-b": "patch"}, "fix A+B.")
+	r.CommitAll(t, "init+two-changesets")
+	r.PushMain(t)
+
+	r.MonorelOK(t, "auto")
+	prs := r.PRs(t, "open")
+	r.MergePR(t, prs[0].Number, "squash")
+	r.CheckoutMain(t)
+	r.MonorelOK(t, "auto")
+
+	tags := r.LocalTags(t)
+	want := map[string]bool{"pkg-a/v0.1.0": true, "pkg-b/v0.0.1": true}
+	if len(tags) != len(want) {
+		t.Errorf("tags = %v, want %v", tags, mapKeys(want))
+	}
+	for _, tag := range tags {
+		if !want[tag] {
+			t.Errorf("unexpected tag: %s", tag)
+		}
+	}
+}
+
 func mapKeys(m map[string]bool) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
