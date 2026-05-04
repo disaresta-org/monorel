@@ -17,7 +17,7 @@ monorel init                   # scaffold monorel.toml + .changeset/
 monorel validate               # confirm config
 monorel add                    # author your first changeset (interactive)
 git commit -am "feat: x"
-git push                       # CI's release-pr opens the always-open release PR
+git push                       # CI runs `monorel auto`, which opens the always-open release PR
 # merge the release PR when ready -> CI cuts tags + provider releases
 ```
 

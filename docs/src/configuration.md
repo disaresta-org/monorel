@@ -44,7 +44,7 @@ Identifies the version-control host that owns the repo. monorel is host-agnostic
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `tag_prefix` | string | required | Prefix prepended (with `/`) to the version when forming the git tag. Empty `""` produces bare `vX.Y.Z`. |
+| `tag_prefix` | string | `""` | Prefix prepended (with `/`) to the version when forming the git tag. Empty `""` (the default when omitted) produces bare `vX.Y.Z`. |
 | `path` | string | required | Package directory relative to the repo root. Used to locate `go.mod` for v2+ major-version updates. |
 | `changelog` | string | required | Path (relative to repo root) of the per-package `CHANGELOG.md` monorel writes new entries to. |
 

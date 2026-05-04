@@ -175,9 +175,9 @@ Bitbucket Cloud has no analogue to GitHub's required-status-check anti-recursion
 
 ## Troubleshooting
 
-### `provider: unknown provider "bitbucket"`
+### `provider.name "bitbucket" is not recognized`
 
-monorel binary doesn't recognize the `bitbucket` provider name. Upgrade with `go install monorel.disaresta.com/cmd/monorel@latest` or use a newer Docker image tag.
+The Bitbucket provider is **disabled in shipped binaries** pending live Pipelines verification (see the danger callout at the top of this page). Every released monorel binary rejects `provider.name = "bitbucket"`; upgrading does not change this. To compile a custom binary against the in-tree provider, see the re-enablement steps in the disclaimer above.
 
 ### `bitbucket: probe username: 401 Unauthorized`
 

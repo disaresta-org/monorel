@@ -444,10 +444,9 @@ Most commands follow the standard `0` for success, non-zero for errors pattern. 
 
 | Command | Exit codes |
 |---------|------------|
-| `monorel detect-release` | `0` HEAD is the merge of monorel's release PR. `1` HEAD is not. `2` detection error (network, repo state). |
-| `monorel validate` | `0` no findings. `1` errors found (or warnings under `--strict`). `2` warnings only without `--strict`. |
-| `monorel doctor` | `0` no findings. `1` error-severity findings. `2` warning-severity findings only. |
-| `monorel auto` | `0` dispatch succeeded. `1` either branch failed (with the specific error). `2` detection error before dispatch. |
+| `monorel detect-release` | `0` HEAD is the merge of monorel's release PR. `1` HEAD is not. `2` detection error (network, repo state, missing token). |
+| `monorel validate` | `0` no errors (warnings without `--strict` also produce 0). `1` error-severity findings. `2` warning-severity findings combined with `--strict`. |
+| `monorel doctor` | `0` no error-severity findings. `1` error-severity findings. (No built-in check currently emits warning-severity; a `--strict` flag mirroring `validate` will be added when one ships.) |
 | `monorel publish` | `0` all releases created. Non-zero with a "Created N/M releases before failing" line on partial failure. |
 
 For the rest, treat `0` as success and any non-zero as a CLI-printed error to stderr.

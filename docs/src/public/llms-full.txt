@@ -482,8 +482,8 @@ The full lifecycle:
 
 ```
 1. Contributor opens feature PR with .changeset/<name>.md
-2. PR merges; release-pr.yml fires
-3. Action wrapper:
+2. PR merges; release.yml runs `monorel auto`
+3. auto detects HEAD is a feature commit, takes the feature path:
      git checkout -B monorel/release origin/<default-branch>
      monorel apply
      git push -f origin HEAD:monorel/release   (only if apply produced output)
@@ -494,8 +494,8 @@ The full lifecycle:
      - Diff: actual file changes (CHANGELOGs, go.mod/go.sum, .changeset/*.md deletions)
 5. Subsequent feature PRs re-trigger the workflow; the release PR diff updates
 6. Maintainer reviews, approves, merges
-7. release.yml fires on the chore(release): merge commit
-8. Action wrapper:
+7. release.yml runs `monorel auto` on the merge commit
+8. auto detects HEAD is the release-PR merge, takes the release path:
      monorel tag                      (reads body trailers, creates tags)
      git push --follow-tags
      monorel publish                  (creates one provider release per tag)

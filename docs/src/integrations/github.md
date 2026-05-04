@@ -158,7 +158,7 @@ By default the action uses the workflow's auto-generated `GITHUB_TOKEN`. This wo
 This bites monorel specifically when:
 
 - Branch protection requires status checks (e.g. `lint`, `test`) to pass before merging.
-- The `release-pr` workflow opens or updates the always-open release PR.
+- `monorel auto` (running in the release workflow on every push to `main`) opens or updates the always-open release PR.
 - Those required checks never fire on the release PR (because `pull_request` events for `GITHUB_TOKEN`-created PRs are suppressed).
 - The release PR sits forever with "Some checks haven't completed yet" and can't be merged through standard branch protection.
 

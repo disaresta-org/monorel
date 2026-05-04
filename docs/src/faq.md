@@ -15,7 +15,7 @@ Yes, until it's consumed at release time. A changeset file is just markdown; edi
 
 ### Can I delete a changeset to skip a release?
 
-Yes. Delete the file from `main` (open a PR that removes it). The next `release-pr` workflow run will recompute the plan without that changeset. If the changeset was the only one pending, the always-open release PR will close itself.
+Yes. Delete the file from `main` (open a PR that removes it). The next push to `main` runs `monorel auto`, which recomputes the plan without that changeset. If the changeset was the only one pending, the always-open release PR will close itself.
 
 ### What if I forget to add a changeset?
 
@@ -64,7 +64,7 @@ There's intentionally no "release subset" mode: separating the decision ("which 
 
 ### What happens if I push a commit directly to `main` while the release PR is open?
 
-The next `release-pr` workflow run rebuilds the staging branch off the new `main`. The release PR's diff updates to include the new commit's effect (a new changeset, if any). If the commit is unrelated to releases (no new changeset), the release PR's diff stays the same, just rebased.
+On the next push to `main`, `monorel auto`'s feature path rebuilds the staging branch off the new `main`. The release PR's diff updates to include the new commit's effect (a new changeset, if any). If the commit is unrelated to releases (no new changeset), the release PR's diff stays the same, just rebased.
 
 ## Tags and versions
 

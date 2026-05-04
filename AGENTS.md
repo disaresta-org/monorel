@@ -78,8 +78,10 @@ The top-level `config`, `changeset`, `semver`, `plan`, `changelog`, `validate`, 
   versions and increment per-package counters. `pre exit` returns to
   stable, applying accumulated changesets cumulatively.
 - **Provider-neutral host seam**: `internal/provider.Client` abstracts
-  GitHub today, GitLab/Gitea/Bitbucket/Forgejo by adding a subpackage
-  + factory case + KnownProviders entry.
+  GitHub, GitLab, and Gitea (Forgejo via API compatibility) today.
+  New providers (e.g. Bitbucket, currently in-tree but disabled at
+  the factory pending live Pipelines verification) need a subpackage
+  + factory case + `KnownProviders` entry.
 - **Pure-function planner**: `plan.Plan` takes static inputs and
   returns a ReleasePlan. No I/O. Exhaustively table-tested. From
   v0.2.0 it lives at `monorel.disaresta.com/plan` (public API)
@@ -185,14 +187,17 @@ it with the right env vars.
 - **ci.yml**: build, gofmt, vet, test -race, staticcheck.
 - **docs.yml**: build VitePress docs on PR (verify clean), deploy to
   GitHub Pages on release.
-- **release-pr.yml**: `monorel preview` on push to `main`. Maintains
-  the always-open release PR.
-- **release.yml**: `monorel release --publish` on release-PR merge.
+- **release.yml**: runs `monorel auto` on every push to `main`. The
+  command's internal detect step decides which path runs (feature
+  path: `apply` + `push -f` + `preview --upsert`; release path: `tag`
+  + `push --follow-tags` + `publish`), so the workflow file itself
+  is unconditional.
 - **pr-title.yml**: validates PR titles follow conventional commits.
 
-To trigger a release: merge the release PR. The release workflow
-runs `monorel release --publish`, pushes tags, and creates one
-GitHub Release per tag.
+To trigger a release: merge the release PR. On the resulting push to
+`main`, `monorel auto`'s detect step recognizes the merge commit as
+a release-PR merge and runs the release path, pushing tags and
+creating one GitHub Release per tag.
 
 ## Thread Safety
 
