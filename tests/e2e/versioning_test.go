@@ -68,31 +68,10 @@ func TestVersioning_NewPackageMidLife(t *testing.T) {
 
 	// Now register pkg-b alongside pkg-a, plus a :major changeset
 	// for pkg-b. Expected: pkg-b/v1.0.0 (initial) + pkg-a unchanged.
-	original := readFile(t, r.Local+"/monorel.toml")
-	updated := strings.ReplaceAll(original,
-		`[packages."pkg-a"]
-tag_prefix = "pkg-a"
-path = "pkg-a"
-changelog = "pkg-a/CHANGELOG.md"
-`,
-		`[packages."pkg-a"]
-tag_prefix = "pkg-a"
-path = "pkg-a"
-changelog = "pkg-a/CHANGELOG.md"
-
-[packages."pkg-b"]
-tag_prefix = "pkg-b"
-path = "pkg-b"
-changelog = "pkg-b/CHANGELOG.md"
-`)
-	// Guard against silent no-op if the helper template ever changes.
-	if updated == original || !strings.Contains(updated, `[packages."pkg-b"]`) {
-		t.Fatalf("monorel.toml mutation failed; pkg-b block not added.\nbefore:\n%s\nafter:\n%s",
-			original, updated)
-	}
-	r.WriteFile(t, "monorel.toml", updated)
-	r.WriteFile(t, "pkg-b/README.md", "# pkg-b\n")
-	r.WriteFile(t, "pkg-b/CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n")
+	// ScaffoldMultiPackage rewrites monorel.toml + the package
+	// CHANGELOG/README stubs in one shot; pkg-a's existing release
+	// history is recorded via tags, not files, so the rewrite is safe.
+	r.ScaffoldMultiPackage(t, "pkg-a", "pkg-b")
 	r.WriteChangeset(t, "feat-b", map[string]string{"pkg-b": "major"}, "Initial pkg-b.")
 	r.CommitAll(t, "feat: register pkg-b")
 	r.PushMain(t)
@@ -228,27 +207,7 @@ func TestVersioning_MaxBumpPrecedence(t *testing.T) {
 // per-package bump merge across changeset files.
 func TestVersioning_OverlappingChangesetsMergeBumps(t *testing.T) {
 	r := newScenarioRepo(t, "overlap")
-	r.WriteFile(t, "monorel.toml", `[provider]
-name = "gitea"
-host = "`+giteaHost+`"
-owner = "`+r.Owner+`"
-repo = "`+r.Name+`"
-
-[packages."pkg-a"]
-tag_prefix = "pkg-a"
-path = "pkg-a"
-changelog = "pkg-a/CHANGELOG.md"
-
-[packages."pkg-b"]
-tag_prefix = "pkg-b"
-path = "pkg-b"
-changelog = "pkg-b/CHANGELOG.md"
-`)
-	for _, p := range []string{"pkg-a", "pkg-b"} {
-		r.WriteFile(t, p+"/README.md", "# "+p+"\n")
-		r.WriteFile(t, p+"/CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n\n")
-	}
-	r.WriteFile(t, ".changeset/README.md", "# Changesets\n")
+	r.ScaffoldMultiPackage(t, "pkg-a", "pkg-b")
 
 	r.WriteChangeset(t, "feat", map[string]string{"pkg-a": "minor"}, "feat A.")
 	r.WriteChangeset(t, "fix", map[string]string{"pkg-a": "patch", "pkg-b": "patch"}, "fix A+B.")
@@ -271,12 +230,4 @@ changelog = "pkg-b/CHANGELOG.md"
 			t.Errorf("unexpected tag: %s", tag)
 		}
 	}
-}
-
-func mapKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }

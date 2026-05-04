@@ -201,6 +201,7 @@ func TestLifecycle_PreReleaseCounter(t *testing.T) {
 	r.PushMain(t)
 
 	cutOne := func(label string, idx int) {
+		t.Helper()
 		r.WriteChangeset(t, "rc-"+label, map[string]string{"pkg-a": "patch"}, "rc "+label+".")
 		r.CommitAll(t, "chore: rc "+label)
 		r.PushMain(t)
@@ -214,9 +215,9 @@ func TestLifecycle_PreReleaseCounter(t *testing.T) {
 		r.CheckoutMain(t)
 		r.MonorelOK(t, "auto")
 	}
-	// First rc cycle uses the existing initial changeset, but the
-	// counter only ticks per-cycle. Drop a sentinel changeset before
-	// each release run to keep the planner non-empty.
+	// rc.0 reuses the initial `feat` changeset committed above; rc.1
+	// and rc.2 each drop a fresh sentinel changeset via cutOne so the
+	// planner has work to do.
 	r.MonorelOK(t, "auto")
 	prs := r.PRs(t, "open")
 	r.MergePR(t, prs[0].Number, "squash")
@@ -347,11 +348,16 @@ func TestLifecycle_PreModeErrors(t *testing.T) {
 	// Enter pre mode.
 	r.MonorelOK(t, "pre", "enter", "rc")
 
-	// pre enter again → error.
+	// pre enter again → error. Pin the message so a future rewrite
+	// can't silently weaken the contract to a no-op.
 	res = r.Monorel(t, "pre", "enter", "beta")
 	if res.ExitCode == 0 {
 		t.Errorf("pre enter while already in pre mode should error; got 0 exit\nstdout: %s\nstderr: %s",
 			res.Stdout, res.Stderr)
+	}
+	combined := res.Stdout + "\n" + res.Stderr
+	if !strings.Contains(combined, "already in pre-release mode") {
+		t.Errorf("expected 'already in pre-release mode' in output; got:\n%s", combined)
 	}
 }
 
@@ -374,13 +380,4 @@ func TestLifecycle_DoctorCleanState(t *testing.T) {
 	if !strings.Contains(combined, "No findings") && !strings.Contains(combined, "looks healthy") {
 		t.Errorf("doctor on clean state should report no findings\nfull output:\n%s", combined)
 	}
-}
-
-func contains(slice []string, s string) bool {
-	for _, e := range slice {
-		if e == s {
-			return true
-		}
-	}
-	return false
 }
