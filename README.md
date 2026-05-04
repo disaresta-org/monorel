@@ -71,28 +71,11 @@ Reference setups for each provider live in [`examples/`](examples/) (GitHub, Git
 
 monorel ships a composite GitHub Action wrapper plus first-class support for Gitea / Forgejo and GitLab CI. Each provider has a working reference setup under [`examples/`](examples/):
 
-| Provider | Example | Notes |
-|---|---|---|
-| GitHub | [`examples/github/`](examples/github/) | Composite action wrapper, single workflow file. |
-| Gitea / Forgejo | [`examples/gitea/`](examples/gitea/) | Same wrapper on Gitea Actions; `provider.host` set; covers Forgejo via API compatibility. |
-| GitLab | [`examples/gitlab/`](examples/gitlab/) | Single `.gitlab-ci.yml` using `ghcr.io/disaresta-org/monorel`. |
-
-The GitHub flow looks like this:
-
-```yaml
-- uses: actions/checkout@v4
-  with: { fetch-depth: 0 }
-- uses: actions/setup-go@v5
-  with:
-    go-version-file: go.mod
-- uses: disaresta-org/monorel/ci/github@v1.0.0
-```
-
-The single step runs `monorel auto`, which detects whether HEAD is the merge of monorel's release PR and dispatches to either the release-cut path (`tag` + `push --follow-tags` + `publish`) or the feature path (`apply` + `push -f` + `preview --upsert`). `actions/setup-go` is required because monorel's apply step runs `go mod tidy` against a seeded local cache so the release commit's `go.sum` is canonically clean. See the [GitHub integration page](https://monorel.disaresta.com/integrations/github) for the full workflow.
-
-If your repo enforces required status checks on the default branch, the bot-created release PR's checks won't fire on the auto-injected token (anti-recursion). Switch to a PAT or GitHub App token. See [Tokens and required status checks](https://monorel.disaresta.com/integrations/github#tokens-and-required-status-checks).
-
-Full setup per provider in the integration guides linked above.
+| Provider | Example | Guide | Notes |
+|---|---|---|---|
+| GitHub | [`examples/github/`](examples/github/) | [GitHub integration](https://monorel.disaresta.com/integrations/github) | Composite action wrapper, single workflow file. |
+| Gitea / Forgejo | [`examples/gitea/`](examples/gitea/) | [Gitea / Forgejo integration](https://monorel.disaresta.com/integrations/gitea) | Same wrapper on Gitea Actions; `provider.host` set; covers Forgejo via API compatibility. |
+| GitLab | [`examples/gitlab/`](examples/gitlab/) | [GitLab integration](https://monorel.disaresta.com/integrations/gitlab) | Single `.gitlab-ci.yml` using `ghcr.io/disaresta-org/monorel`. |
 
 ## Development
 
