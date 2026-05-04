@@ -66,7 +66,7 @@ monorel takes the changesets *idea* (per-PR intent files, named affected package
 
 ## When monorel is overkill
 
-If your repo is a single Go module with a single CHANGELOG and no plans to grow into a monorepo, `git tag` and a hand-written CHANGELOG are fine. monorel's value shows up when you have:
+monorel works fine on single-module repos (it's the trivial N=1 case of the multi-module config), but its overhead — `monorel.toml`, a release workflow, `.changeset/*.md` per PR — only pays off above a certain threshold. If your repo is a single Go module with infrequent releases and no plans to grow, `git tag` plus a hand-written CHANGELOG is a reasonable choice. monorel's value shows up when you have:
 
 - two or more packages that version independently,
 - a public API where downstream users `go get` specific sub-modules at specific tags,

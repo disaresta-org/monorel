@@ -11,7 +11,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-A changesets-style release tool for multi-module Go monorepos.
+A changesets-style release tool for multi-module Go monorepos. Single-module repos work too (config is just one `[packages]` entry).
 
 `monorel` manages per-package versions, tags, and CHANGELOG entries in a Go monorepo using explicit `.changeset/*.md` files instead of inferring releases from commit messages. Pair it with CI on your provider (GitHub, Gitea / Forgejo, or GitLab) to drive an always-open release PR whose diff IS the actual file changes the next release will produce.
 
