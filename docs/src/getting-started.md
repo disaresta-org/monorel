@@ -63,20 +63,22 @@ Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy 
 For a real production setup at scale, [loglayer-go](https://github.com/loglayer/loglayer-go) runs monorel across 26 sub-modules.
 :::
 
-## Wire up the GitHub Action
+## Wire up your provider
 
-A single workflow file drives the entire release lifecycle. The walkthrough below uses GitHub; if you're on Gitea or Forgejo, see the [Gitea / Forgejo integration page](/integrations/gitea) for the equivalent workflow file.
+A single workflow file drives the entire release lifecycle. It runs `monorel auto` on every push to the default branch; auto detects whether HEAD is the merge of monorel's release PR and dispatches between the feature path (`apply` + `git push -f` + `preview --upsert`) and the release path (`tag` + `git push --follow-tags` + `publish`).
 
-**`.github/workflows/release.yml`** runs `monorel auto` on every push to the default branch. `monorel auto` detects whether HEAD is the merge of monorel's release PR and dispatches accordingly:
+Per-provider walkthroughs cover the workflow YAML, token shape, branch-protection setup, and any provider-specific gotchas:
+
+- [GitHub](/integrations/github)
+- [Gitea / Forgejo](/integrations/gitea)
+- [GitLab](/integrations/gitlab)
+
+The GitHub workflow file as a quick reference:
 
 <!--@include: ./_partials/github-release-yml.md-->
 
-Commit the file. On the next push to `main`, the workflow runs `monorel auto`. If HEAD is a regular feature commit (the common case), auto runs `apply` + `git push -f` + `preview --upsert` to maintain the always-open release PR. If HEAD is the merge of that release PR, auto runs `tag` + `git push --follow-tags` + `publish` to cut the release.
-
-The [GitHub integration page](/integrations/github) covers the Inputs table, branch-protection setup, and the PAT / App token escalation; this Getting Started section shows the canonical YAML.
-
-::: warning Branch protection with required status checks
-If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (GitHub anti-recursion rule). The fix is to switch the workflow's `token` input to a PAT or GitHub App token. See [Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the wiring.
+::: warning Branch protection with required status checks (GitHub / Gitea)
+If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (anti-recursion rule). The fix is to switch the workflow's `token` input to a PAT or App token. See [Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the wiring.
 :::
 
 ## How releases work
