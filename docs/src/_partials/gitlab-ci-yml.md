@@ -1,6 +1,13 @@
 ```yaml
 default:
-  image: ghcr.io/disaresta-org/monorel:1.0.0
+  # entrypoint: [""] override is required: the published image's
+  # entrypoint is `monorel` (entrypoint-binary container), and
+  # GitLab's docker+machine executor wraps every script as
+  # `sh -c '...'`. Without the override the runner invokes
+  # `monorel sh -c '...'` and fails with `unknown command "sh"`.
+  image:
+    name: ghcr.io/disaresta-org/monorel:1.0.0
+    entrypoint: [""]
 
 monorel:
   rules:
