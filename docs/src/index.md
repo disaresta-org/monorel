@@ -24,13 +24,13 @@ hero:
 
 features:
   - title: Changesets, not commit messages
-    details: One .changeset/{name}.md per release-affecting PR, naming the affected packages, bump levels, and changelog body. No commit-message inference — squash-merges can't strip footers, and stray Release-As lines from old commits can't leak into a newly-registered package's first release.
+    details: One .changeset/{name}.md per release-affecting PR, naming the affected packages, bump levels, and changelog body. No commit-message inference; squash-merges can't strip footers, and stray Release-As lines from old commits can't leak into a newly-registered package's first release.
   - title: Native Go tag conventions
     details: Bare vX.Y.Z for the root module, {path}/vX.Y.Z for sub-modules. The format go install expects, configurable per package.
   - title: Clean go.mod + tidy go.sum at release
     details: Strips dev replace directives, pins sibling require versions to the planned release, runs offline go mod tidy in every released sub-module. main stays canonically clean for proxy consumers on the next pull.
   - title: Always-open release PR
-    details: monorel stages each release on a monorel/release branch and force-pushes after every change. The PR's diff is the actual file changes — CHANGELOGs, go.mod updates, the chore(release) commit — so reviewers see real content, not a body summary.
+    details: 'monorel stages each release on a monorel/release branch and force-pushes after every change. The PR''s diff is the actual file changes (CHANGELOGs, go.mod updates, the chore(release) commit), so reviewers see real content, not a body summary.'
   - title: Pre-release support
     details: monorel pre enter rc switches the repo into release-candidate mode; pre exit returns to stable. Per-package counters; multi-channel.
   - title: GitHub, GitLab, Gitea / Forgejo
