@@ -24,17 +24,17 @@ hero:
 
 features:
   - title: Changesets, not commit messages
-    details: One .changeset/{name}.md per release-affecting PR, naming the affected packages, bump levels, and changelog body. No commit-message inference; squash-merges can't strip footers, and stray Release-As lines from old commits can't leak into a newly-registered package's first release.
+    details: One .changeset/{name}.md per PR names the affected packages and bump levels. Squash-merges can't strip footers because monorel doesn't read commit messages.
   - title: Native Go tag conventions
-    details: Bare vX.Y.Z for the root module, {path}/vX.Y.Z for sub-modules. The format go install expects, configurable per package.
+    details: Bare vX.Y.Z at the root, {path}/vX.Y.Z for sub-modules. What go install expects, configurable per package.
   - title: Clean go.mod + tidy go.sum at release
-    details: Strips dev replace directives, pins sibling require versions to the planned release, runs offline go mod tidy in every released sub-module. main stays canonically clean for proxy consumers on the next pull.
+    details: Strips dev replace directives, pins sibling versions, runs offline go mod tidy. main stays clean for proxy consumers.
   - title: Always-open release PR
-    details: 'monorel stages each release on a monorel/release branch and force-pushes after every change. The PR''s diff is the actual file changes (CHANGELOGs, go.mod updates, the chore(release) commit), so reviewers see real content, not a body summary.'
+    details: Each release stages on a monorel/release branch. The PR's diff IS the file changes the release will produce.
   - title: Pre-release support
-    details: monorel pre enter rc switches the repo into release-candidate mode; pre exit returns to stable. Per-package counters; multi-channel.
+    details: pre enter rc for release-candidate mode; pre exit for stable. Per-package counters, multi-channel.
   - title: GitHub, GitLab, Gitea / Forgejo
-    details: One CI step on any provider. monorel auto opens release PRs / MRs, creates per-package tags, and publishes a Release per tag. Single workflow file; no provider-specific orchestration in your repo.
+    details: One workflow file, one step. monorel auto opens release PRs, creates tags, publishes Releases.
 ---
 
 ## Quick Example
