@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: Quickstart
       link: /getting-started
+    - theme: alt
+      text: GitHub (MIT Licensed)
+      link: https://github.com/loglayer/loglayer-go
 
 features:
   - title: Changesets, not commit messages
