@@ -9,6 +9,51 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [0.15.0] - 2026-05-04
+
+### Minor Changes
+
+- **Provider-API release detection.**
+
+  Two new monorel subcommands replace the previous text-pattern release-detection:
+
+  - `monorel detect-release` reports whether HEAD is the merge of monorel's release PR. Exit 0 yes, 1 no, 2 error.
+  - `monorel auto` is the one-stop CI command. It detects, then runs the release pipeline (tag + push + publish) or the feature pipeline (apply + push + preview --upsert) accordingly.
+
+  The action wrapper at `disaresta-org/monorel/ci/github` simplifies to a single auto step. The `command: pr`, `command: release`, and `command: doctor` inputs are removed. Each provider's example workflow / pipeline file collapses to one file with one step that runs `monorel auto`. The `monorel doctor` workflows install monorel directly and run the command as a standalone step.
+
+  Detection uses two signals OR'd together: the `monorel-Release:` trailer in HEAD's commit body (fast path; squash + rebase) and the provider's `FindPRByMergeCommit` returning a PR whose source branch is `monorel/release` (network signal; covers merge-commit and Bitbucket squash). Either signal alone is sufficient.
+
+  Migration from v0.14:
+
+  - Replace `command: pr` and `command: release` workflow steps with a single step (no `command:` input) that runs the action wrapper. The wrapper runs `monorel auto` internally.
+  - `command: doctor` users invoke `monorel doctor` as their own step (install monorel via `go install monorel.disaresta.com/cmd/monorel@latest` first).
+  - Custom CI scripts that text-grep `chore(release):` or `monorel-Release:` from commit messages should switch to running `monorel detect-release` and branching on its exit code.
+
+### Patch Changes
+
+- **Fix `detect-release` false-positive on prose mentions of the trailer marker.**
+
+  `detect.IsReleaseMerge`'s trailer fast path used `strings.Contains(headBody, "monorel-Release:")`, which matched anywhere in the body, including prose mentions of the marker (e.g., docs commits that explain how the trailer works, or squash-merge bodies that aggregate sub-commit messages discussing release tooling).
+
+  The CI symptom was a contradiction: `monorel detect-release` reported "release commit detected (source: trailer)" on a non-release commit, then the next pipeline step `monorel tag` correctly rejected HEAD with `ErrNoReleaseCommit`. The release workflow exited non-zero on every push to main whose squash body coincidentally contained the literal text `monorel-Release:`.
+
+  The fix line-anchors the match to mirror the canonical parser at `release.parseReleaseTrailers`: the marker must appear at the start of a (whitespace-trimmed) line. Detect and tag now agree on what counts as a real trailer.
+- **Fix `release.yml` 403 on every non-release push to main.**
+
+  When PR #64 consolidated `release-pr.yml` into `release.yml`, the
+  `pull-requests: write` permission was lost. The release path (tag +
+  push) only needs `contents: write`, but the feature path (`monorel
+  auto` against the always-open release PR) needs to PATCH the PR via
+  GitHub's REST API, which requires `pull-requests: write`.
+
+  Symptom: every push to `main` whose HEAD is NOT a release commit
+  fails the `release` workflow with `403 Resource not accessible by
+  integration` from `PATCH /repos/.../pulls/<n>`.
+
+  This is a self-host-only fix; the example workflows and docs partials
+  already document the correct two-permission shape.
+
 ## [0.14.0] - 2026-05-03
 
 ### Minor Changes
