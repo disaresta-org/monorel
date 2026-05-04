@@ -5,7 +5,7 @@ description: "Wire up monorel against a GitHub repository: action wrapper, workf
 
 # GitHub
 
-The canonical monorel-on-GitHub setup: a composite action wrapper plus two workflow files that drive the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
+The canonical monorel-on-GitHub setup: a composite action wrapper plus one workflow file that drives the always-open release PR lifecycle. Set `provider.name = "github"` (the default) in `monorel.toml` and the action wrapper takes care of the rest.
 
 ::: tip Example
 Working reference setup at [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github). Copy the files you need.
@@ -35,47 +35,24 @@ The action wrapper passes the workflow's auto-generated `GITHUB_TOKEN` to the bi
 
 ## Workflows
 
-The two workflow files below implement the lifecycle: `release-pr.yml` keeps the always-open release PR up to date on every push to `main`; `release.yml` cuts the release once the release PR is merged. Both rely on the `disaresta-org/monorel/ci/github` composite action wrapper, which:
+One workflow file drives the entire lifecycle. On every push to `main`, the wrapper runs [`monorel auto`](/cli-reference#monorel-auto), which detects whether HEAD is the merge of monorel's release PR and dispatches accordingly:
+
+- **Feature commit** (the common case): stage the always-open release PR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release PR is closed.
+- **Release-PR merge** (HEAD is the squash / rebase / merge-commit of `monorel/release`): run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one GitHub Release per tag.
+
+Detection uses two signals OR'd together: HEAD's `monorel-Release:` commit-body trailer (fast path, no network), and the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release` (covers cases where the trailer is lost). Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
+
+The `disaresta-org/monorel/ci/github` composite action wrapper:
 
 - Downloads the monorel binary for the runner OS + arch.
-- Configures the git author for any commits the wrapper makes.
-- Stages the `monorel/release` branch (for the `pr` command's speculative apply).
-- Invokes monorel with the configured command (`pr` or `release`).
+- Configures the git author for the `apply` commit on `monorel/release`.
+- Runs `monorel auto` against the configured `monorel.toml`.
 
 ::: tip Pinning the action wrapper
 monorel doesn't auto-publish a moving major-track tag (no `@v1` ref). Pin to an exact patch (`@v1.0.0` or whichever you've validated). Bump deliberately when a new monorel release lands.
 :::
 
-### `release-pr.yml`: maintain the always-open release PR
-
-<!--@include: ../_partials/github-release-pr-yml.md-->
-
-The `pr` command implements **speculative apply**:
-
-1. Stages a fresh `monorel/release` branch off the default branch.
-2. Runs `monorel apply` on it. `apply` writes per-package CHANGELOG entries (or `pre.json` increments in pre-release mode), deletes consumed `.changeset/*.md` files, and creates one `chore(release): ...` commit.
-3. Force-pushes the result.
-4. Opens or updates the always-open release PR with the rendered plan in its body (via `monorel preview --upsert`).
-
-The release PR's diff IS the file changes the release will produce.
-
-If the planner has nothing to apply (no pending changesets), `monorel apply` exits with `Nothing to apply.` and the `pr` command skips the force-push; the orchestrator closes any open release PR.
-
-### `release.yml`: publish on release-PR merge
-
-The minimal shape (release-only) is:
-
 <!--@include: ../_partials/github-release-yml.md-->
-
-The `release` command runs three monorel invocations in order on the merge commit:
-
-1. `monorel tag`: read HEAD's `monorel-Release:` commit-body trailers (written upstream by `monorel apply`) and create per-package annotated tags. The merge already brought the file changes in via the release PR; only the tags still need creating.
-2. `git push --follow-tags`: push the new tags to the remote.
-3. `monorel publish`: create one GitHub Release per tag at HEAD; body sourced from each package's CHANGELOG entry.
-
-The split exists because GitHub validates that the tag is already on the remote before allowing a Release to be created against it.
-
-The `if:` filter is `startsWith(...)`, not `contains(...)`. monorel's release commit subject is exactly `chore(release): <pkg> <ver>` (or a comma-joined list for multi-package releases). The prefix check is precise. Use `workflow_dispatch` to trigger the workflow manually if a release commit ever needs to be re-run.
 
 ### `doctor.yml`: pre-merge sanity check (recommended)
 
@@ -89,21 +66,20 @@ A separate workflow that runs `monorel doctor` against every PR. Today's only bu
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `command` | required | `pr` (stage the release PR's diff via `monorel apply` + `monorel preview --upsert`), `release` (post-merge: `monorel tag` + push + `monorel publish`), or `doctor` (run `monorel doctor`; exit non-zero on error-severity findings). |
 | `version` | `latest` | Pin a specific monorel version, e.g. `v1.0.0`. |
-| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. The `doctor` command needs no token; `contents: read` alone is sufficient. Override with a PAT or App token via `secrets.<name>` syntax. |
+| `token` | the workflow's auto-generated `GITHUB_TOKEN` | Token used for GitHub API calls. Needs `contents: write` and `pull-requests: write` permissions on the workflow. Override with a PAT or App token via `secrets.<name>` syntax. |
 | `config` | `monorel.toml` | Path to the config file. |
 
 ### Chaining downstream workflows (deploy-docs, build-binaries, etc.)
 
 GitHub's anti-recursion rule suppresses `release: published` and `push: tags` events when those events are caused by a workflow using `secrets.GITHUB_TOKEN`. monorel's `publish` step creates the GitHub Release and `git push --follow-tags` pushes the tag using `GITHUB_TOKEN`, so any workflow you'd expect to fire on `release: published` or on `push: tags: 'v*'` after a monorel-driven release will silently *not* fire.
 
-The supported sidestep is to chain those workflows from `release.yml` via `workflow_call`. The pattern:
+The supported sidestep is to chain those workflows from the monorel workflow via `workflow_call`. The pattern:
 
 ```yaml
 # release.yml: extended with chained downstream workflows
 jobs:
-  release:
+  monorel:
     # … same as above, but expose the released root tag as an output …
     outputs:
       root_tag: ${{ steps.root_tag.outputs.root_tag }}
@@ -111,8 +87,6 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: disaresta-org/monorel/ci/github@v1.0.0
-        with:
-          command: release
       - name: Capture root tag
         id: root_tag
         run: |
@@ -120,8 +94,8 @@ jobs:
           echo "root_tag=${root_tag}" >> "$GITHUB_OUTPUT"
 
   deploy-docs:
-    needs: release
-    if: ${{ needs.release.result == 'success' }}
+    needs: monorel
+    if: ${{ needs.monorel.result == 'success' }}
     uses: ./.github/workflows/docs.yml
     permissions:
       contents: read
@@ -129,24 +103,26 @@ jobs:
       id-token: write
 
   build-binaries:
-    needs: release
-    if: ${{ needs.release.result == 'success' && needs.release.outputs.root_tag != '' }}
+    needs: monorel
+    if: ${{ needs.monorel.result == 'success' && needs.monorel.outputs.root_tag != '' }}
     uses: ./.github/workflows/build-release-binaries.yml
     with:
-      tag: ${{ needs.release.outputs.root_tag }}
+      tag: ${{ needs.monorel.outputs.root_tag }}
     permissions:
       contents: write
 
   build-image:
-    needs: release
-    if: ${{ needs.release.result == 'success' && needs.release.outputs.root_tag != '' }}
+    needs: monorel
+    if: ${{ needs.monorel.result == 'success' && needs.monorel.outputs.root_tag != '' }}
     uses: ./.github/workflows/build-image.yml
     with:
-      tag: ${{ needs.release.outputs.root_tag }}
+      tag: ${{ needs.monorel.outputs.root_tag }}
     permissions:
       contents: read
       packages: write
 ```
+
+`monorel auto` exits cleanly on every push, including non-release commits where it just keeps the release PR up to date. The chained jobs run on every push but their own no-op gates (the `root_tag` check, or the docs job's `release.result == 'success'`) keep them cheap.
 
 The chained workflows must declare `workflow_call` in their `on:` block and accept whatever inputs they need (e.g. a `tag` input for build workflows). The natural `push: tags` and `release: published` triggers can stay alongside `workflow_call` so manual tag pushes and externally-created Releases still fire the downstream chain.
 
@@ -158,25 +134,22 @@ Recommended settings for the default branch:
 
 - Require PR review.
 - Require status checks (CI) to pass before merge.
-- Allow squash-merge for non-release PRs; allow merge-commit (or rebase) for the release PR.
+- Any of squash, rebase, or merge-commit work for the release PR. Detection is API-based; the merge strategy doesn't change which signal monorel uses.
 
-The release PR is special: monorel's `chore(release): <pkg> <ver>` commit subject AND the `monorel-Release:` body trailers must both reach `main` for `release.yml` to trigger and `monorel tag` to derive the right tags.
+### Merge strategy
 
-::: danger Preserve the staged commit body
-The staging step (speculative apply) creates a real commit on `monorel/release` whose body carries the `monorel-Release:` trailers `monorel tag` reads. The merge commit on `main` MUST keep that body, or `monorel tag` returns `ErrNoReleaseCommit` and no tags get created. Configure the squash subject + body via repo Settings → General → Pull Requests → "Default commit message for squash merging":
+`monorel auto` detects a release-PR merge using two independent signals OR'd together:
 
-- **`Default message`** (legacy): for single-commit PRs (which the release PR always is) the subject and body come straight from the head commit. Trailers preserved verbatim. Safe default.
-- **`Pull request title and commit details`**: subject is the PR title, body lists the commit subjects and includes their bodies. The parser tolerates leading whitespace from any indentation, so trailers remain matchable.
+- **Trailer signal** (fast path): HEAD's commit body contains a `monorel-Release:` trailer. Hits when squash- or rebase-merge propagated the source commit's body.
+- **API signal** (network): provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason (a squash-merge configuration that strips the body, a merge-commit body that ignores the parent, etc.).
 
-What NOT to use:
+Either signal alone is enough. So squash, rebase, and merge-commit are all fine merge strategies for the release PR; pick whichever matches the rest of your repo's convention.
 
-- **`Pull request title`**: body is empty. Trailers lost.
-- **`Pull request title and description`**: body is the PR description (the rendered plan that `monorel preview --upsert` writes), which doesn't contain the trailers. Trailers lost.
-
-Rebase-merge and merge-commit both preserve the staged commit verbatim, so neither needs configuration.
-
-If a release PR merged without trailers, recovery is to manually create the tags (`git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m 'Release ...'` for each package) and push them, then run `monorel publish` against the pushed tags.
+::: tip The trailer is still useful when present
+`monorel tag` (run by `monorel auto` on the release path) reads the trailer for fast tag derivation. When the trailer is missing, `monorel tag` falls back to the universal trailers source (a `<!-- monorel-trailers ... -->` HTML comment that `monorel preview --upsert` writes into the PR body), so tag creation also works regardless of merge strategy. The fallback adds one API round-trip; the trailer path is direct.
 :::
+
+If a release PR merged without producing tags despite the API detecting the merge, the most likely cause is the trailers HTML comment was edited out of the PR body before merge. Recovery: hand-create the tags (`git tag -a <prefix>/v<X.Y.Z> <merge-sha> -m 'Release ...'` for each package) and push them, then run `monorel publish` against the pushed tags.
 
 ## Tokens and required status checks
 
@@ -203,7 +176,6 @@ Add it as a repo secret (e.g. `MONOREL_PR_TOKEN`) and pass it to the action's `t
 ```yaml
 - uses: disaresta-org/monorel/ci/github@v1.0.0
   with:
-    command: pr
     token: ${{ secrets.MONOREL_PR_TOKEN }}
 ```
 
@@ -226,8 +198,7 @@ In the workflow, exchange the App's private key for a short-lived installation t
 
 ```yaml
 jobs:
-  release-pr:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+  monorel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -240,7 +211,6 @@ jobs:
           private-key: ${{ secrets.MONOREL_APP_PRIVATE_KEY }}
       - uses: disaresta-org/monorel/ci/github@v1.0.0
         with:
-          command: pr
           token: ${{ steps.app-token.outputs.token }}
 ```
 
@@ -262,7 +232,7 @@ The release PR's diff IS the actual file changes the release will produce (CHANG
 | Org-managed | Multiple maintainers, secret hygiene rules | GitHub App |
 | Solo experiments | Don't care about CI on the release PR | Bypass |
 
-The same token also applies to the `release` step (post-merge tag/push/publish), but the anti-recursion concern only blocks the `pr` step. The `release` step uses the token for `monorel publish`'s API calls; `GITHUB_TOKEN` is sufficient there.
+The same token applies regardless of whether `monorel auto` lands on the feature branch (open / update the release PR) or the release branch (tag + push + publish). The anti-recursion concern only matters on the feature branch (where the action opens or updates a PR); on the release branch the token is just used for `monorel publish`'s API calls and `GITHUB_TOKEN` is sufficient there.
 
 ## Troubleshooting
 
@@ -270,9 +240,9 @@ The same token also applies to the `release` step (post-merge tag/push/publish),
 
 Symptom: the always-open release PR shows required checks (`lint`, `test`, etc.) as "Expected — Waiting for status to be reported" indefinitely. The merge button is disabled.
 
-Cause: GitHub's anti-recursion rule suppresses `pull_request` triggers on PRs created by `secrets.GITHUB_TOKEN`. The `release-pr` workflow opened the PR using the default token, so your CI workflows didn't fire on it.
+Cause: GitHub's anti-recursion rule suppresses `pull_request` triggers on PRs created by `secrets.GITHUB_TOKEN`. The monorel workflow opened the PR using the default token, so your CI workflows didn't fire on it.
 
-Fix: switch the `release-pr` workflow's token to a PAT or GitHub App token. See [Tokens and required status checks](#tokens-and-required-status-checks).
+Fix: switch the workflow's `token` input to a PAT or GitHub App token. See [Tokens and required status checks](#tokens-and-required-status-checks).
 
 ### "tag already exists" on release
 
@@ -280,34 +250,34 @@ monorel aborts before any mutation if a planned tag is already present on the re
 
 ### The release PR doesn't update
 
-Check the `release-pr.yml` run on the latest push to `main`. Common causes:
+Check the monorel workflow run on the latest push to `main`. Common causes:
 
 - The workflow lacks `pull-requests: write` permission.
 - The `token` input doesn't have access to PRs.
 - A path filter (if you added one) excluded the change.
-- The `if:` filter skipped the run because the head commit's subject starts with `chore(release):`. That's expected behavior for the release PR's merge commit; if it's hitting non-release commits, check the filter.
+- The push was the release-PR merge itself; `monorel auto` correctly took the release branch (tag + publish) and didn't touch the PR. The next non-release push reconciles.
 
 ### Tag-triggered downstream workflows don't fire
 
 Symptom: a release lands, the tag exists on origin and a GitHub Release is created, but workflows you expected to fire on `push: tags: 'v*'` (e.g. binary builds, image pushes) didn't run.
 
-Cause: GitHub's anti-recursion rule suppresses `push: tags` events when the tag was pushed via `GITHUB_TOKEN` from another workflow. The fix is to chain those workflows from `release.yml` via `workflow_call`; see [Chaining downstream workflows](#chaining-downstream-workflows-deploy-docs-build-binaries-etc). The natural `push: tags` trigger still works for direct `git push --tags` flows; the chain covers the monorel-driven path.
+Cause: GitHub's anti-recursion rule suppresses `push: tags` events when the tag was pushed via `GITHUB_TOKEN` from another workflow. The fix is to chain those workflows from the monorel workflow via `workflow_call`; see [Chaining downstream workflows](#chaining-downstream-workflows-deploy-docs-build-binaries-etc). The natural `push: tags` trigger still works for direct `git push --tags` flows; the chain covers the monorel-driven path.
 
 ### `monorel publish` fails partway through
 
-monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags (each `CreateRelease` is idempotent on the tag name; the provider returns an error for duplicates, which the partial-success path surfaces). Tags from the prior `release` step are already in place.
+monorel reports `Created N/M releases before failing.` Re-running publishes the remaining tags (each `CreateRelease` is idempotent on the tag name; the provider returns an error for duplicates, which the partial-success path surfaces). Tags from the prior run are already in place.
 
-### "422 Field:head Code:invalid" on release-pr
+### "422 Field:head Code:invalid" on the release PR upsert
 
-GitHub's PR-create API requires the head branch to exist on the remote with at least one commit between head and base. The `pr` command's speculative-apply step creates `monorel/release` from the default branch and force-pushes the `monorel apply` commit, so the head exists by the time the orchestrator runs `monorel preview --upsert`. If you see this 422, the staging push failed silently. Check the `Run monorel pr` step's log for a `git push` error before the `monorel preview` invocation.
+GitHub's PR-create API requires the head branch to exist on the remote with at least one commit between head and base. `monorel auto`'s feature-branch path creates `monorel/release` from the default branch and force-pushes the `monorel apply` commit, so the head exists by the time the orchestrator runs `monorel preview --upsert`. If you see this 422, the staging push failed silently. Check the action's run log for a `git push` error before the `monorel preview` invocation.
 
 ### `monorel tag` returns `ErrNoReleaseCommit`
 
-The merge commit on `main` doesn't have `monorel-Release:` trailers in its body. Most likely cause: the squash-merge setting stripped the staged commit's body. See the [Preserve the staged commit body](#branch-protection) warning for which settings work and how to recover.
+The merge commit on `main` doesn't have `monorel-Release:` trailers in its body AND the merged PR's body doesn't contain the universal-fallback `<!-- monorel-trailers ... -->` HTML comment. Either someone edited the comment out before merge, or the release PR was opened by an older monorel that didn't write the comment. See [Merge strategy](#merge-strategy) for the fallback mechanics; recovery is to hand-create the tags pointing at the merge commit and run `monorel publish` against the pushed tags.
 
 ### `monorel tag` returns `ErrTagExists`
 
-A tag the trailers ask for already exists on the remote, usually because a previous `release` workflow run partially completed. See [Partial-tag failure mode](/cli-reference#monorel-tag) for recovery; the gist is `git tag -d <name>` locally plus `git push origin :refs/tags/<name>` to remove from the remote, then re-run.
+A tag the trailers ask for already exists on the remote, usually because a previous workflow run partially completed. See [Partial-tag failure mode](/cli-reference#monorel-tag) for recovery; the gist is `git tag -d <name>` locally plus `git push origin :refs/tags/<name>` to remove from the remote, then re-run.
 
 ### `monorel tag` returns `ErrUnknownReleasedPackage`
 

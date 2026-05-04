@@ -77,7 +77,12 @@ If you see `402 Payment Required` from a `monorel preview --upsert` or `monorel 
 
 ## Workflows
 
-monorel doesn't ship a Bitbucket-specific CI wrapper. The simplest setup uses Bitbucket Pipelines with the published Docker image (`ghcr.io/disaresta-org/monorel`). One pipeline that branches on whether the just-landed commit is a `chore(release):` merge: non-release commits run `monorel apply` + `monorel preview --upsert`; release commits run `monorel tag` + `git push --follow-tags` + `monorel publish`.
+monorel doesn't ship a Bitbucket-specific CI wrapper. The simplest setup uses Bitbucket Pipelines with the published Docker image (`ghcr.io/disaresta-org/monorel`). One pipeline drives the entire lifecycle: on every push to the default branch, it runs [`monorel auto`](/cli-reference#monorel-auto), which detects whether HEAD is the merge of monorel's release PR and dispatches accordingly:
+
+- **Feature commit** (the common case): stage the always-open release PR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release PR is closed.
+- **Release-PR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags. (`monorel publish` is a no-op on Bitbucket Cloud; see [No native releases](#no-native-releases-changelog-md-is-canonical) below.)
+
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
 
 `bitbucket-pipelines.yml`:
 
@@ -86,8 +91,8 @@ monorel doesn't ship a Bitbucket-specific CI wrapper. The simplest setup uses Bi
 Setup:
 
 1. **Add `BITBUCKET_TOKEN` and `BB_USER` as repository secrets** under Repository settings → Repository variables. `BITBUCKET_TOKEN` is the Atlassian API token; `BB_USER` is the Bitbucket username (the same one monorel probes from `/2.0/user`; you can copy it from your Bitbucket profile URL). The pipeline uses both to authenticate the git push over HTTPS.
-2. **Pick a merge strategy that preserves the release commit body.** Fast-forward and merge-commit both work; squash-merge rewrites the body but the universal trailers fallback recovers (see below). Configure under Repository settings → Branch restrictions / Merge strategies.
-3. **Push the `bitbucket-pipelines.yml` to the default branch.** The pipeline fires on every push to `main`; it runs `monorel apply` + `monorel preview --upsert` and opens the always-open release PR once you have a `.changeset/<name>.md`.
+2. **Pick a merge strategy.** Squash, fast-forward, and merge-commit all work via the API signal; pick whichever matches your repo's convention. Configure under Repository settings → Branch restrictions / Merge strategies.
+3. **Push the `bitbucket-pipelines.yml` to the default branch.** The pipeline fires on every push to `main`; it runs `monorel auto` and opens the always-open release PR once you have a `.changeset/<name>.md`.
 
 ::: info Token revocation
 To revoke or rotate, return to `id.atlassian.com/manage-profile/security/api-tokens` and delete the token. Update `BITBUCKET_TOKEN` in the repo's pipeline variables and re-run.
@@ -111,19 +116,24 @@ monorel is a single static binary. Any CI that can run a shell command can run i
 
 ## Merge strategy: any of the three works
 
-The release PR's commit body carries `monorel-Release:` trailers that `monorel tag` reads post-merge. Three Bitbucket merge strategies are available:
+`monorel auto` detects a release-PR merge using two independent signals OR'd together:
 
-- **Fast-forward**: preserves the head commit verbatim. Trailers reach `main` unchanged. Recommended.
-- **Merge commit**: creates a merge commit with the head commit as a parent. `monorel tag` reads the parent's body trailers. Works.
-- **Squash merge**: rewrites the body, dropping the trailers from the merge commit. The universal trailers fallback recovers: monorel walks back to the merged PR (via `FindPRByMergeCommit`) and reads the trailers from a `<!-- monorel-trailers ... -->` HTML comment that `monorel preview` writes into the PR body. The release still completes.
+- **Trailer signal** (fast path): HEAD's commit body contains a `monorel-Release:` trailer. Hits when fast-forward or merge-commit propagated the source body.
+- **API signal** (network): provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason.
 
-Squash merge is supported but not preferred; the fallback adds an extra round-trip to the API and a small risk that a contributor edited the PR body and removed the comment block. Pick fast-forward or merge-commit when you have the choice.
+Either signal alone is enough. So all three Bitbucket merge strategies work for the release PR; pick whichever matches your repo's convention:
+
+- **Fast-forward**: preserves the head commit verbatim. Trailers reach `main` unchanged. Both signals hit.
+- **Merge commit**: creates a merge commit with the head commit as a parent. The trailer reaches HEAD via the merged commit; the API signal also hits. Both signals hit.
+- **Squash merge**: rewrites the body, dropping the trailers from the merge commit. The trailer signal misses; the API signal hits. `monorel tag` falls back to the universal trailers source (a `<!-- monorel-trailers ... -->` HTML comment that `monorel preview` writes into the PR body) so tag derivation still works.
+
+Squash-merge adds an API round-trip for the trailers fallback and a small risk that a contributor edited the PR body and removed the comment block. Fast-forward and merge-commit avoid both. Pick whichever matches your team's habit; detection itself is robust to all three.
 
 ## No native releases: CHANGELOG.md is canonical
 
 Bitbucket Cloud has no first-class "Release" concept analogous to GitHub Releases or GitLab Releases (a tag-attached object with a body, assets, and a pre-release flag). The closest equivalent is the tag itself plus the per-package `CHANGELOG.md` entry that `monorel apply` writes alongside.
 
-Consequence: `monorel publish` does nothing on Bitbucket. It's safe to run (the command exits successfully without making any API calls), but the canonical record of what changed in each release is the `CHANGELOG.md` entry. The pipeline above includes `monorel publish` for symmetry with the other providers; you can omit it without loss.
+Consequence: `monorel publish` does nothing on Bitbucket. It's safe to run (the command exits successfully without making any API calls), but the canonical record of what changed in each release is the `CHANGELOG.md` entry. `monorel auto` invokes `publish` on the release path for symmetry with the other providers; on Bitbucket it's just a no-op step.
 
 ::: warning `monorel publish` still requires the auth env vars
 The publish command constructs the provider client before noticing it has nothing to do, so `BITBUCKET_EMAIL` and `BITBUCKET_TOKEN` must still be set in the environment when it runs. Constructor validation (including the `/2.0/user` username probe) fires before the no-op check; missing or invalid credentials surface as a constructor error, not a clean exit.
@@ -135,8 +145,8 @@ If you need release notes shown in a UI, link the per-package CHANGELOG file fro
 
 Bitbucket calls these "branch restrictions." Two points:
 
-- **`monorel/release` should NOT have a `Prevent rewriting branch history` restriction.** The pipeline force-pushes to that branch on every release-pr run. Either don't add a restriction covering `monorel/release`, or exempt the bot user / token.
-- **The default branch's merge strategy should preserve the trailers** (fast-forward or merge-commit; see above). Squash-merge works via the fallback but adds a network hop and one failure mode (edited PR body).
+- **`monorel/release` should NOT have a `Prevent rewriting branch history` restriction.** The pipeline force-pushes to that branch on every feature-branch run. Either don't add a restriction covering `monorel/release`, or exempt the bot user / token.
+- **Any merge strategy works for the default branch's release PR** (see [Merge strategy](#merge-strategy-any-of-the-three-works)). Squash-merge adds a network hop for the trailers fallback; fast-forward and merge-commit avoid it.
 
 ## Troubleshooting
 

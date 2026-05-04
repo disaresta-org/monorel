@@ -46,7 +46,12 @@ For self-hosted instances or sub-group projects, use a project access token or g
 
 ## Workflows
 
-monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLab CI with the published Docker image (`ghcr.io/disaresta-org/monorel`). Three-stage pipeline: `doctor` runs a pre-merge sanity check on every MR (catches stale-branch + squash-merge changeset revivals and other diagnostic issues; see [`monorel doctor`](/cli-reference#monorel-doctor)); `release-pr` keeps the always-open MR up to date on every push to the default branch; `release` cuts the release once the MR is merged.
+monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLab CI with the published Docker image (`ghcr.io/disaresta-org/monorel`). One job drives the entire lifecycle: on every push to the default branch, it runs [`monorel auto`](/cli-reference#monorel-auto), which detects whether HEAD is the merge of monorel's release MR and dispatches accordingly:
+
+- **Feature commit** (the common case): stage the always-open release MR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release MR is closed.
+- **Release-MR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one Release per tag.
+
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge method.
 
 `.gitlab-ci.yml`:
 
@@ -55,8 +60,10 @@ monorel doesn't ship a GitLab-specific CI wrapper. The simplest setup uses GitLa
 Setup:
 
 1. **Add `MONOREL_GITLAB_TOKEN` as a CI/CD variable** under Settings → CI/CD → Variables. Use a personal or project access token with `api` scope. Mark it Masked but NOT Protected (so it's available on the bot-managed `monorel/release` branch too).
-2. **Set the project's merge method to Fast-forward** under Settings → Merge requests → Merge method. The release MR's commit body carries `monorel-Release:` trailers that `monorel tag` reads post-merge; fast-forward preserves the commit verbatim. The default `merge` method creates a merge commit whose body wouldn't carry the trailers, and `monorel tag` would return `ErrNoReleaseCommit`.
-3. **Push the `.gitlab-ci.yml` to the default branch.** The first push that includes the file triggers the `release-pr` job; once you have a `.changeset/<name>.md`, the always-open MR opens.
+2. **Pick a merge method that suits your repo's convention.** Detection is API-based; fast-forward, merge-commit, and rebase all work. (Fast-forward preserves the trailer in the merge commit body and avoids the universal-fallback round-trip; the others rely on the fallback.)
+3. **Push the `.gitlab-ci.yml` to the default branch.** The first push that includes the file runs `monorel auto`; once you have a `.changeset/<name>.md`, the always-open MR opens.
+
+Run `monorel doctor` as a separate pre-merge check on every MR if you want the stale-branch + squash-merge revival diagnostic; it's a separate concern from `monorel auto`. See [`monorel doctor`](/cli-reference#monorel-doctor).
 
 ### Local CLI (no CI)
 
@@ -76,12 +83,10 @@ monorel is a single static binary; any CI that can run a shell command can run i
 
 ## Branch protection
 
-The `release-pr` job force-pushes to `monorel/release` on every run. Two GitLab-specific points:
+`monorel auto` force-pushes to `monorel/release` on every feature-branch run. Two GitLab-specific points:
 
 - **`monorel/release` should NOT be a protected branch.** GitLab's Protected Branches feature blocks force-push by default. Either don't protect the branch, or add a wildcard rule (`monorel/release` excluded) under Settings → Repository → Protected branches.
-- **The default branch's merge method must be Fast-forward** (see Workflows step 2 above). Other merge methods (`merge` / `merge_train` / `rebase_merge`) collapse the trailers into a merge commit body that `monorel tag` doesn't see.
-
-The `release-pr` job's rules also exclude commits whose subject starts with `chore(release):` (the merge commit) so the workflow doesn't churn the just-merged MR.
+- **Pick whichever merge method matches your repo's convention.** Detection is API-based; `merge`, `merge_train`, `rebase_merge`, and fast-forward all work. `monorel tag` falls back to the universal trailers source (a `<!-- monorel-trailers ... -->` HTML comment in the merged MR's body) when the merge method drops the commit-body trailer, so tag creation works regardless of method.
 
 ## Tokens and required status checks
 
@@ -116,7 +121,7 @@ The first network call against the configured host failed. Likely cause: the hos
 
 ### `monorel tag` returns `ErrNoReleaseCommit`
 
-The merge commit on the default branch doesn't have `monorel-Release:` trailers in its body. Most likely cause: the project's merge method isn't Fast-forward, so the trailers are on the parent commit, not HEAD. Switch under Settings → Merge requests → Merge method, then re-run the release pipeline.
+The merge commit on the default branch doesn't have `monorel-Release:` trailers in its body AND the merged MR's body has no `<!-- monorel-trailers ... -->` HTML comment (so the universal fallback also missed). Either someone edited the comment out before merge, or the release MR was opened by an older monorel that didn't write the comment. Recovery: hand-create the tags pointing at the merge commit and run `monorel publish` against the pushed tags.
 
 ### Force-push to `monorel/release` is rejected
 
