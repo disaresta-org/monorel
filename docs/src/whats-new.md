@@ -1,14 +1,14 @@
 ---
-title: What's new
-description: "User-facing release notes for monorel."
+title: What's new in monorel
+description: Latest changes in monorel.
 ---
 
-# What's new
+# What's new in monorel
 
-User-visible changes by release. The full per-commit record lives in the [`CHANGELOG.md`](https://github.com/disaresta-org/monorel/blob/main/CHANGELOG.md) on GitHub.
+- See the [main `CHANGELOG.md`](https://github.com/disaresta-org/monorel/blob/main/CHANGELOG.md) for the auto-generated per-release log.
 
 ## May 04, 2026
 
 `v1.0.0`:
 
-**Initial release.** See [`CHANGELOG.md`](https://github.com/disaresta-org/monorel/blob/main/CHANGELOG.md) for the per-version history going forward.
+Initial release.
