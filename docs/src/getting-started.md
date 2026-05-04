@@ -19,10 +19,6 @@ go install monorel.disaresta.com/cmd/monorel@latest
 
 You'll use the local binary for `monorel init` and `monorel add`. CI uses a published binary via the action wrapper (no install step in your repo).
 
-::: tip On macOS or Windows?
-Pre-built binaries are unsigned, so Gatekeeper / SmartScreen will warn the first time you run one. If that's friction, use the [container image](/docker) instead (same binary, inside Linux).
-:::
-
 ## Scaffold the repo
 
 In a git repo with at least one `go.mod` and a configured `origin` remote:
