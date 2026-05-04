@@ -40,6 +40,21 @@ make build       # build the monorel binary
 | `make docs` | Build the VitePress docs site. |
 | `make docs-dev` | Run the docs dev server with live reload. |
 
+## Running the e2e suites
+
+`make ci` (and the pre-push hook) covers unit tests + race detection across the repo. The build-tag-gated end-to-end suites under `tests/e2e/` are not in the default test run; invoke them explicitly when you're touching the release pipeline, the provider seam, or the offline-tidy / cacheseed paths. Both require Docker (testcontainers-go starts disposable containers and tears them down at the end of the run).
+
+```sh
+# Forgejo lifecycle scenarios (~27 tests, ~75s wall clock):
+go test -tags=e2e -count=1 -timeout 15m ./tests/e2e/...
+
+# Clean-cache regression test for multi-module offline tidy
+# (`monorel apply` inside a fresh golang:1.26-alpine, ~15s):
+go test -tags=e2e_tidy -count=1 -timeout 5m ./tests/e2e/... -run TestApply_MultiModule_CleanCache
+```
+
+CI (`.github/workflows/e2e-gitea.yml`) runs the Forgejo suite on every PR. The `e2e_tidy` reproducer is opt-in locally; consider running it whenever you change `internal/release/cacheseed.go`, `internal/release/tidy.go`, or anything in the seed-and-tidy fixpoint loop.
+
 ## Workflow
 
 - Branch off `main` as `<type>/<short-slug>` (e.g. `feat/planner`, `fix/changeset-name-collision`).
@@ -74,6 +89,7 @@ monorel/
 ├── ci/                         per-CI-system action wrappers
 │   └── github/action.yml       composite GitHub Action (runs `monorel auto`)
 ├── tests/e2e/                  live-Forgejo integration suite (build tag `e2e`)
+│                                  + clean-cache reproducer in `golang:1.26-alpine` (build tag `e2e_tidy`)
 ├── docs/                       VitePress docs site
 └── .changeset/                 self-hosted changesets
 ```
