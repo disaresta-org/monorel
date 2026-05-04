@@ -19,22 +19,22 @@ hero:
       text: Quickstart
       link: /getting-started
     - theme: alt
-      text: GitHub (MIT Licensed)
-      link: https://github.com/disaresta-org/monorel
+      text: Coming from release-please?
+      link: /recipes/migration-from-release-please
 
 features:
-  - title: Changeset files, not commit messages
-    details: Every release-affecting PR includes a .changeset/{name}.md file naming affected packages and bump levels. No path-attribution leaks, no Release-As footers stripped by squash-merges.
+  - title: Changesets, not commit messages
+    details: One .changeset/{name}.md per release-affecting PR, naming the affected packages, bump levels, and changelog body. No commit-message inference — squash-merges can't strip footers, and stray Release-As lines from old commits can't leak into a newly-registered package's first release.
   - title: Native Go tag conventions
-    details: Bare vX.Y.Z for the main module, {path}/vX.Y.Z for sub-modules. The format go install actually expects, configurable per package.
+    details: Bare vX.Y.Z for the root module, {path}/vX.Y.Z for sub-modules. The format go install expects, configurable per package.
+  - title: Clean go.mod + tidy go.sum at release
+    details: Strips dev replace directives, pins sibling require versions to the planned release, runs offline go mod tidy in every released sub-module. main stays canonically clean for proxy consumers on the next pull.
   - title: Always-open release PR
-    details: The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Reviewable, mergeable. The CLI also works standalone for local dry-runs.
+    details: monorel stages each release on a monorel/release branch and force-pushes after every change. The PR's diff is the actual file changes — CHANGELOGs, go.mod updates, the chore(release) commit — so reviewers see real content, not a body summary.
   - title: Pre-release support
     details: monorel pre enter rc switches the repo into release-candidate mode; pre exit returns to stable. Per-package counters; multi-channel.
-  - title: Supports popular providers
-    details: Works with GitHub, GitLab, and Gitea / Forgejo out of the box.
-  - title: Self-hosted from day one
-    details: monorel releases itself with monorel. The same binary that ships your library cuts its own tags.
+  - title: GitHub, GitLab, Gitea / Forgejo
+    details: One CI step on any provider. monorel auto opens release PRs / MRs, creates per-package tags, and publishes a Release per tag. Single workflow file; no provider-specific orchestration in your repo.
 ---
 
 ## Quick Example
@@ -75,7 +75,9 @@ monorel release
 git push --follow-tags
 ```
 
-That's the loop. The [GitHub Action](/integrations/github) drives the same flow as an always-open release PR; merging the PR runs `monorel release` on the merge commit and publishes one GitHub Release per tag.
+That's the loop. The CI workflow (one file, one step on any of the three supported providers) drives the same flow as an always-open release PR; merging the PR runs the release path and publishes one Release per tag.
+
+monorel runs in production on [loglayer-go](https://github.com/loglayer/loglayer-go) (multi-module Go monorepo) and on monorel itself. Pair it with [GoReleaser](https://goreleaser.com) for binary builds and Docker image distribution; monorel handles versions, tags, and CHANGELOGs.
 
 ---
 
