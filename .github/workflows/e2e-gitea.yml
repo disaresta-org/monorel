@@ -49,16 +49,13 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
-
-      - name: Cache Go module download
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-e2e-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-e2e-
+          # setup-go's built-in cache (default true since v4) already
+          # covers ~/go/pkg/mod and ~/.cache/go-build, keyed on
+          # go.sum. An explicit actions/cache@v4 step used to live
+          # here on the same paths; it was redundant and produced two
+          # post-action cache uploads at job teardown that ran in
+          # parallel with each other.
+          cache: true
 
       # testcontainers-go expects a working Docker daemon at
       # /var/run/docker.sock. ubuntu-latest's default image has it.
