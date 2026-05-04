@@ -37,11 +37,28 @@ import (
 // orchestrator imports detect for the Auto flow).
 const releaseHeadBranch = "monorel/release"
 
-// trailerMarker is the literal substring detect looks for in HEAD's
-// commit body to confirm a release commit. monorel apply writes one
-// `monorel-Release:` line per released package; checking for the
-// prefix is sufficient because the marker is monorel-distinctive.
+// trailerMarker is the line prefix detect looks for in HEAD's commit
+// body to confirm a release commit. monorel apply writes one
+// `monorel-Release:` line per released package, each at the start of
+// its own line in the trailer block. The match is line-anchored (after
+// trimming whitespace), matching [release.parseReleaseTrailers]: a
+// commit body that mentions the literal text `monorel-Release:` in
+// prose must NOT be misclassified as a release commit.
 const trailerMarker = "monorel-Release:"
+
+// hasReleaseTrailer reports whether msg contains a `monorel-Release:`
+// line at the start of any (trimmed) line. Mirrors the canonical
+// parser at [release.parseReleaseTrailers] so detect and tag agree on
+// what "has a trailer" means; a substring check would falsely match
+// commit bodies whose prose mentions the marker.
+func hasReleaseTrailer(msg string) bool {
+	for _, line := range strings.Split(msg, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), trailerMarker) {
+			return true
+		}
+	}
+	return false
+}
 
 // Source describes which signal told detect "yes, this is a release
 // commit." Populated for diagnostic logging in the CLI.
@@ -115,7 +132,7 @@ func IsReleaseMerge(ctx context.Context, repo git.Repo, prov provider.Client, sh
 	if err != nil {
 		return nil, fmt.Errorf("detect: read HEAD commit message: %w", err)
 	}
-	if strings.Contains(msg, trailerMarker) {
+	if hasReleaseTrailer(msg) {
 		return &Result{IsRelease: true, Source: SourceTrailer}, nil
 	}
 

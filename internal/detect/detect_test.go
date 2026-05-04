@@ -177,3 +177,59 @@ func TestIsReleaseMerge_NilRepo(t *testing.T) {
 		t.Errorf("err = %v, want ErrRepoRequired", err)
 	}
 }
+
+// TestIsReleaseMerge_TrailerInProseDoesNotMatch is a regression test
+// for the false-positive that broke main's release CI on the e2e PR
+// squash-merge: the body contained the literal text "monorel-Release:"
+// inside prose (sub-commit descriptions discussing the trailer), but
+// no actual trailer line. The trailer signal must use line-anchored
+// matching to agree with release.parseReleaseTrailers.
+func TestIsReleaseMerge_TrailerInProseDoesNotMatch(t *testing.T) {
+	repo := git.NewFake()
+	// The exact shape that broke CI: prose mentions the trailer marker
+	// without it appearing as a real trailer line. Multiple variants in
+	// one body to cover the realistic squash-merge case.
+	body := "test(e2e): live-Forgejo end-to-end suite (27 scenarios) (#65)\n\n" +
+		"* fix(orchestrator): populate Release bodies in auto's release path\n\n" +
+		"monorel auto's release path called release.PublishReleases with\n" +
+		"release.Tag's Result, but Tag's ReleaseInfo entries have empty\n" +
+		"Body fields.\n\n" +
+		"* test(e2e): expand suite to 27 scenarios\n\n" +
+		"errors: surfaces non-semver tags through validate. The validate\n" +
+		"command's output mentions monorel-Release: trailer parsing in its\n" +
+		"diagnostic text.\n\n" +
+		"Co-authored-by: Someone <noreply@example.com>\n"
+	stageAndCommit(t, repo, body)
+
+	// Provider has no PR matching HEAD, so the API signal can't fire.
+	// Without the line-anchored fix, the substring check would match
+	// the prose mentions and incorrectly return IsRelease=true.
+	pf := provider.NewFake()
+
+	res, err := IsReleaseMerge(context.Background(), repo, pf, "abcd")
+	if err != nil {
+		t.Fatalf("IsReleaseMerge: %v", err)
+	}
+	if res.IsRelease {
+		t.Errorf("IsRelease = true on prose-only mention; want false (Source=%s)", res.Source)
+	}
+}
+
+// TestIsReleaseMerge_TrailerWithLeadingWhitespace covers the realistic
+// case where an indented trailer line still counts: monorel apply
+// writes trailers flush-left, but downstream tooling that re-renders
+// the message (some squash-merge UIs) may indent. release's parser
+// trims whitespace before matching, so detect must too.
+func TestIsReleaseMerge_TrailerWithLeadingWhitespace(t *testing.T) {
+	repo := git.NewFake()
+	stageAndCommit(t, repo, "chore(release)\n\n  monorel-Release: pkg-a v1.0.0\n")
+
+	pf := provider.NewFake()
+	res, err := IsReleaseMerge(context.Background(), repo, pf, "")
+	if err != nil {
+		t.Fatalf("IsReleaseMerge: %v", err)
+	}
+	if !res.IsRelease || res.Source != SourceTrailer {
+		t.Errorf("indented trailer not matched: IsRelease=%v Source=%q", res.IsRelease, res.Source)
+	}
+}
