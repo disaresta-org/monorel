@@ -39,7 +39,7 @@ testcontainers is skipped; the suite uses your existing instance and per-test re
 | `lifecycle_test.go` | Pre-release rc cycle (rc.0 → rc.1 → stable); manually-closed release PR; doctor revival detection; noop-after-release; pre-release counter increments; stale `monorel/release` overwrite; concurrent contributors; pre-mode error paths; doctor on clean state |
 | `content_test.go` | Markdown (backticks, fenced blocks, links) survives in PR body and Release body |
 
-27 scenarios in 6 files. Each scenario runs against a fresh Gitea repo (cleaned up at test end unless `MONOREL_E2E_KEEP=1`). Total runtime: ~72s on a modern laptop, ~80% of which is the per-test repo create + clone overhead.
+Each scenario runs against a fresh Gitea repo (cleaned up at test end unless `MONOREL_E2E_KEEP=1`). The per-test repo create + clone overhead dominates runtime; the suite finishes in well under two minutes on a modern laptop.
 
 ## Helpers
 
