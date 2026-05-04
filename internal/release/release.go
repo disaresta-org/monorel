@@ -251,12 +251,14 @@ type TagOptions struct {
 //
 // Tag is the post-merge step of the speculative-apply flow:
 //
-//   - release-pr.yml runs [Apply] on a staging branch and
-//     force-pushes. The release PR's diff IS the file changes.
+//   - On every push to main, monorel auto's feature path runs [Apply]
+//     on a staging branch and force-pushes. The release PR's diff IS
+//     the file changes.
 //   - The user merges the release PR. main now has the file changes
 //     (CHANGELOGs etc) but no tags yet.
-//   - release.yml runs Tag, which reads the merge commit's trailers
-//     and creates the tags pointing at the merge commit.
+//   - On the resulting push to main, monorel auto's release path
+//     runs Tag, which reads the merge commit's trailers and creates
+//     the tags pointing at the merge commit.
 //
 // Failure modes:
 //

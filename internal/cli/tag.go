@@ -22,14 +22,17 @@ func newTagCmd() *cobra.Command {
 written by "monorel apply", and creates one annotated git tag per
 trailer using the package's configured tag_prefix.
 
-This is the post-merge step of the always-open release-PR pattern:
+This is the post-merge step of the always-open release-PR pattern.
+"monorel auto" invokes "monorel tag" on the release path; the manual
+sequence (for callers wiring monorel without "monorel auto") is:
 
-    # in release-pr.yml (on every push to main):
+    # feature path: every push to main where HEAD is NOT the
+    # release-PR merge commit
     monorel apply               # writes files + commits, NO tags
     git push -f monorel/release # speculative state on the head branch
     monorel preview --upsert    # opens / updates the release PR
 
-    # in release.yml (on the release PR's merge commit):
+    # release path: the push where HEAD IS the release-PR merge
     monorel tag                 # reads trailers, creates tags
     git push --follow-tags      # publishes the tags
     monorel publish             # creates a Release per tag

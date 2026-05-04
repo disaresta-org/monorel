@@ -474,7 +474,7 @@ monorel-PreRelease: false
 
 `monorel tag` reads the `monorel-Release:` trailers from HEAD's commit message to derive the tag list (no need to re-thread the plan through the apply→tag handoff). The trailers are stable across versions; they're the contract `apply` and `tag` share.
 
-The commit subject also drives CI's `release.yml` predicate: `if: startsWith(github.event.head_commit.message, 'chore(release):')`.
+The chore(release) subject is no longer used as a workflow predicate; `release.yml` runs on every push and `monorel auto` decides which path runs internally via `detect-release`.
 
 ## Always-open release PR pattern
 
