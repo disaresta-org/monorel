@@ -46,6 +46,10 @@ Bitbucket Cloud no longer accepts username + app-password as a long-term auth sc
 
 Both must be set; missing either fails the constructor with a clear error.
 
+::: info `BITBUCKET_EMAIL` is for the API client only
+`BITBUCKET_EMAIL` is what the monorel binary uses as the Basic-auth username when calling Bitbucket's REST API. Manual `git push` from a workstation over HTTPS uses Bitbucket's account *username* (visible in the repo's HTTPS clone URL) as the Basic-auth user, NOT the Atlassian email. The two are different fields on a Bitbucket account. This only affects operator-driven pushes from a laptop; pushes inside Bitbucket Pipelines use auto-provided runner credentials and don't need either form configured manually.
+:::
+
 ### Creating an API token with Bitbucket scopes
 
 1. Go to [`id.atlassian.com/manage-profile/security/api-tokens`](https://id.atlassian.com/manage-profile/security/api-tokens) (the Atlassian-account API tokens page; works for any user with a Bitbucket workspace).
@@ -74,6 +78,14 @@ Bitbucket Cloud workspaces created (or upgraded) since the September 2024 plan m
 Resolution: a workspace admin visits `https://bitbucket.org/<workspace>/workspace/settings/plans` and clicks the plan-acceptance button (the page presents it the first time the workspace is loaded after migration). It's a one-time action per workspace and unrelated to billing.
 
 If you see `402 Payment Required` from a `monorel preview --upsert` or `monorel tag` step, hit that URL first and re-run the workflow. monorel surfaces the upstream HTTP status verbatim so the error is easy to recognize.
+
+## Enable Pipelines on the repo
+
+Bitbucket Cloud disables Pipelines on every repo by default. Before the example workflow can fire, enable Pipelines under Repository settings → Pipelines → Settings → On.
+
+::: warning Workspace 2FA enforces the API path
+If your workspace requires 2FA on the user account, the API call (`PUT /2.0/repositories/<ws>/<slug>/pipelines_config {"enabled": true}`) returns `403` with `account-service.user.2fa-required`. The Bitbucket UI path doesn't have this gate; click through it once in the browser and the repo is good to go. Repository variables (`BITBUCKET_EMAIL` / `BITBUCKET_TOKEN`) can be set via API regardless of 2FA status.
+:::
 
 ## Workflows
 
