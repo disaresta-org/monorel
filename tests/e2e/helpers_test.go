@@ -136,10 +136,12 @@ changelog = %q
 // `replace` directives. For the multi-module loglayer-shaped layout
 // use ScaffoldMultiModule.
 //
-// The TOML is always rewritten; per-package README + CHANGELOG files
-// are written only if they don't already exist, so calling this
-// helper mid-life (to register a NEW package alongside an existing
-// one) preserves the existing package's release history on disk.
+// The TOML is always rewritten with name == path == tag_prefix for
+// every listed package; if the prior TOML had a different tag_prefix
+// or path, it is replaced. Per-package README + CHANGELOG files are
+// written only if they don't already exist, so calling this helper
+// mid-life (to register a NEW package alongside an existing one)
+// preserves the existing package's release history on disk.
 func (r *ScenarioRepo) ScaffoldMultiPackage(t *testing.T, pkgs ...string) {
 	t.Helper()
 	var sb strings.Builder

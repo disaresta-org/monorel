@@ -68,9 +68,10 @@ func TestVersioning_NewPackageMidLife(t *testing.T) {
 
 	// Now register pkg-b alongside pkg-a, plus a :major changeset
 	// for pkg-b. Expected: pkg-b/v1.0.0 (initial) + pkg-a unchanged.
-	// ScaffoldMultiPackage rewrites monorel.toml + the package
-	// CHANGELOG/README stubs in one shot; pkg-a's existing release
-	// history is recorded via tags, not files, so the rewrite is safe.
+	// ScaffoldMultiPackage rewrites monorel.toml and adds pkg-b's
+	// stubs; pkg-a's existing CHANGELOG (which has the v0.1.0
+	// release entry) is preserved by the helper's "write only if
+	// missing" stub semantics.
 	r.ScaffoldMultiPackage(t, "pkg-a", "pkg-b")
 	r.WriteChangeset(t, "feat-b", map[string]string{"pkg-b": "major"}, "Initial pkg-b.")
 	r.CommitAll(t, "feat: register pkg-b")

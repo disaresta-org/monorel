@@ -4,7 +4,7 @@
 
 **Fix `detect-release` false-positive on prose mentions of the trailer marker.**
 
-`detect.IsReleaseMerge`'s trailer fast path used `strings.Contains(headBody, "monorel-Release:")`, which matched anywhere in the body — including prose mentions of the marker (e.g., docs commits that explain how the trailer works, or squash-merge bodies that aggregate sub-commit messages discussing release tooling).
+`detect.IsReleaseMerge`'s trailer fast path used `strings.Contains(headBody, "monorel-Release:")`, which matched anywhere in the body, including prose mentions of the marker (e.g., docs commits that explain how the trailer works, or squash-merge bodies that aggregate sub-commit messages discussing release tooling).
 
 The CI symptom was a contradiction: `monorel detect-release` reported "release commit detected (source: trailer)" on a non-release commit, then the next pipeline step `monorel tag` correctly rejected HEAD with `ErrNoReleaseCommit`. The release workflow exited non-zero on every push to main whose squash body coincidentally contained the literal text `monorel-Release:`.
 
