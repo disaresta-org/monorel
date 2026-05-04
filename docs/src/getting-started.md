@@ -73,14 +73,6 @@ Per-provider walkthroughs cover the workflow YAML, token shape, branch-protectio
 - [Gitea / Forgejo](/integrations/gitea)
 - [GitLab](/integrations/gitlab)
 
-The GitHub workflow file as a quick reference:
-
-<!--@include: ./_partials/github-release-yml.md-->
-
-::: warning Branch protection with required status checks (GitHub / Gitea)
-If your repo enforces required status checks on the default branch, the always-open release PR will sit indefinitely on "Some checks haven't completed yet" because PRs created by the default `GITHUB_TOKEN` don't trigger workflows (anti-recursion rule). The fix is to switch the workflow's `token` input to a PAT or App token. See [Tokens and required status checks](/integrations/github#tokens-and-required-status-checks) for the wiring.
-:::
-
 ## How releases work
 
 Three steps across the lifecycle:
