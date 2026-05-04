@@ -549,7 +549,6 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - `monorel.disaresta.com/configuration`: `monorel.toml` field reference.
 - `monorel.disaresta.com/integrations/{github,gitea,gitlab}`: per-provider setup.
 - `monorel.disaresta.com/api`: library API reference.
-- `monorel.disaresta.com/design`: design principles + tradeoffs.
 - `monorel.disaresta.com/docker`: running monorel via container.
 - `monorel.disaresta.com/faq`: frequently asked questions.
 - `monorel.disaresta.com/glossary`: canonical terminology.

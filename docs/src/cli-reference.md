@@ -208,7 +208,7 @@ monorel release
 # Run `git push --follow-tags && monorel publish` to publish.
 ```
 
-The split between `release` (local) and `apply` + `tag` (CI) is explained in [Always-open release PR](/design#always-open-release-pr-speculative-apply).
+`apply` + `tag` (CI) and `release` (local) split the same work. CI runs `apply` repeatedly on a staging branch (idempotent file mutations) and only fires `tag` on the release-PR merge commit, so tags can never be left orphaned. `release` is the local one-shot for off-CI workflows.
 
 ::: warning Push is the caller's job
 The applier creates the commit and tags locally. Run `git push --follow-tags` (or use the GitHub Action) to publish.

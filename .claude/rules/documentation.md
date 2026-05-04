@@ -101,7 +101,7 @@ Pages aimed at *callers* (getting-started, configuration, cli-reference, changes
 - The factory dispatch mechanism.
 - Internal package layout.
 
-Implementer-only material lives in `design.md` and the per-provider creator material (none yet). Casual-user pages can mention that those creator pages exist (one-liner pointer is fine), but should not paraphrase their content.
+Implementer-only material lives in `CONTRIBUTING.md`, `AGENTS.md`, and the public Go API docs (`api.md`). Casual-user pages can mention that those references exist (one-liner pointer is fine), but should not paraphrase their content.
 
 ## README Requirements
 
@@ -123,7 +123,6 @@ docs/src/
 ├── index.md                    Homepage (hero + Quick Example + sidebar entry list)
 ├── introduction.md             "Why monorel?" Why not release-please / changesets / knope?
 ├── getting-started.md          Install + init + first release end-to-end
-├── design.md                   Design principles + tradeoffs
 ├── configuration.md            monorel.toml reference
 ├── cli-reference.md            Per-command reference with flags
 ├── changesets.md               File format, naming, multi-package changesets, pre-mode interaction
