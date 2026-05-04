@@ -100,19 +100,37 @@ jobs:
       - name: monorel auto (release-only path; goreleaser owns publish)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # monorel itself omits the publish step (goreleaser owns
-        # GitHub Release creation; see the v0.2 incident note at
-        # the top of this file). detect-release + tag + push is
-        # the same thing as `monorel auto` without the trailing
-        # publish call.
+        # monorel itself omits the publish step on the release path
+        # (goreleaser owns GitHub Release creation; see the v0.2
+        # incident note at the top of this file). The feature path
+        # has no publish step at all, so we delegate it to monorel
+        # auto verbatim. Branch on detect-release's exit code:
+        #   0 -- release commit; run tag + push --follow-tags
+        #        inline (skips publish vs auto's release path).
+        #   1 -- feature commit; delegate to monorel auto, which
+        #        runs apply + force-push monorel/release + upsert.
+        #   2 -- detection error (network, auth, repo state).
+        #        Surface loudly rather than silently routing
+        #        through the feature path.
         run: |
           set -euo pipefail
-          if go run ./cmd/monorel detect-release; then
-            go run ./cmd/monorel tag
-            git push --follow-tags
-          else
-            go run ./cmd/monorel preview --upsert
-          fi
+          set +e
+          go run ./cmd/monorel detect-release
+          ec=$?
+          set -e
+          case "$ec" in
+            0)
+              go run ./cmd/monorel tag
+              git push --follow-tags
+              ;;
+            1)
+              go run ./cmd/monorel auto
+              ;;
+            *)
+              echo "::error::monorel detect-release failed with exit code $ec"
+              exit "$ec"
+              ;;
+          esac
 
       - name: Capture root tag
         id: root_tag

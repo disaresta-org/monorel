@@ -1,5 +1,5 @@
 ---
-"monorel.disaresta.com": major
+"monorel.disaresta.com": minor
 ---
 
 **Provider-API release detection.**
@@ -13,7 +13,7 @@ The action wrapper at `disaresta-org/monorel/ci/github` simplifies to a single a
 
 Detection uses two signals OR'd together: the `monorel-Release:` trailer in HEAD's commit body (fast path; squash + rebase) and the provider's `FindPRByMergeCommit` returning a PR whose source branch is `monorel/release` (network signal; covers merge-commit and Bitbucket squash). Either signal alone is sufficient.
 
-Migration from the previous pre-1.0 surface:
+Migration from v0.14:
 
 - Replace `command: pr` and `command: release` workflow steps with a single step (no `command:` input) that runs the action wrapper. The wrapper runs `monorel auto` internally.
 - `command: doctor` users invoke `monorel doctor` as their own step (install monorel via `go install monorel.disaresta.com/cmd/monorel@latest` first).

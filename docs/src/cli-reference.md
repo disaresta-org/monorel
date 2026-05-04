@@ -404,8 +404,6 @@ Exit codes:
 
 `detect-release` is used internally by [`monorel auto`](#monorel-auto). Use it standalone in custom CI scripts that want to gate their own release vs feature dispatch on the same signal `auto` uses.
 
-The same logic is exposed as a Go library at [`monorel.disaresta.com/internal/detect`](https://github.com/disaresta-org/monorel/tree/main/internal/detect) for callers who want to embed detection without shelling out.
-
 ## `monorel auto`
 
 One-stop CI command. Detects whether HEAD is the merge of monorel's release PR (using the same logic as [`monorel detect-release`](#monorel-detect-release)) and dispatches to one of two pipelines:

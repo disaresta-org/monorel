@@ -107,6 +107,15 @@ type AutoResult struct {
 	PR *provider.PullRequest
 }
 
+// ErrConfigRequired is returned by [Auto] when AutoOptions.Config is nil.
+var ErrConfigRequired = errors.New("auto: Config is required")
+
+// ErrRepoRequired is returned by [Auto] when AutoOptions.Repo is nil.
+var ErrRepoRequired = errors.New("auto: Repo is required")
+
+// ErrProviderRequired is returned by [Auto] when AutoOptions.Provider is nil.
+var ErrProviderRequired = errors.New("auto: Provider is required")
+
 // Auto detects whether HEAD is a release-PR merge, then dispatches:
 //
 //   - Release: monorel tag, push tags, monorel publish.
@@ -119,13 +128,13 @@ type AutoResult struct {
 // Auto always exits with a populated AutoResult on success.
 func Auto(ctx context.Context, opts AutoOptions) (*AutoResult, error) {
 	if opts.Config == nil {
-		return nil, errors.New("auto: nil Config")
+		return nil, ErrConfigRequired
 	}
 	if opts.Repo == nil {
-		return nil, errors.New("auto: nil Repo")
+		return nil, ErrRepoRequired
 	}
 	if opts.Provider == nil {
-		return nil, errors.New("auto: nil Provider")
+		return nil, ErrProviderRequired
 	}
 
 	remote := opts.Remote

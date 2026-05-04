@@ -103,9 +103,16 @@ runs:
 
     - name: Run monorel auto
       shell: bash
+      # The same wrapper serves both GitHub Actions and Gitea Actions
+      # workflows. monorel auto reads the env var matching the
+      # configured provider in monorel.toml: GITHUB_TOKEN for github,
+      # GITEA_TOKEN for gitea. Export the input under both names so
+      # the wrapper works without the user knowing which env var
+      # their provider expects.
       env:
         CONFIG: ${{ inputs.config }}
         GITHUB_TOKEN: ${{ inputs.token }}
+        GITEA_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
         monorel auto --config "$CONFIG"
