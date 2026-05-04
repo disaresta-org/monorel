@@ -58,6 +58,18 @@ jobs:
             exit 1
           fi
 
+  changeset-style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-changeset-style.sh
+
+  e2e-scenario-count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-e2e-scenario-count.sh
+
   commit-lint:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

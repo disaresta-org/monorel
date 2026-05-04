@@ -53,6 +53,12 @@ pre-commit:
         - "monorel.toml"
         - ".changeset/*.md"
       run: go run ./cmd/monorel validate
+    # Catch em-dashes in changeset bodies before they ship into the
+    # auto-generated CHANGELOG verbatim. Project rule documented at
+    # .claude/rules/documentation.md.
+    changeset-style:
+      glob: ".changeset/*.md"
+      run: bash scripts/check-changeset-style.sh
 
 pre-push:
   commands:
