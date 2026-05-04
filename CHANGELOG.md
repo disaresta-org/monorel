@@ -9,6 +9,12 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [1.0.0] - 2026-05-04
+
+### Major Changes
+
+- Initial release.
+
 ## [0.15.1] - 2026-05-04
 
 ### Patch Changes
