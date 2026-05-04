@@ -74,3 +74,7 @@ git push --follow-tags
 ```
 
 That's the loop. The [GitHub Action](/integrations/github) drives the same flow as an always-open release PR; merging the PR runs `monorel release` on the merge commit and publishes one GitHub Release per tag.
+
+---
+
+monorel is made with ❤️ by [Theo Gravity](https://suteki.nu) / [Disaresta](https://disaresta.com).

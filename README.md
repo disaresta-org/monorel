@@ -111,3 +111,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev-loop reference.
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Made with ❤️ by [Theo Gravity](https://suteki.nu) / [Disaresta](https://disaresta.com).
