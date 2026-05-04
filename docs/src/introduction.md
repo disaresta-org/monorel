@@ -36,14 +36,14 @@ The off-the-shelf options each have a sharp edge for this layout.
 |------------|:---:|:---:|:---:|:---:|
 | Per-package versioning | ✅ | ✅ | ✅ | ✅ |
 | Auto-generated CHANGELOG | ✅ | ✅ | ✅ | ✅ |
-| Pre-release / RC support | ✅ | ✅ | ✅ | ✅ |
+| Pre-release / RC support | ⚠️ via `Release-As:` footers | ✅ | ✅ | ✅ |
 | Always-open release PR | ✅ | ✅ via changesets-bot | ⚠️ via custom workflow | ✅ |
 | Local CLI (works off-CI) | ⚠️ via npm package | ✅ | ✅ | ✅ |
 | Bare-tag root (`vX.Y.Z`) | ✅ | n/a (JS layout) | ❌ prefixes mandatory | ✅ |
 | Path-prefixed sub-module tags | ✅ | n/a (JS layout) | ✅ | ✅ |
 | Cleans `go.mod` for proxy publish | ❌ | n/a (JS) | ❌ | ✅ |
 | Tidies sub-module `go.sum` at release | ❌ | n/a (JS) | ❌ | ✅ |
-| Source of truth | commit footers (`Release-As:`) | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
+| Source of truth | Conventional Commits in git history | `.changeset/*.md` | configurable (commits or files) | `.changeset/*.md` |
 | Native to | TypeScript | TypeScript | Rust | Go |
 | Multi-provider | GitHub | GitHub (bot); CLI host-agnostic | GitHub / GitLab / Gitea | GitHub + Gitea / Forgejo + GitLab |
 | Polyglot / non-language-specific | ✅ | ⚠️ JS-shaped (`package.json` per package) | ✅ | ❌ Go-only by design |
@@ -57,8 +57,8 @@ The per-tool sections below dive into each tool's specific friction point for th
 
 Works, with friction. The friction lives in three sharp edges:
 
-- **Squash-merge strips Conventional Commits footers.** GitHub's squash uses the PR title as the subject and the PR body as the message body. Per-commit `Release-As:` or `BREAKING CHANGE:` footers don't survive. Workarounds (put it in the PR body) are easy to forget.
-- **Full-history scans on new packages leak footers.** A `Release-As:` footer in any commit in repo history can apply to a newly-registered package because release-please has no "first release" boundary to stop the scan. We hit this on `loglayer-go`: an old `Release-As: 1.1.0` on an unrelated change set the initial version of a new sub-module to `v1.1.0`.
+- **Squash-merge strips Conventional Commits footers.** GitHub's squash collapses the branch's commits into one; per-commit `Release-As:` or `BREAKING CHANGE:` footers either get demoted into bullet-list text in the squash body or vanish, depending on the repo's squash-message defaults. Workarounds (put the footer in the PR title or body) are easy to forget.
+- **Full-history scans on new packages leak footers.** When a new package is registered, release-please scans the entire git history for Conventional Commits affecting that path. A stray `Release-As:` footer anywhere in repo history can apply to it. The documented escape hatch is per-package `bootstrap-sha`, but it's opt-in and easy to forget. We hit this on `loglayer-go`: an old `Release-As: 1.1.0` on an unrelated change set the initial version of a new sub-module to `v1.1.0`.
 - **`exclude-paths` doesn't catch path-attribution leaks for everything.** A docs-only PR can still bump the main module if the path-attribution rules don't cover the directory. The list grows over time and is easy to forget.
 
 These are all recoverable, but recovery means manual `release-as` cleanup, manual tag deletes, manual manifest fixes. The tool's mental model is "infer intent from commit history"; the failures are all variations of "the inference got confused."
