@@ -164,9 +164,10 @@ func writeCacheEntry(mc string, mv module.Version, modDir string, modBytes []byt
 	return entry, nil
 }
 
-// goModCache returns the developer's GOMODCACHE. One subprocess
-// call per invocation; the orchestrator caches the result for the
-// duration of a single tidy pass and threads it down to helpers.
+// goModCache returns the developer's GOMODCACHE via `go env`. Each
+// caller invokes it independently; the value is stable across a
+// single tidy pass because it's a function of process env, which we
+// don't mutate between calls. One subprocess call per invocation.
 func goModCache() (string, error) {
 	out, err := exec.Command("go", "env", "GOMODCACHE").Output()
 	if err != nil {

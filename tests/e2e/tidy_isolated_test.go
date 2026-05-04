@@ -75,6 +75,11 @@ func TestApply_MultiModule_CleanCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mkdir temp: %v", err)
 	}
+	// Register host-side removal immediately so an early failure
+	// (scaffold writes, container start) doesn't leak repoDir. The
+	// happy-path defer below chmods inside the container first so
+	// this RemoveAll has writable trees to walk.
+	t.Cleanup(func() { _ = os.RemoveAll(repoDir) })
 	scaffoldMultiModuleForTidy(t, repoDir)
 
 	// Spin up an alpine container with the repo + binary mounted.
@@ -99,11 +104,10 @@ func TestApply_MultiModule_CleanCache(t *testing.T) {
 	defer func() {
 		// Inside the container is root; it created repoDir/.git contents
 		// that aren't writable by the host user. Make everything host-
-		// removable before terminating the container, then remove
-		// repoDir from the host.
+		// removable before terminating the container so the host-side
+		// RemoveAll registered above has writable trees to walk.
 		_, _, _ = container.Exec(ctx, []string{"sh", "-c", "chmod -R 0777 /work || true"})
 		_ = container.Terminate(ctx)
-		_ = os.RemoveAll(repoDir)
 	}()
 
 	// Install git (golang:alpine doesn't ship it) and init the repo.

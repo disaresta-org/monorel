@@ -30,9 +30,9 @@ import (
 //     wrote into. On distributions where GOMODCACHE is derived from
 //     GOPATH (e.g. golang:alpine has GOPATH=/go but no GOMODCACHE
 //     env var), the restricted env strips GOPATH and the subprocess
-//     would otherwise default to ~/go/pkg/mod — pointing at an
-//     empty cache while seeds live at /go/pkg/mod. Pinning makes
-//     the seed and the read use the same path.
+//     would otherwise default to ~/go/pkg/mod (an empty cache while
+//     seeds live at /go/pkg/mod). Pinning makes the seed and the
+//     read use the same path.
 //
 // PATH, HOME, USER, TMPDIR, LANG, LC_* pass through so the toolchain
 // itself can run.
@@ -86,7 +86,7 @@ func offlineTidyEnv() ([]string, error) {
 	// defaults to a different path than the seed wrote into.
 	mc, err := goModCache()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("offline tidy env: %w", err)
 	}
 	env = append(env, "GOMODCACHE="+mc)
 	// Fixed values.
@@ -224,7 +224,7 @@ func primeCacheEnv() ([]string, error) {
 	}
 	mc, err := goModCache()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("prime cache env: %w", err)
 	}
 	env = append(env, "GOMODCACHE="+mc)
 	env = append(env,

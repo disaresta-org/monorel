@@ -57,10 +57,6 @@ Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `
 
 <!--@include: ../_partials/gitlab-ci-yml.md-->
 
-::: warning Image entrypoint override required
-The `image:` block uses the long form with `entrypoint: [""]`. The published `ghcr.io/disaresta-org/monorel` image is an entrypoint-binary container (its entrypoint is `monorel` itself). GitLab's `docker+machine` executor wraps every script as `sh -c '...'` and passes that to the container's entrypoint, which produces `monorel sh -c '...'` and fails with `unknown command "sh"`. Clearing the entrypoint with `[""]` lets the runner's shell wrapper take over. The short-form `image: <name>` in the example will NOT work; use the long form verbatim.
-:::
-
 Setup:
 
 1. **Add `MONOREL_GITLAB_TOKEN` as a CI/CD variable** under Settings → CI/CD → Variables. Use a personal or project access token with `api` scope. Mark it Masked but NOT Protected (so it's available on the bot-managed `monorel/release` branch too).
@@ -168,3 +164,7 @@ Check the project's CI/CD → Pipelines page for the actual status; usually a tr
 ### `tidy in <sub-module>: exit status 1` with `module lookup disabled by GOPROXY=off`
 
 Indicates a stale `monorel` binary. Earlier builds did not pin `GOMODCACHE` for the offline-tidy subprocess, so on systems where `GOMODCACHE` is derived from `GOPATH` (notably `golang:alpine` images and cold-cache CI runners) the seed and the read pointed at different paths and tidy missed the cached in-plan sibling. Upgrade `monorel` to the latest release.
+
+### `403: You are not allowed to push code to this project`
+
+The runner is using `CI_JOB_TOKEN` (read-only) on the `origin` remote. The example `.gitlab-ci.yml` includes a `git remote set-url origin` step that swaps in `MONOREL_GITLAB_TOKEN`; if you adapted the example and dropped that step, add it back. A typical `monorel auto` run pushes both `monorel/release` and per-package tags, which all need write access through the same remote.
