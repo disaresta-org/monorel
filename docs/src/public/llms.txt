@@ -1,6 +1,6 @@
 # monorel
 
-> A changesets-style release tool for multi-module Go monorepos. Bare `vX.Y.Z` tags for the root module, `<path>/vX.Y.Z` tags for sub-modules. Authors declare release intent in per-PR `.changeset/<name>.md` files; an always-open release PR aggregates the plan; merging it creates per-package tags and provider releases. Module path: `monorel.disaresta.com`. GitHub: `github.com/disaresta-org/monorel`.
+> A changesets-style release tool for single-module and multi-module Go repos. Bare `vX.Y.Z` tags for the root module, `<path>/vX.Y.Z` tags for sub-modules. Authors declare release intent in per-PR `.changeset/<name>.md` files; an always-open release PR aggregates the plan; merging it creates per-package tags and provider releases. Module path: `monorel.disaresta.com`. GitHub: `github.com/disaresta-org/monorel`.
 
 ## Installation
 
