@@ -68,7 +68,14 @@ on:
   workflow_dispatch:
 
 permissions:
+  # contents:write to push tags (release path) and to force-push the
+  # monorel/release branch (feature path).
+  # pull-requests:write so monorel auto's feature path can PATCH the
+  # always-open release PR via `monorel preview --upsert`. Lost when
+  # release-pr.yml was consolidated into this workflow; without it,
+  # the GitHub API returns 403 on every non-release push to main.
   contents: write
+  pull-requests: write
 
 jobs:
   release:
