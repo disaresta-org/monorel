@@ -31,8 +31,8 @@ features:
     details: The bot orchestrator force-pushes a speculative-version branch and upserts a PR. Reviewable, mergeable. The CLI also works standalone for local dry-runs.
   - title: Pre-release support
     details: monorel pre enter rc switches the repo into release-candidate mode; pre exit returns to stable. Per-package counters; multi-channel.
-  - title: Provider-neutral host seam
-    details: Three providers wired up out of the box (GitHub, GitLab, Gitea / Forgejo); add a subpackage to support others. Renames, hosts, and auth shapes are encapsulated in the provider, not the orchestrator.
+  - title: Supports popular providers
+    details: Works with GitHub, GitLab, and Gitea / Forgejo out of the box.
   - title: Self-hosted from day one
     details: monorel releases itself with monorel. The same binary that ships your library cuts its own tags.
 ---
