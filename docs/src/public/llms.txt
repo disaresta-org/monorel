@@ -39,7 +39,7 @@ Top-level provider info plus one `[packages."<name>"]` block per managed module.
 
 ```toml
 [provider]
-name  = "github"             # or "gitea" / "gitlab" / "bitbucket"
+name  = "github"             # or "gitea" / "gitlab"
 owner = "acme"
 repo  = "widget"
 # host = "git.example.com"   # for self-hosted Gitea / Forgejo / GitLab
@@ -184,7 +184,6 @@ monorel:
 | GitHub | `GITHUB_TOKEN` or `GH_TOKEN` | Default `secrets.GITHUB_TOKEN` works; PAT or App token needed if branch protection requires status checks. |
 | Gitea / Forgejo | `GITEA_TOKEN` | PAT with `repository: write` + `user: read`. |
 | GitLab | `GITLAB_TOKEN` | PAT or project access token with `api` scope. |
-| Bitbucket Cloud | `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | API token with `read/write:repository:bitbucket` + `read/write:pullrequest:bitbucket` + `read:account` scopes. |
 
 ## Documentation
 
@@ -195,7 +194,7 @@ monorel:
 - `monorel.disaresta.com/workflows`: ASCII diagrams of the lifecycles.
 - `monorel.disaresta.com/changesets`: changeset file format reference.
 - `monorel.disaresta.com/configuration`: `monorel.toml` field reference.
-- `monorel.disaresta.com/integrations/{github,gitea,gitlab,bitbucket}`: per-provider setup.
+- `monorel.disaresta.com/integrations/{github,gitea,gitlab}`: per-provider setup.
 - `monorel.disaresta.com/api`: library API reference.
 - `monorel.disaresta.com/design`: design principles + tradeoffs.
 - `monorel.disaresta.com/faq`: frequently asked questions.

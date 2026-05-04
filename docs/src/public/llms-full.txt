@@ -57,7 +57,7 @@ The configuration file at the repo root. Top-level provider info plus one `[pack
 # Layout: bare vX.Y.Z tags for the root, <path>/vX.Y.Z for sub-modules.
 
 [provider]
-name  = "github"             # one of "github" / "gitea" / "gitlab" / "bitbucket"
+name  = "github"             # one of "github" / "gitea" / "gitlab"
 owner = "acme"
 repo  = "widget"
 host  = ""                   # set for self-hosted Gitea / Forgejo / GitLab Enterprise
@@ -79,7 +79,7 @@ Field reference:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `provider.name` | string | yes | `github` / `gitea` / `gitlab` / `bitbucket`. |
+| `provider.name` | string | yes | `github` / `gitea` / `gitlab`. |
 | `provider.owner` | string | yes | Repository owner (org or user). |
 | `provider.repo` | string | yes | Repository name (no `.git` suffix). |
 | `provider.host` | string | no | For self-hosted instances; defaults to the provider's public host. |
@@ -426,34 +426,6 @@ monorel:
 
 Squash, merge-commit, and fast-forward merge strategies all work because the API signal sees through any of them.
 
-### Bitbucket Pipelines
-
-Bitbucket Cloud-only (`bitbucket.org`); Bitbucket Data Center / Server is not supported. Use the Docker image; one pipeline, one `monorel auto` call. Auto queries Bitbucket's REST API to detect release-PR merges and dispatches.
-
-```yaml
-# bitbucket-pipelines.yml
-image: ghcr.io/disaresta-org/monorel:1.0.0
-
-pipelines:
-  branches:
-    main:
-      - step:
-          name: monorel
-          script:
-            - git config user.name  "monorel-bot[automation]"
-            - git config user.email "monorel-bot@users.noreply.example.com"
-            - monorel auto
-```
-
-Set `BITBUCKET_EMAIL` and `BITBUCKET_TOKEN` as repository variables; Bitbucket Pipelines exports them to the runner environment automatically.
-
-Bitbucket-specific notes:
-
-- Auth uses two env vars (`BITBUCKET_EMAIL` + `BITBUCKET_TOKEN`); both must be set for the provider to construct. The provider probes `GET /2.0/user` lazily on the first call needing the username and caches the result; `read:account` is required for that probe.
-- A one-time **workspace plan acceptance** at `bitbucket.org/<workspace>/workspace/settings/plans` is required before any push or REST call succeeds; the symptom is HTTP 402 Payment Required even on free-tier workspaces.
-- Bitbucket Cloud has no first-class Release concept, so `monorel publish` is a no-op (exits cleanly without making API calls). Per-package `CHANGELOG.md` is the canonical release-notes source.
-- All three Bitbucket merge strategies work because `monorel auto` uses the API signal (`FindPRByMergeCommit` returning a PR whose source branch is `monorel/release`), which doesn't depend on the merge body containing trailers.
-
 ### Action wrapper inputs
 
 The `disaresta-org/monorel/ci/github` action takes three inputs (all optional):
@@ -474,7 +446,6 @@ Earlier action versions had a `command: pr|release|doctor` input; v1.0.0 collaps
 | GitHub (with branch protection) | Personal Access Token or App token | PRs created by the auto token don't trigger required-status-check workflows (anti-recursion). | Same scopes. |
 | Gitea / Forgejo | `GITEA_TOKEN` | PAT generated at `/-/user/settings/applications`. | `repository: write`, `user: read`. |
 | GitLab | `GITLAB_TOKEN` | Personal or project access token. | `api`. |
-| Bitbucket Cloud | `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | Atlassian API token created via "Create API token with scopes" at `id.atlassian.com/manage-profile/security/api-tokens`. The plain "Create API token" button produces a token without Bitbucket scopes (returns 401). | `read:repository:bitbucket`, `write:repository:bitbucket`, `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`, `read:account` (for the username probe). |
 
 The `doctor` command needs no token; `contents: read` alone is sufficient.
 
@@ -576,7 +547,7 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - `monorel.disaresta.com/workflows`: ASCII diagrams of the lifecycles.
 - `monorel.disaresta.com/changesets`: changeset file format reference.
 - `monorel.disaresta.com/configuration`: `monorel.toml` field reference.
-- `monorel.disaresta.com/integrations/{github,gitea,gitlab,bitbucket}`: per-provider setup.
+- `monorel.disaresta.com/integrations/{github,gitea,gitlab}`: per-provider setup.
 - `monorel.disaresta.com/api`: library API reference.
 - `monorel.disaresta.com/design`: design principles + tradeoffs.
 - `monorel.disaresta.com/docker`: running monorel via container.

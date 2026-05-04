@@ -437,7 +437,6 @@ Used by every provider's example workflow / pipeline. See the integration pages 
 - [GitHub](/integrations/github#workflows) (composite action wrapper around `monorel auto`).
 - [Gitea / Forgejo](/integrations/gitea#gitea-actions-recommended).
 - [GitLab](/integrations/gitlab#workflows) (`monorel auto` in `.gitlab-ci.yml`).
-- [Bitbucket](/integrations/bitbucket#workflows) (`monorel auto` in `bitbucket-pipelines.yml`).
 
 ## Exit codes
 

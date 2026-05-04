@@ -77,7 +77,7 @@ The state when `.changeset/pre.json` exists. In this mode, `monorel release` pro
 
 ## Provider
 
-The version-control host (GitHub, GitLab, Gitea, Bitbucket, Forgejo). monorel's `internal/provider` interface abstracts the host-specific operations (find PR, create PR, create release, etc.). Selected by `provider.name` in `monorel.toml`. `github`, `gitea` (also covers `forgejo` via API compatibility), `gitlab`, and `bitbucket` (Bitbucket Cloud) are wired up.
+The version-control host (GitHub, GitLab, Gitea, Forgejo). monorel's `internal/provider` interface abstracts the host-specific operations (find PR, create PR, create release, etc.). Selected by `provider.name` in `monorel.toml`. `github`, `gitea` (also covers `forgejo` via API compatibility), and `gitlab` are wired up.
 
 ## Release PR
 

@@ -89,6 +89,5 @@ monorel pre exit            # the following release is stable
 | `GITHUB_TOKEN` / `GH_TOKEN` | `preview`, `publish` | Auth for the GitHub provider. |
 | `GITEA_TOKEN` | `preview`, `publish` | Auth for the Gitea / Forgejo provider. |
 | `GITLAB_TOKEN` | `preview`, `publish` | Auth for the GitLab provider. |
-| `BITBUCKET_EMAIL` + `BITBUCKET_TOKEN` | `preview`, `publish` | Auth for the Bitbucket Cloud provider. Email is the Atlassian-account email; token is an API token with Bitbucket scopes. |
 | `VISUAL` / `EDITOR` | `monorel add --editor` | Editor to launch for the body. Falls back to `vi` / `nano` (Unix) or `notepad` (Windows). |
 | `GOMODCACHE`, `GOCACHE` | `monorel apply` | Inherited by the offline `go mod tidy` invocation; pre-populated by your normal dev / `go test ./...` runs. |

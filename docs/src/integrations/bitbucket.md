@@ -5,10 +5,19 @@ description: "Wire up monorel against a Bitbucket Cloud repository: configuratio
 
 # Bitbucket
 
+::: danger Disabled in this build
+The Bitbucket provider is **disabled**. `provider.name = "bitbucket"` is rejected by the validator with `"is not recognized"`, and the factory does not dispatch to it. The provider implementation, the example pipeline, and the Atlassian API client code remain in-tree at `internal/provider/bitbucket/` for future re-enablement, but the workflow has not been verified end-to-end against a live Bitbucket Pipelines runner. Re-enabling requires:
+
+1. Successful end-to-end Pipelines runs of the canonical example (the maintainer hit a workspace 2FA enforcement that blocks the API enable path; verification is pending).
+2. Adding `ProviderBitbucket` back to `config.KnownProviders` and uncommenting the case in `internal/provider/factory/factory.go`.
+
+This page is preserved as a reference for the eventual re-enablement and for users who choose to compile against the in-tree provider directly. **Do not use the configuration shapes below in production until the provider is re-enabled.**
+:::
+
 monorel's Bitbucket provider talks to [Bitbucket Cloud](https://bitbucket.org) via the standard Bitbucket REST API v2. The implementation is hand-rolled against `net/http` (no SDK), so the provider has no extra direct dependencies and works on any platform Go does.
 
-::: warning Bitbucket Cloud only
-Only Bitbucket Cloud (`bitbucket.org`) is supported. Bitbucket Data Center / Server (the self-hosted product) uses a different REST surface and is not covered. The package layout is namespace-ready for a future `bitbucket/datacenter/` sibling, but that work is not on the roadmap.
+::: warning Bitbucket Cloud only (when re-enabled)
+Only Bitbucket Cloud (`bitbucket.org`) was targeted. Bitbucket Data Center / Server (the self-hosted product) uses a different REST surface and is not covered.
 :::
 
 ::: tip Example

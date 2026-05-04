@@ -57,7 +57,6 @@ The [`examples/`](https://github.com/disaresta-org/monorel/tree/main/examples) d
 - [`examples/github/`](https://github.com/disaresta-org/monorel/tree/main/examples/github): composite action wrapper, single workflow file.
 - [`examples/gitea/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitea): same wrapper on Gitea Actions, `provider.host` set, Forgejo-compatible.
 - [`examples/gitlab/`](https://github.com/disaresta-org/monorel/tree/main/examples/gitlab): single `.gitlab-ci.yml` using the published Docker image.
-- [`examples/bitbucket/`](https://github.com/disaresta-org/monorel/tree/main/examples/bitbucket): single `bitbucket-pipelines.yml` using the published Docker image.
 
 Each is a `monorel.toml` + workflow files + `.changeset/README.md` you can copy into your repo.
 

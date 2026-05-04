@@ -32,7 +32,7 @@ features:
   - title: Pre-release support
     details: monorel pre enter rc switches the repo into release-candidate mode; pre exit returns to stable. Per-package counters; multi-channel.
   - title: Provider-neutral host seam
-    details: Four providers wired up out of the box (GitHub, GitLab, Gitea / Forgejo, Bitbucket Cloud); add a subpackage to support others. Renames, hosts, and auth shapes are encapsulated in the provider, not the orchestrator.
+    details: Three providers wired up out of the box (GitHub, GitLab, Gitea / Forgejo); add a subpackage to support others. Renames, hosts, and auth shapes are encapsulated in the provider, not the orchestrator.
   - title: Self-hosted from day one
     details: monorel releases itself with monorel. The same binary that ships your library cuts its own tags.
 ---

@@ -1,5 +1,7 @@
 # Bitbucket example
 
+> ⚠️ **The Bitbucket provider is currently disabled.** `provider.name = "bitbucket"` is rejected by the validator. The example files in this directory are preserved for future re-enablement and for users who choose to compile a custom monorel against the in-tree `internal/provider/bitbucket/` package. The workflow has not been verified end-to-end against a live Bitbucket Pipelines runner. See the [Bitbucket integration page](https://monorel.disaresta.com/integrations/bitbucket) for details.
+
 Minimal monorel setup for a Bitbucket Cloud-hosted project with two packages (root + one sub-module under `transports/foo/`). Uses Bitbucket Pipelines with the published Docker image (`ghcr.io/disaresta-org/monorel`).
 
 ```

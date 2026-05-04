@@ -30,8 +30,8 @@ Identifies the version-control host that owns the repo. monorel is host-agnostic
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `name` | string | `"github"` | Provider implementation. Supported: `"bitbucket"` (Bitbucket Cloud), `"gitea"` (also covers Forgejo via API compatibility), `"github"`, `"gitlab"`. |
-| `owner` | string | required | The user or org that owns the repo. On GitLab maps to namespace; on Bitbucket to workspace. |
+| `name` | string | `"github"` | Provider implementation. Supported: `"gitea"` (also covers Forgejo via API compatibility), `"github"`, `"gitlab"`. |
+| `owner` | string | required | The user or org that owns the repo. On GitLab maps to namespace. |
 | `repo` | string | required | The repository name. |
 | `host` | string | `""` | API host for self-hosted installations. Empty means the provider's default public host. |
 
@@ -97,7 +97,7 @@ Tags: `v1.6.0` (root), `transports/zerolog/v1.6.0`, `transports/zap/v1.6.0`. Eac
 `monorel` rejects misconfigurations at load time:
 
 - **`provider.owner is required`** / **`provider.repo is required`**: required fields.
-- **`provider.name %q is not recognized`**: provider name is not in `config.KnownProviders` (`"bitbucket"`, `"gitea"`, `"github"`, `"gitlab"`).
+- **`provider.name %q is not recognized`**: provider name is not in `config.KnownProviders` (`"gitea"`, `"github"`, `"gitlab"`).
 - **`no packages declared`**: at least one `[packages."<name>"]` block is required.
 - **`packages.X: path is required`** / **`changelog is required`**: per-package required fields.
 - **`packages.X and packages.Y share tag_prefix Z`**: two packages mapping to the same tag namespace would silently collide. Pick distinct prefixes.

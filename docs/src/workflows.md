@@ -179,12 +179,12 @@ Switching channels (e.g. `rc` → `beta`) requires `monorel pre exit` first; ent
 
 ## CI environment requirements
 
-Any CI system invoking `monorel auto` (GitHub Actions, GitLab CI, Gitea Actions, Bitbucket Pipelines, CircleCI, Drone, self-hosted runners) must provide the following:
+Any CI system invoking `monorel auto` (GitHub Actions, GitLab CI, Gitea Actions, CircleCI, Drone, self-hosted runners) must provide the following:
 
 - **Go installed at a version compatible with every released sub-module's `go` directive.** monorel runs `go mod tidy` with `GOTOOLCHAIN=local` during release; the env var is intentional and part of the offline-tidy determinism guarantee. Auto-toolchain-download is blocked. Pin the runner's Go to the highest floor explicitly (or use `go-version-file: go.mod` if the root module's `go` directive matches the highest sub-module floor).
 - **`GOPROXY` set to a real proxy or `direct`.** monorel's release pipeline includes a "prime cache" step that runs `go mod download` (with the inherited `GOPROXY`) to populate the local module cache for third-party deps. The offline tidy that follows uses `GOPROXY=off` regardless of this setting; only the priming step honors `GOPROXY`. If `GOPROXY` is empty or missing, `go mod download` falls back to its default (`https://proxy.golang.org,direct`), which is what most CI systems already provide implicitly.
 - **Push permissions for tags + the `monorel/release` branch.** `monorel auto`'s release path runs `git push --follow-tags`; the feature path force-pushes `monorel/release`. The runner's git config needs commit + push credentials.
-- **Provider API token.** `monorel auto` reads the provider token to maintain the always-open release PR (feature path) and to create per-tag releases (release path). The token needs `contents: write` and `pull-requests: write` (GitHub naming; equivalent on GitLab / Gitea / Bitbucket).
+- **Provider API token.** `monorel auto` reads the provider token to maintain the always-open release PR (feature path) and to create per-tag releases (release path). The token needs `contents: write` and `pull-requests: write` (GitHub naming; equivalent on GitLab / Gitea).
 
 For GitHub Actions, see [`ci/github/README.md`](../../ci/github/README.md) for the canonical workflow examples that satisfy these requirements.
 
