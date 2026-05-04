@@ -1,14 +1,11 @@
 name: monorel
-description: "Run monorel against the current repo. Commands: pr (upsert release PR), release (cut a release), doctor (diagnose repo state)."
+description: "Run monorel auto against the current repo. Detects whether HEAD is a release-PR merge and dispatches accordingly."
 author: disaresta-org
 branding:
   icon: tag
   color: blue
 
 inputs:
-  command:
-    description: "One of 'pr' (upsert / close the always-open release PR), 'release' (cut a release on the current commit, push tags, publish provider releases), or 'doctor' (diagnose repository state; exit non-zero on error-severity findings)."
-    required: true
   version:
     description: "monorel version to run, e.g. v1.2.3. Defaults to 'latest'."
     required: false
@@ -86,8 +83,6 @@ runs:
           tar.gz) tar -xzf "$tmp/monorel.$EXT" -C "$tmp" ;;
           zip)    unzip -q "$tmp/monorel.$EXT" -d "$tmp" ;;
         esac
-        # Match by name only (Windows zip extraction doesn't preserve
-        # the +x bit; the previous -perm filter dropped Windows).
         bin=$(find "$tmp" -maxdepth 2 -type f \( -name 'monorel' -o -name 'monorel.exe' \) | head -n1)
         if [ -z "$bin" ]; then
           echo "::error::extracted archive does not contain a monorel binary"
@@ -106,73 +101,18 @@ runs:
             ;;
         esac
 
-    - name: Run monorel ${{ inputs.command }}
+    - name: Run monorel auto
       shell: bash
+      # The same wrapper serves both GitHub Actions and Gitea Actions
+      # workflows. monorel auto reads the env var matching the
+      # configured provider in monorel.toml: GITHUB_TOKEN for github,
+      # GITEA_TOKEN for gitea. Export the input under both names so
+      # the wrapper works without the user knowing which env var
+      # their provider expects.
       env:
-        COMMAND: ${{ inputs.command }}
         CONFIG: ${{ inputs.config }}
         GITHUB_TOKEN: ${{ inputs.token }}
+        GITEA_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
-        case "$COMMAND" in
-          pr)
-            # Speculative apply: run `monorel apply` on a fresh branch
-            # off the default branch, force-push to monorel/release,
-            # then open / update the always-open release PR. The PR's
-            # diff is the actual file changes the release will produce
-            # (CHANGELOG entries, changeset deletions). The orchestrator
-            # also writes the rendered plan into the PR body.
-            #
-            # If the planner has no pending changesets, `monorel apply`
-            # exits with "Nothing to apply." and we skip the force-push;
-            # the orchestrator then closes any open release PR.
-            base="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
-            base="${base:-$(git rev-parse --abbrev-ref HEAD)}"
-            git fetch --no-tags origin "$base"
-            git checkout -q -B monorel/release "origin/$base"
-
-            apply_out=$(monorel apply --config "$CONFIG")
-            echo "$apply_out"
-            if echo "$apply_out" | grep -qF "Nothing to apply."; then
-              # No release-affecting changesets pending. Don't force-push
-              # the staging branch (it'd just be a no-op of main); let
-              # the orchestrator close any open release PR by running
-              # preview with an empty plan.
-              git checkout -q -
-            else
-              # Plain -f: we just built monorel/release from origin
-              # without fetching the remote's monorel/release first,
-              # so --force-with-lease has no expected value to compare
-              # and rejects with "stale info". The branch is
-              # bot-exclusive (no humans push here), so blind
-              # force-push is the intended behavior.
-              git push -f origin monorel/release
-              git checkout -q -
-            fi
-
-            monorel preview --config "$CONFIG" --upsert
-            ;;
-          release)
-            # Post-merge release pipeline. The merge brought the file
-            # changes (CHANGELOGs, changeset deletions) onto main from
-            # the always-open release PR's branch. We just need to
-            # create the tags from the commit's monorel-Release: trailers
-            # and publish. Order matters: tags must exist on the remote
-            # before the provider can validate them when creating the
-            # Release.
-            monorel tag --config "$CONFIG"
-            git push --follow-tags
-            monorel publish --config "$CONFIG"
-            ;;
-          doctor)
-            # Pre-merge sanity check. Today's only built-in check
-            # surfaces stale-branch + squash-merge changeset revivals.
-            # Exits non-zero on error-severity findings, which fails
-            # the workflow step so the PR can't merge until cleaned up.
-            monorel doctor --config "$CONFIG"
-            ;;
-          *)
-            echo "::error::unknown command: $COMMAND (expected 'pr', 'release', or 'doctor')"
-            exit 1
-            ;;
-        esac
+        monorel auto --config "$CONFIG"

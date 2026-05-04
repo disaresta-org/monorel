@@ -159,12 +159,37 @@ func (e *Exec) PushTags(remote string) error {
 	return err
 }
 
+// Fetch implements [Repo.Fetch].
+func (e *Exec) Fetch(remote, ref string) error {
+	args := []string{"fetch", "--no-tags"}
+	if remote != "" {
+		args = append(args, remote)
+	}
+	if ref != "" {
+		args = append(args, ref)
+	}
+	_, err := e.run(args...)
+	return err
+}
+
 // CheckoutBranch implements [Repo.CheckoutBranch].
 func (e *Exec) CheckoutBranch(branch string) error {
 	if branch == "" {
 		return errors.New("branch name is empty")
 	}
 	_, err := e.run("checkout", "-B", branch)
+	return err
+}
+
+// CheckoutNewBranch implements [Repo.CheckoutNewBranch].
+func (e *Exec) CheckoutNewBranch(branch, startPoint string) error {
+	if branch == "" {
+		return errors.New("branch name is empty")
+	}
+	if startPoint == "" {
+		return errors.New("start point is empty")
+	}
+	_, err := e.run("checkout", "-B", branch, startPoint)
 	return err
 }
 

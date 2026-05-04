@@ -104,9 +104,14 @@ func matchPackage(tag string, pkgs []namedPkg) (*config.PackageConfig, string) {
 }
 
 // readChangelogBody finds the entry for version in pkg.Changelog and
-// returns its body. Missing file or missing entry returns "" with no
-// error; callers can substitute a stub if they need one.
+// returns its body. Missing file, missing entry, or unset Changelog
+// returns "" with no error; callers can substitute a stub if they
+// need one.
 func readChangelogBody(repoDir string, pkg config.PackageConfig, version string) (string, error) {
+	if pkg.Changelog == "" {
+		// Package opted out of CHANGELOG management; no body to read.
+		return "", nil
+	}
 	path := filepath.Join(repoDir, pkg.Changelog)
 	data, err := os.ReadFile(path)
 	if err != nil {

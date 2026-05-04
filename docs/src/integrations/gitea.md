@@ -51,16 +51,18 @@ Gitea Actions (since Gitea 1.21, Forgejo 1.21) implements GitHub Actions' workfl
 1. **Token env var.** monorel reads `GITEA_TOKEN`, not `GITHUB_TOKEN`. Gitea Actions keeps the auto-injected token under `secrets.GITHUB_TOKEN` for compatibility with GitHub Actions' YAML; map it to the env var monorel reads.
 2. **`provider.host` must be set** in `monorel.toml` to your Gitea instance.
 
-`.gitea/workflows/release-pr.yml`:
+One workflow file drives the entire lifecycle. On every push to the default branch, the wrapper runs [`monorel auto`](/cli-reference#monorel-auto), which detects whether HEAD is the merge of monorel's release PR and dispatches accordingly:
 
-<!--@include: ../_partials/gitea-release-pr-yml.md-->
+- **Feature commit** (the common case): stage the always-open release PR's diff via `monorel apply` + `monorel preview --upsert`. If the planner has nothing to apply, any open release PR is closed.
+- **Release-PR merge**: run `monorel tag` + `git push --follow-tags` + `monorel publish` to create per-package tags and one Release per tag.
+
+Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `FindPRByMergeCommit` API returning a PR whose source branch is `monorel/release`. Either signal alone is sufficient, so the dispatch works regardless of merge strategy.
 
 `.gitea/workflows/release.yml`:
 
 <!--@include: ../_partials/gitea-release-yml.md-->
 
-
-The auto-injected `GITHUB_TOKEN` is enough for the basic case (open / update / close the release PR; create tags; create Releases). The PAT escalation for required-status-check repos is documented under [Tokens and required status checks](#tokens-and-required-status-checks) below.
+The auto-injected `GITHUB_TOKEN` (mapped to `GITEA_TOKEN` via the action wrapper) is enough for the basic case. The PAT escalation for required-status-check repos is documented under [Tokens and required status checks](#tokens-and-required-status-checks) below.
 
 `.gitea/workflows/doctor.yml` (recommended pre-merge sanity check; mirrors the GitHub setup):
 
@@ -86,9 +88,16 @@ monorel is a single static binary; any CI that can run a shell command can run i
 
 ## Branch protection
 
-The `pr` command force-pushes to `monorel/release` on every release-pr workflow run. By default Gitea allows this for unprotected branches; if you've added branch protection rules covering `monorel/release`, allow force-push for that ref (or for the bot account that owns the workflow).
+`monorel auto` force-pushes to `monorel/release` on every feature-branch run. By default Gitea allows this for unprotected branches; if you've added branch protection rules covering `monorel/release`, allow force-push for that ref (or for the bot account that owns the workflow).
 
-The release PR's commit body carries `monorel-Release:` trailers that `monorel tag` reads post-merge. The merge strategy must preserve the body. Use **rebase merge** (recommended) or **create a merge commit** (which preserves the head commit verbatim as the parent and lets `monorel tag` find trailers via the merged commit). Squash merge with default settings on Gitea collapses the body; verify on a test PR before relying on it.
+### Merge strategy
+
+`monorel auto` detects a release-PR merge using two independent signals OR'd together:
+
+- **Trailer signal** (fast path): HEAD's commit body contains a `monorel-Release:` trailer. Hits when squash- or rebase-merge propagated the source commit's body.
+- **API signal** (network): provider's `FindPRByMergeCommit` returns a PR whose source branch is `monorel/release`. Hits when the trailer is missing for any reason.
+
+Either signal alone is enough. Squash, rebase, and merge-commit are all fine merge strategies for the release PR; pick whichever matches the rest of your repo's convention. `monorel tag` (run on the release path) reads the trailer when present and falls back to the universal trailers source (a `<!-- monorel-trailers ... -->` HTML comment in the merged PR's body) when it isn't, so tag creation also works regardless of merge strategy.
 
 ## Tokens and required status checks
 
@@ -98,8 +107,6 @@ Fix: generate a personal access token at `/-/user/settings/applications` (or you
 
 ```yaml
       - uses: disaresta-org/monorel/ci/github@v1.0.0
-        with:
-          command: pr
         env:
           GITEA_TOKEN: ${{ secrets.MONOREL_GITEA_TOKEN }}
 ```

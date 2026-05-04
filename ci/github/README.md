@@ -1,30 +1,23 @@
 # monorel GitHub Action
 
-Composite action that downloads the monorel binary for the runner's OS+arch and invokes it.
+Composite action that downloads the monorel binary for the runner's OS+arch and runs `monorel auto` against the current repo.
+
+`monorel auto` detects whether `HEAD` is a release-PR merge (via the `monorel-Release:` trailer the orchestrator wrote, with a provider-API fallback) and dispatches to either the post-merge release pipeline (tag, push, publish) or the pre-merge maintenance pipeline (apply changesets onto a staging branch, force-push, upsert the always-open release PR). One workflow, one step, no `command` input.
 
 ## Inputs
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `command` | required | `pr` (upsert / close the always-open release PR via `monorel preview --upsert`), `release` (run the full local→push→publish pipeline), or `doctor` (run `monorel doctor`; exits non-zero on error-severity findings). |
 | `version` | `latest` | monorel version to run (e.g. `v1.2.3`). |
 | `config` | `monorel.toml` | Path to the config file. |
-| `token` | the workflow's `GITHUB_TOKEN` | Token for provider API calls. Needs `contents: write` and `pull-requests: write`. The `doctor` command needs no token; `contents: read` alone is sufficient. |
+| `token` | the workflow's `GITHUB_TOKEN` | Token for provider API calls. Needs `contents: write` and `pull-requests: write`. |
 
-The `release` command runs three monorel invocations in order:
+## Workflow
 
-1. `monorel release`: local file mutations, commit, and tag.
-2. `git push --follow-tags`: publish commits and tags to the remote.
-3. `monorel publish`: create one provider release per tag at HEAD; body sourced from each package's CHANGELOG entry.
-
-The split exists because most providers validate that the tag exists on the remote before allowing a release to be created against it. Bundling 1 and 3 in one process would race that validation.
-
-## Workflows
-
-### `release-pr.yml`: maintain the always-open release PR
+A single workflow is enough. It triggers on every push to `main` and lets `monorel auto` decide what to do.
 
 ```yaml
-name: release-pr
+name: monorel
 on:
   push:
     branches: [main]
@@ -34,7 +27,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  release-pr:
+  monorel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,39 +42,34 @@ jobs:
         with:
           go-version-file: go.mod
       - uses: disaresta-org/monorel/ci/github@v1.0.0
-        with:
-          command: pr
 ```
 
-### `release.yml`: cut a release
+On a regular merge, `monorel auto` applies pending changesets onto a staging branch and upserts the always-open release PR. On the merge of that release PR, the same step instead tags, pushes, and publishes.
+
+## `monorel doctor` is a separate step
+
+`monorel doctor` is a pre-merge diagnostic. It belongs on PR builds, not on the post-merge release pipeline this action wraps. Invoke it as its own job step in the PR workflow rather than through this action:
 
 ```yaml
-name: release
+name: pr-checks
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  doctor:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # monorel runs `go mod tidy` with GOTOOLCHAIN=local during release,
-      # so Go must already be installed at a version satisfying every
-      # released sub-module's `go` directive (the highest one wins).
-      # `go-version-file: go.mod` reads the root module's go.mod; if a
-      # sub-module declares a higher floor, pin `go-version` explicitly.
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - uses: disaresta-org/monorel/ci/github@v1.0.0
-        with:
-          command: release
+      - run: monorel doctor --config monorel.toml
 ```
+
+(Install monorel however your PR workflow already installs tools; the action wrapper is only for the release-side flow.)
 
 ## Requirements
 
@@ -96,13 +84,12 @@ jobs:
 - The action runs as a composite action that shells out to `monorel`. Calling it via `disaresta-org/monorel/ci/github@vX.Y.Z` pins both the action and the binary version (the action resolves `inputs.version` via the GitHub Releases API).
 - For self-hosted GitHub Enterprise installations, set `monorel.toml`'s `[provider].host` field; the action passes `GITHUB_TOKEN` through and the binary picks up the host from config.
 - Windows runners are supported. The download step matches the binary by name (`monorel` or `monorel.exe`) and installs to `$RUNNER_TEMP` with a `$GITHUB_PATH` entry rather than the Linux/macOS `/usr/local/bin` path.
-- The `pr` command currently runs `monorel preview --upsert` only. It does not yet stage CHANGELOG edits on a release branch; the upserted PR body shows the rendered plan but does not include file diffs. The action will gain branch staging in a follow-up release.
 
 ## Recipes
 
 ### Skipping CI on chore(release) commits
 
-The release commit `chore(release): ...` is created by the always-open release PR's merge. On the same push event, `release.yml` (using this action with `command: release`) creates and pushes per-package tags. Any *other* workflow that runs on the same push and resolves Go module versions will race the tag-push and may transiently fail with:
+The release commit `chore(release): ...` is created by the always-open release PR's merge. On the same push event, this action runs `monorel auto`, which detects the release merge and creates and pushes per-package tags. Any *other* workflow that runs on the same push and resolves Go module versions will race the tag-push and may transiently fail with:
 
 ```
 go: example.com/foo/v2: reading example.com/foo/go.mod at revision v2.1.0: unknown revision v2.1.0
@@ -119,6 +106,6 @@ jobs:
 
 Apply the filter to every job (`test`, `staticcheck`, `govulncheck`, etc.) that runs `go mod tidy` or anything else that resolves the new versions. Pull-request triggers stay always-on; only push-to-main runs are skipped, and only when the head commit is the release-PR merge.
 
-The `release.yml` workflow that runs the actual release pipeline does NOT need this filter; its own `if:` clause is the *opposite* shape (only run on `chore(release):` commits), so it's already mutually exclusive with the skip pattern above.
+The monorel workflow itself does NOT need this filter; on a `chore(release):` push it's the workflow doing the tagging, and on every other push `monorel auto` falls through to the upsert path.
 
 For non-GitHub-Actions CI systems, see the [universal recipe](../../docs/src/workflows.md#avoiding-the-chorerelease-ci-race) covering GitHub / GitLab / Gitea filter syntax.

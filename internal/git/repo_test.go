@@ -3,6 +3,7 @@ package git_test
 import (
 	"errors"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -381,4 +382,79 @@ func sliceContains(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func TestExec_Fetch(t *testing.T) {
+	r := testutil.NewRepo(t)
+	// Newly-init'd repos have no remote; assert the call returns a
+	// meaningful error rather than a panic.
+	err := r.Repo.Fetch("origin", "main")
+	if err == nil {
+		t.Fatal("expected error fetching from a repo with no origin")
+	}
+	if !strings.Contains(err.Error(), "git fetch") {
+		t.Errorf("err = %v; should wrap underlying git-fetch error", err)
+	}
+}
+
+func TestFake_Fetch(t *testing.T) {
+	f := git.NewFake()
+	if err := f.Fetch("origin", "main"); err != nil {
+		t.Errorf("Fake.Fetch should be a no-op success; got %v", err)
+	}
+	// FailNext should still propagate.
+	f.FailNext = errors.New("boom")
+	if err := f.Fetch("origin", "main"); err == nil {
+		t.Errorf("expected FailNext error to propagate")
+	}
+}
+
+func TestExec_CheckoutNewBranch(t *testing.T) {
+	r := testutil.NewRepo(t)
+	// testutil.NewRepo seeds an initial empty commit, so HEAD is
+	// already well-defined; no extra commit needed.
+	if err := r.Repo.CheckoutNewBranch("feat/x", "HEAD"); err != nil {
+		t.Fatalf("CheckoutNewBranch: %v", err)
+	}
+	// The new branch should now be HEAD. Run git directly with the
+	// test repo's hermetic env to read the symbolic ref.
+	cmd := osexec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = r.Dir
+	cmd.Env = r.Repo.Env
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("rev-parse: %v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "feat/x" {
+		t.Errorf("HEAD ref = %q, want feat/x", got)
+	}
+}
+
+func TestExec_CheckoutNewBranch_RejectsEmpty(t *testing.T) {
+	r := testutil.NewRepo(t)
+	if err := r.Repo.CheckoutNewBranch("", "HEAD"); err == nil {
+		t.Error("expected error for empty branch")
+	}
+	if err := r.Repo.CheckoutNewBranch("feat/x", ""); err == nil {
+		t.Error("expected error for empty startPoint")
+	}
+}
+
+func TestFake_CheckoutNewBranch(t *testing.T) {
+	f := git.NewFake()
+	if err := f.CheckoutNewBranch("feat/x", "HEAD"); err != nil {
+		t.Errorf("Fake.CheckoutNewBranch: %v", err)
+	}
+	if got := f.Branch; got != "feat/x" {
+		t.Errorf("Branch = %q, want feat/x", got)
+	}
+}
+
+func TestFake_CheckoutNewBranch_FailNext(t *testing.T) {
+	f := git.NewFake()
+	want := errors.New("boom")
+	f.FailNext = want
+	if err := f.CheckoutNewBranch("feat/x", "HEAD"); !errors.Is(err, want) {
+		t.Errorf("err = %v, want %v", err, want)
+	}
 }
