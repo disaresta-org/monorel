@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/huh v1.0.0
 	github.com/google/go-github/v68 v68.0.0
 	github.com/spf13/cobra v1.10.2
+	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/forgejo v0.42.0
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.loglayer.dev/plugins/fmtlog/v2 v2.0.1
@@ -94,7 +95,6 @@ require (
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/testcontainers/testcontainers-go v0.42.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

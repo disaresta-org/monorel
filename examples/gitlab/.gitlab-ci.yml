@@ -1,5 +1,13 @@
 default:
-  image: ghcr.io/disaresta-org/monorel:1.0.0
+  # The published image's entrypoint is `monorel` (it ships as an
+  # entrypoint-binary container). GitLab's docker+machine executor
+  # wraps every script as `sh -c '...'`, so without this override
+  # the runner invokes `monorel sh -c '...'` and fails with
+  # `unknown command "sh"`. Setting entrypoint to `[""]` clears the
+  # container's entrypoint so the runner's shell wrapper takes over.
+  image:
+    name: ghcr.io/disaresta-org/monorel:1.0.0
+    entrypoint: [""]
 
 monorel:
   rules:

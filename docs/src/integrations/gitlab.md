@@ -57,6 +57,10 @@ Detection uses HEAD's `monorel-Release:` commit-body trailer OR the provider's `
 
 <!--@include: ../_partials/gitlab-ci-yml.md-->
 
+::: warning Image entrypoint override required
+The `image:` block uses the long form with `entrypoint: [""]`. The published `ghcr.io/disaresta-org/monorel` image is an entrypoint-binary container (its entrypoint is `monorel` itself). GitLab's `docker+machine` executor wraps every script as `sh -c '...'` and passes that to the container's entrypoint, which produces `monorel sh -c '...'` and fails with `unknown command "sh"`. Clearing the entrypoint with `[""]` lets the runner's shell wrapper take over. The short-form `image: <name>` in the example will NOT work; use the long form verbatim.
+:::
+
 Setup:
 
 1. **Add `MONOREL_GITLAB_TOKEN` as a CI/CD variable** under Settings → CI/CD → Variables. Use a personal or project access token with `api` scope. Mark it Masked but NOT Protected (so it's available on the bot-managed `monorel/release` branch too).
@@ -160,3 +164,15 @@ GitLab CI doesn't have GitHub Actions' anti-recursion rule, but pipelines on the
 - The project has [Pipelines for Merged Results](https://docs.gitlab.com/ci/pipelines/merged_results_pipelines/) enabled and the merge result fails to compute (rare).
 
 Check the project's CI/CD → Pipelines page for the actual status; usually a transient runner issue.
+
+### `tidy in <sub-module>: exit status 1` with `module lookup disabled by GOPROXY=off` (multi-module, clean runner)
+
+Known issue with multi-module repos on cold-cache GitLab runners. `monorel apply`'s offline `go mod tidy` step fails inside a sub-module that requires another in-plan sibling, with:
+
+```
+go: example.com/widget/<sub-module>: module lookup disabled by GOPROXY=off
+```
+
+The bug is in monorel's seed-and-tidy flow, not your config. It does NOT reproduce on a developer's machine (the local `GOMODCACHE` has accumulated state that masks it) but does reproduce reliably in shared CI runners and inside the published Docker image. Until it's fixed, the multi-module Go-monorepo path on GitLab is unverified end-to-end.
+
+Single-module repos are unaffected. Multi-module repos where no sub-module has an in-plan sibling `require` are unaffected.
