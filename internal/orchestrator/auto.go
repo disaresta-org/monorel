@@ -172,7 +172,18 @@ func autoRelease(ctx context.Context, opts AutoOptions, headSHA string, src dete
 		return nil, fmt.Errorf("auto: push tags: %w", err)
 	}
 
-	releases, err := release.PublishReleases(ctx, opts.Provider, tagRes)
+	// release.Tag's Result has empty Body fields (Tag works from
+	// commit trailers, not CHANGELOG content). Use DiscoverPublishables
+	// to read each tagged package's CHANGELOG entry; this matches the
+	// `monorel publish` CLI's body-population path. Without it, the
+	// provider Releases would be created with empty bodies.
+	infos, err := release.DiscoverPublishables(opts.Config, opts.Repo, opts.RepoDir)
+	if err != nil {
+		return nil, fmt.Errorf("auto: discover publishables: %w", err)
+	}
+	publishRes := &release.Result{CommitSHA: tagRes.CommitSHA, Releases: infos}
+
+	releases, err := release.PublishReleases(ctx, opts.Provider, publishRes)
 	if err != nil {
 		return nil, fmt.Errorf("auto: publish: %w", err)
 	}
