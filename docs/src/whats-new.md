@@ -11,7 +11,7 @@ description: Latest changes in monorel.
 
 `v1.0.1`:
 
-Fix the tidy pre-flight so a released sub-module requiring a monorel-managed sibling that is not in the release plan and has no existing tag fails with a precise error ("include it in this release plan, or release it first") instead of a generic offline-tidy failure.
+Fix the tidy pre-flight to detect a released sub-module requiring a monorel-managed sibling that is not in the release plan and has no existing tag, failing with a precise error ("include it in this release plan, or release it first") instead of a generic offline-tidy failure.
 
 ## May 04, 2026
 

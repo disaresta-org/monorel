@@ -145,13 +145,11 @@ Then re-run the release workflow (or `monorel tag` locally followed by push + pu
 
 ### My release aborted with "tidy pre-flight failed" naming a module I didn't release. Why?
 
-The tidy pre-flight requires every monorel-managed sibling that a released sub-module depends on but that isn't in the current release plan to be pinnable to an existing tag. If the named module has no existing tag, its placeholder require can't be rewritten to a real version, so the offline tidy would fail. Fix by including the sibling in this release plan, or releasing it first in a separate cut.
-
-If the named version is a real version (e.g. `v1.5.0`), the pre-flight passes: the tagged sibling is pinnable, so `monorel apply` downloads a warm cache copy before the offline tidy runs. If the offline tidy still fails with `module lookup disabled by GOPROXY=off`, the module cache is missing the release's transitive deps; run `go mod download all` in the repo before applying so the offline resolution finds everything.
+The tidy pre-flight checks the released sub-modules' `go.mod` files: every require of a monorel-managed sibling that is not in the current release plan must be a real version, not the dev placeholder. The pre-flight runs after `monorel apply` rewrites managed-sibling requires (in-plan siblings to the planned version, out-of-plan siblings to their latest existing tag), so a placeholder surviving to the pre-flight means that sibling has no existing tag to pin to. If the named module has no existing tag, include it in this release plan, or release it first in a separate cut.
 
 ### `monorel apply` failed with `module lookup disabled by GOPROXY=off`
 
-The offline tidy runs with `GOPROXY=off` and resolves everything from the local module cache. If a dependency isn't a monorel sibling, prime the cache first: run `go test ./...` (or `go mod download all`) in the affected sub-modules so the tidy's offline resolution finds everything.
+The offline tidy runs with `GOPROXY=off` and resolves everything from the local module cache, which must already contain every dependency that isn't a monorel sibling (third-party deps) and every pinned sibling version that isn't in the release plan. `monorel apply` primes the cache with what the released sub-modules' go.sum files pin, but only after the pre-flight; on a cold CI runner the cache often isn't warm yet. Run `go test ./...` (or `go mod download all`) in the affected sub-modules first so the offline resolution finds everything.
 
 ## Boundaries
 
