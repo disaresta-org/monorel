@@ -298,6 +298,15 @@ The merge commit on `main` doesn't have `monorel-Release:` trailers in its body 
 
 A tag the trailers ask for already exists on the remote, usually because a previous workflow run partially completed. See [Partial-tag failure mode](/cli-reference#monorel-tag) for recovery; the gist is `git tag -d <name>` locally plus `git push origin :refs/tags/<name>` to remove from the remote, then re-run.
 
+### The `monorel auto` step failed with "tidy pre-flight failed"
+
+`monorel apply` runs a tidy pre-flight before touching anything: every monorel-managed sibling a released sub-module requires but that isn't in the current release plan must be pinnable to an existing tag. Two distinct causes:
+
+- **An out-of-plan sibling with no existing tag**: the rewriter cannot pin its placeholder require to a real version, so the offline tidy would fail. Include the sibling in this release plan, or release it first in a separate cut.
+- **A cold CI runner's module cache breaking the offline tidy**: `monorel apply` itself downloads pinned sibling versions before the offline tidy runs, so a cold cache doesn't trip the pre-flight. What can trip the tidy instead is a third-party dependency that isn't a monorel sibling: `setup-go`'s cache is keyed on `go.sum`, so the first release after a dependency change (or a major sub-module sweep that adds new sibling requires) has a cold cache, and `GOPROXY=off` blocks fetching. Re-run the workflow (the first run's failed apply doesn't push anything, and the retry's cache is warm), or run `go mod download all` in the repo first.
+
+Note: this failure is a hard stop and occurs in `monorel auto`'s **feature path**, before it can check out the worktree or push a branch. It leaves neither a staging branch nor a PR behind, so only the failed workflow run itself needs attention.
+
 ### `monorel tag` returns `ErrUnknownReleasedPackage`
 
 A trailer names a package not declared in `monorel.toml`. The config drifted between when the release PR was opened (when `monorel apply` ran) and when it was merged. Restore the missing entry in `monorel.toml`, or delete and recreate the release PR.

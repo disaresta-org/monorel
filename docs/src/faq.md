@@ -141,9 +141,19 @@ git push origin :refs/tags/<prefix>/v<X.Y.Z>
 
 Then re-run the release workflow (or `monorel tag` locally followed by push + publish).
 
-## Boundaries
+## Troubleshooting
 
-### Can monorel manage a polyglot repo (Go + Python + Rust)?
+### My release aborted with "tidy pre-flight failed" naming a module I didn't release. Why?
+
+The tidy pre-flight requires every monorel-managed sibling that a released sub-module depends on but that isn't in the current release plan to be pinnable to an existing tag. If the named module has no existing tag, its placeholder require can't be rewritten to a real version, so the offline tidy would fail. Fix by including the sibling in this release plan, or releasing it first in a separate cut.
+
+If the named version is a real version (e.g. `v1.5.0`), the pre-flight passes: the tagged sibling is pinnable, so `monorel apply` downloads a warm cache copy before the offline tidy runs. If the offline tidy still fails with `module lookup disabled by GOPROXY=off`, the module cache is missing the release's transitive deps; run `go mod download all` in the repo before applying so the offline resolution finds everything.
+
+### `monorel apply` failed with `module lookup disabled by GOPROXY=off`
+
+The offline tidy runs with `GOPROXY=off` and resolves everything from the local module cache. If a dependency isn't a monorel sibling, prime the cache first: run `go test ./...` (or `go mod download all`) in the affected sub-modules so the tidy's offline resolution finds everything.
+
+## Boundaries
 
 No, monorel is Go-only by design. The semver math, tag conventions, and changelog format are calibrated to Go's module system. For polyglot, [changesets](https://github.com/changesets/changesets) (with custom adapters) and [Knope](https://knope.tech) are the right shape.
 

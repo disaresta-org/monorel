@@ -537,6 +537,7 @@ If a release commit produced bad state (wrong version, missing go.sum tidy, etc.
 - **(Removed in v1.0)** Earlier versions required GitLab's fast-forward merge mode because trailer extraction was the only release-detection signal. Since `monorel auto` landed (the provider-API signal looks up the merged MR directly), all three merge methods (squash, merge-commit, fast-forward) work.
 - **Pre-release windows can't be re-entered with the same channel.** Once you `pre exit`, re-entering with the same channel resets counters from 0.
 - **Per-call go.sum tidy assumes the developer's local cache has the transitive deps.** For substantive releases that introduce new transitive deps in a sibling, the cache is normally pre-populated by the dev's prior `go test ./...` runs. CI runners that haven't run tests first need `go mod download all` before `monorel apply`. The pre-flight check surfaces a precise error in that case.
+- **Sub-modules ship sibling requires pinned to a real version on release.** Dev requires use a placeholder pseudo-version (`vX.Y.Z-00010101000000-000000000000`); `monorel apply` rewrites managed-sibling requires to the planned version (in-plan) or the latest existing tag (out-of-plan) and drops relative dev `replace` directives. An out-of-plan sibling with no existing tag cannot be pinned, so the pre-flight fails with a precise error ("include it in this release plan, or release it first in a separate cut").
 
 ## Documentation
 
