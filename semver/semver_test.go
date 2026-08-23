@@ -130,6 +130,36 @@ func TestApply(t *testing.T) {
 	}
 }
 
+func TestWithMajor(t *testing.T) {
+	cases := []struct {
+		base    string
+		major   uint64
+		want    string
+		wantErr bool
+	}{
+		{"v1.0.0", 3, "v3.0.0", false},
+		{"v1.0.0", 1, "v1.0.0", false}, // no-op
+		{"v2.3.4", 2, "v2.3.4", false}, // same major, no-op
+		// Pre-release suffix is preserved.
+		{"v1.2.3-rc.4", 3, "v3.2.3-rc.4", false},
+		// Clean bump (no pre) when input had none.
+		{"v3.0.0", 3, "v3.0.0", false},
+		// Errors.
+		{"1.0.0", 2, "", true},  // missing v prefix
+		{"v3.1.4", 2, "", true}, // down-clamp rejected
+	}
+	for _, c := range cases {
+		got, err := WithMajor(c.base, c.major)
+		if (err != nil) != c.wantErr {
+			t.Errorf("WithMajor(%q,%d): wantErr=%v, got %q (%v)", c.base, c.major, c.wantErr, got, err)
+			continue
+		}
+		if !c.wantErr && got != c.want {
+			t.Errorf("WithMajor(%q,%d) = %q, want %q", c.base, c.major, got, c.want)
+		}
+	}
+}
+
 func TestInitialFromBump(t *testing.T) {
 	cases := []struct {
 		in      BumpLevel

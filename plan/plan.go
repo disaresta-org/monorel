@@ -181,11 +181,34 @@ func Plan(cfg *config.Config, changesets []*changeset.Changeset, tags []string, 
 			if err != nil {
 				return nil, fmt.Errorf("package %q: bump %s from %s: %w", pkg, bump, from, err)
 			}
+			// A module path that carries a major suffix ("/v3")
+			// requires its tags to carry the same major, per Go
+			// module convention. The tag-history major (e.g. v1.0.0
+			// from the pre-split era) and the changeset bump can
+			// disagree with the module path; the path (via
+			// ModuleMajor) is authoritative. Load populates
+			// ModuleMajor from each package's go.mod.
+			if bump != semver.None && pkgCfg.ModuleMajor > 0 {
+				next, err = semver.WithMajor(next, pkgCfg.ModuleMajor)
+				if err != nil {
+					return nil, fmt.Errorf("package %q: align %s to module major %d: %w", pkg, next, pkgCfg.ModuleMajor, err)
+				}
+			}
 			stableTo = next
 		} else {
 			next, err := semver.InitialFromBump(bump)
 			if err != nil {
 				return nil, fmt.Errorf("package %q: initial release: %w", pkg, err)
+			}
+			// A versioned module path ("/v3") requires its first tag
+			// to carry the same major (Go module convention). A
+			// never-released /v3 package with a `:major` changeset
+			// plans v1.0.0 otherwise.
+			if pkgCfg.ModuleMajor > 0 {
+				next, err = semver.WithMajor(next, pkgCfg.ModuleMajor)
+				if err != nil {
+					return nil, fmt.Errorf("package %q: align %s to module major %d: %w", pkg, next, pkgCfg.ModuleMajor, err)
+				}
 			}
 			stableTo = next
 			initial = true
