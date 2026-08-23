@@ -26,6 +26,10 @@ The convention of tagging the root module with bare version tags (`v1.0.0`, `v1.
 
 How much a release advances the version: `major` (breaking changes), `minor` (backward-compatible features), `patch` (backward-compatible fixes). When multiple changesets target the same package, the **highest** bump wins for that release (`major > minor > patch`).
 
+## Module major
+
+The major a Go module's import path demands: a module directive of `go.loglayer.dev/transports/foo/v3` requires every released tag for that package to be `v3.x.y` (Go module convention, enforced by `go mod` / a package's cache seeding). monorel derives it from each package's `go.mod` at config load and uses it to clamp planned versions: a module that moved to a `/vX` path plans its next release at that major even when the tag history sits at an earlier major.
+
 ## Changelog (CHANGELOG.md)
 
 The per-package markdown file documenting release history, in [Keep a Changelog](https://keepachangelog.com/) format. monorel writes new entries above the first existing `##` heading; existing content (including pre-monorel entries) is preserved verbatim.
@@ -57,7 +61,7 @@ Keys are package names from `monorel.toml`. Values are bump levels. Multi-packag
 
 ## monorel.toml
 
-The single file at the repo root that declares which packages exist, their tag prefixes, paths, and changelog locations. The source of truth for everything except the per-PR release intent (which lives in `.changeset/*.md` files).
+The single file at the repo root that declares which packages exist, their tag prefixes, paths, and changelog locations. The source of truth for everything except the per-PR release intent (which lives in `.changeset/*.md` files). Each path points at the package's directory, whose `go.mod` module directive supplies the module major used to clamp planned versions (see [Module major](#module-major)).
 
 ## Package
 
@@ -65,7 +69,7 @@ In monorel parlance: a unit of independent versioning, declared in `monorel.toml
 
 ## Plan / Planner
 
-The pure-function step that takes (config, changesets, current tags) and produces the list of (package → next version) tuples. Implemented by `plan.Plan`. Called by `monorel plan` for inspection and internally by `apply` / `release` / `preview` to drive their work.
+The pure-function step that takes (config, changesets, current tags) and produces the list of (package → next version) tuples. Implemented by `plan.Plan`. Each planned version is clamped to the package's module major (derived from its `go.mod`), so a package on a `/vX` import path never plans below that major. Called by `monorel plan` for inspection and internally by `apply` / `release` / `preview` to drive their work.
 
 ## pre.json
 
