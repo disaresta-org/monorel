@@ -79,7 +79,7 @@ monorel pre exit            # the following release is stable
 | `.changeset/<name>.md` | `apply`, `release`, `plan`, `status`, `preview` | `monorel add` (and removed by `monorel apply` after a stable release). | Pending release intent: which packages, what bump level, the changelog body. |
 | `.changeset/pre.json` | every command | `monorel pre enter` (created), `monorel apply` (counter increments), `monorel pre exit` (removed). | Pre-release-mode state. |
 | `<package>/CHANGELOG.md` | `monorel apply` (read-and-prepend) | `monorel apply` | Per-package changelog. New entry inserted above the latest existing entry; older entries preserved verbatim. |
-| `<package>/go.mod` | `monorel apply` | `monorel apply` | Sub-modules: dev `replace` directives stripped, sibling requires pinned to the planned version. |
+| `<package>/go.mod` | `monorel apply` | `monorel apply` | Sub-modules: dev `replace` directives stripped, sibling requires pinned to a real version (planned for in-plan siblings, latest tag for already-released ones); requires for siblings not yet released stay at the dev placeholder. |
 | `<package>/go.sum` | `monorel apply` | `monorel apply` | Sub-modules: tidied via offline `go mod tidy` so the release commit is canonically clean. |
 
 ## Env vars

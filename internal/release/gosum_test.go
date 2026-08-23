@@ -313,36 +313,69 @@ func TestTidy_IdempotentOnRerun(t *testing.T) {
 	}
 }
 
-// TestTidy_OutOfPlanCacheMissingFails: when the smarter rewriter
-// pinned an out-of-plan managed sibling whose cache entry isn't
-// present, the pre-flight check surfaces a clear error before tidy
-// runs.
-func TestTidy_OutOfPlanCacheMissingFails(t *testing.T) {
+// TestTidy_OutOfPlanUntaggedFails: when an affected sub-module
+// requires a managed sibling that is not in the release plan and has
+// no existing tag, the pre-flight check surfaces a precise error
+// instead of letting the placeholder require reach the offline tidy.
+func TestTidy_OutOfPlanUntaggedFails(t *testing.T) {
 	opts, _ := setupSubmoduleFixture(t, true) // A requires B (in-plan)
 
 	// Add a third module C to the config but NOT to the plan.
-	// (Go module-path rules: no `/v1` suffix; v0/v1 modules use a
-	// bare path. /v2+ adds the suffix.)
+	// C has no tag (the fixture's fake repo starts with no tags).
 	cGoMod := "module example.com/c\n\ngo 1.25.0\n"
 	mustWriteFile(t, filepath.Join(opts.RepoDir, "c/go.mod"), cGoMod)
 	opts.Config.Packages["c"] = config.PackageConfig{TagPrefix: "c", Path: "c"}
 
-	// A requires B (in-plan; makes A "affected") AND C (out-of-plan;
-	// triggers the pre-flight check for the missing cache entry).
+	// A requires B (in-plan; makes A "affected") AND C (out-of-plan,
+	// untagged; triggers the pre-flight check).
+	aGoMod := "module example.com/a/v2\n\ngo 1.25.0\n\n" +
+		"require example.com/b/v2 v2.0.1\n" +
+		"require example.com/c v0.0.0-00010101000000-000000000000\n"
+	mustWriteFile(t, filepath.Join(opts.RepoDir, "a/go.mod"), aGoMod)
+
+	err := tidySubmoduleGoSums(opts)
+	if err == nil {
+		t.Fatal("expected pre-flight error for untagged out-of-plan sibling")
+	}
+	if !strings.Contains(err.Error(), "example.com/c") {
+		t.Errorf("error should name the missing module; got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "no existing tag") {
+		t.Errorf("error should explain the missing tag; got: %v", err)
+	}
+}
+
+// TestTidy_OutOfPlanTaggedPasses: an affected sub-module requiring a
+// managed sibling that has an existing tag does not fail the
+// pre-flight. The rewriter pins it to that tag and the tidy resolves
+// it (the sibling's go.mod is in the working tree, but a tagged
+// sibling is a real publishable module).
+func TestTidy_OutOfPlanTaggedPasses(t *testing.T) {
+	opts, _ := setupSubmoduleFixture(t, true) // A requires B (in-plan)
+
+	// Add a third module C to the config but NOT to the plan. Give it
+	// an existing tag so the rewriter can pin it.
+	cGoMod := "module example.com/c\n\ngo 1.25.0\n"
+	mustWriteFile(t, filepath.Join(opts.RepoDir, "c/go.mod"), cGoMod)
+	opts.Config.Packages["c"] = config.PackageConfig{TagPrefix: "c", Path: "c"}
+	opts.Repo = git.NewFake("c/v1.5.0")
+
+	// A requires B (in-plan; makes A "affected") AND C (out-of-plan,
+	// tagged; must NOT trigger the pre-flight check).
 	aGoMod := "module example.com/a/v2\n\ngo 1.25.0\n\n" +
 		"require example.com/b/v2 v2.0.1\n" +
 		"require example.com/c v1.5.0\n"
 	mustWriteFile(t, filepath.Join(opts.RepoDir, "a/go.mod"), aGoMod)
 
-	err := tidySubmoduleGoSums(opts)
-	if err == nil {
-		t.Fatal("expected pre-flight error for missing out-of-plan cache entry")
-	}
-	if !strings.Contains(err.Error(), "example.com/c") {
-		t.Errorf("error should name the missing module; got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "go mod download") {
-		t.Errorf("error should hint at go mod download; got: %v", err)
+	if err := tidySubmoduleGoSums(opts); err != nil {
+		// A tagged out-of-plan sibling is pinnable; the pre-flight
+		// must not reject it. Tidy may legitimately fail later on the
+		// unresolvable example.com/b or example.com/c modules, which
+		// is fine (the pre-flight is the behavior under test). The
+		// important assertion is that it is not the pre-flight error.
+		if strings.Contains(err.Error(), "no existing tag") {
+			t.Fatalf("tagged out-of-plan sibling must not fail the pre-flight; got: %v", err)
+		}
 	}
 }
 

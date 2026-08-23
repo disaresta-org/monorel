@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/mod/module"
 )
 
 // tidySubmoduleGoSums runs `go mod tidy` (offline) in every released
@@ -212,21 +210,20 @@ func affectedSubmodules(opts Options, inPlan map[string]string) ([]string, error
 	return out, nil
 }
 
-// preflightOutOfPlanCache verifies that any managed-but-not-in-plan
-// sibling required by an affected sub-module already has a cache
-// entry. The smarter rewriter (#44) pins these out-of-plan siblings
-// to their existing tag; tidy with GOPROXY=off needs them present in
-// the local cache. Surfacing a precise error here saves the
+// preflightOutOfPlanCache verifies that no affected sub-module's
+// require of an out-of-plan managed sibling is left at its dev
+// placeholder. The check runs after rewriteSubmoduleGoMods, which
+// pins managed siblings to a real version: in-plan siblings to the
+// planned version, tagged out-of-plan siblings to their latest
+// existing tag. A placeholder surviving here means the sibling has no
+// existing tag, so it cannot be pinned and the offline tidy
+// (GOPROXY=off) would fail on it. Surfacing a precise error saves the
 // maintainer from debugging tidy's generic "missing module" output.
 func preflightOutOfPlanCache(opts Options, affected []string, inPlan map[string]string) error {
 	if opts.Config == nil {
 		return nil
 	}
 	managed := managedImportPaths(opts)
-	mc, err := goModCache()
-	if err != nil {
-		return err
-	}
 
 	for _, sub := range affected {
 		modPath := filepath.Join(opts.RepoDir, sub, "go.mod")
@@ -249,30 +246,34 @@ func preflightOutOfPlanCache(opts Options, affected []string, inPlan map[string]
 			if _, ok := inPlan[req.Mod.Path]; ok {
 				continue // we'll seed it
 			}
-			// Out-of-plan managed sibling. Cache entry must exist.
-			escPath, err := module.EscapePath(req.Mod.Path)
-			if err != nil {
-				return fmt.Errorf("tidy: pre-flight: escape %s: %w", req.Mod.Path, err)
+			if !isPlaceholderVersion(req.Mod.Version) {
+				continue // real pinned version; offline tidy can use it
 			}
-			escVer, err := module.EscapeVersion(req.Mod.Version)
-			if err != nil {
-				return fmt.Errorf("tidy: pre-flight: escape %s: %w", req.Mod.Version, err)
-			}
-			info := filepath.Join(mc, "cache", "download", escPath, "@v", escVer+".info")
-			if _, err := os.Stat(info); os.IsNotExist(err) {
-				return fmt.Errorf(
-					"tidy pre-flight failed for %s\n\n"+
-						"The release would resolve %s %s (a monorel-managed package not in the "+
-						"current release plan), but its cache entry is missing. Run "+
-						"`go mod download %s@%s` to populate the cache, or "+
-						"`go mod download all` from the repo root, then retry",
-					sub, req.Mod.Path, req.Mod.Version, req.Mod.Path, req.Mod.Version)
-			} else if err != nil {
-				return fmt.Errorf("tidy: pre-flight: stat %s: %w", info, err)
-			}
+			// A placeholder surviving to this point means the
+			// sibling has no tag for the rewriter to pin.
+			return fmt.Errorf(
+				"tidy pre-flight failed for %s\n\n"+
+					"The release would resolve %s (a monorel-managed sibling not in the "+
+					"current release plan), but that sibling has no existing tag, so its "+
+					"require cannot be pinned to a real version. Include %s in this "+
+					"release plan, or release it first in a separate cut",
+				sub, req.Mod.Path, req.Mod.Path)
 		}
 	}
 	return nil
+}
+
+// isPlaceholderVersion reports whether v is the dev-only pseudo-version
+// placeholder that sub-modules use in go.mod requires until a release
+// rewrites them to a real version (the canonical form is
+// v0.0.0-00010101000000-000000000000, or the module's major+".0"
+// with the same zero timestamp for higher majors, e.g. v3.0.0-...).
+// A placeholder's timestamp predates every real commit, so the
+// version exists nowhere on the proxy and in no module cache; it can
+// only resolve through a local replace.
+func isPlaceholderVersion(v string) bool {
+	return strings.HasSuffix(v, "-00010101000000-000000000000") &&
+		strings.HasPrefix(v, "v")
 }
 
 // managedImportPaths returns the set of import paths declared in

@@ -298,6 +298,14 @@ The merge commit on `main` doesn't have `monorel-Release:` trailers in its body 
 
 A tag the trailers ask for already exists on the remote, usually because a previous workflow run partially completed. See [Partial-tag failure mode](/cli-reference#monorel-tag) for recovery; the gist is `git tag -d <name>` locally plus `git push origin :refs/tags/<name>` to remove from the remote, then re-run.
 
+### The `monorel auto` step failed with "tidy pre-flight failed"
+
+`monorel apply` checks the released sub-modules' `go.mod` files after rewriting managed-sibling requires: every require of a monorel-managed sibling not in the current release plan must be a real version, not the dev placeholder. A placeholder surviving to the pre-flight means that sibling has no existing tag to pin to. Include the sibling in this release plan, or release it first in a separate cut.
+
+The offline tidy that follows the pre-flight can also fail on its own with `module lookup disabled by GOPROXY=off` when the runner's module cache is cold: `setup-go`'s cache is keyed on `go.sum`, so the first release after a dependency change (or a major sub-module sweep that adds new sibling requires) has a cold cache. Run `go mod download all` in the repo first, or re-run the workflow (the first run's failed apply doesn't push anything, and the retry's cache is warm).
+
+Note: this failure is a hard stop in `monorel auto`'s **feature path**, before the staging branch is pushed, so it leaves neither a staging branch nor a PR behind and only the failed workflow run itself needs attention.
+
 ### `monorel tag` returns `ErrUnknownReleasedPackage`
 
 A trailer names a package not declared in `monorel.toml`. The config drifted between when the release PR was opened (when `monorel apply` ran) and when it was merged. Restore the missing entry in `monorel.toml`, or delete and recreate the release PR.

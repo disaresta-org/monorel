@@ -112,7 +112,7 @@ Bump levels: `major`, `minor`, `patch`. A package can appear in multiple changes
 | `.changeset/<name>.md` | Pending release intent. Removed by `apply` after a stable release. |
 | `.changeset/pre.json` | Pre-release-mode state (channel + per-package counters). |
 | `<package>/CHANGELOG.md` | Per-package changelog. New entry prepended; older entries preserved verbatim. |
-| `<package>/go.mod` | Sub-modules: dev `replace` directives stripped, sibling requires pinned. |
+| `<package>/go.mod` | Sub-modules: dev `replace` directives stripped, sibling requires pinned to a real version or kept at the dev placeholder when the sibling isn't released yet. |
 | `<package>/go.sum` | Sub-modules: tidied via offline `go mod tidy` so the release commit is canonically clean. |
 
 ## Always-open release PR pattern
