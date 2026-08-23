@@ -9,6 +9,13 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [1.0.1] - 2026-08-23
+
+### Patch Changes
+
+- Document the tidy pre-flight failure modes in the GitHub Action troubleshooting page and the FAQ: an untagged out-of-plan sibling cannot be pinned by the rewriter and must be released first or included in the plan; a cold CI runner's module cache can also block the offline tidy ("module lookup disabled by GOPROXY=off"), which `go mod download all` fixes.
+- Fail the tidy pre-flight with a precise error when a released sub-module requires a monorel-managed sibling that is not in the release plan and has no existing tag. The rewriter cannot pin such a sibling, so its placeholder require would otherwise reach the offline tidy (GOPROXY=off) unresolvable and fail with a generic message.
+
 ## [1.0.0] - 2026-05-04
 
 ### Major Changes
