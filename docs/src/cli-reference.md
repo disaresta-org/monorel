@@ -68,7 +68,7 @@ Multi-line markdown is the common case, so `enter` is rebound from huh's default
 
 ## `monorel plan`
 
-Compute the proposed releases without applying them. Reads `.changeset/*.md`, the configured packages, and the latest matching git tag per package.
+Compute the proposed releases without applying them. Reads `.changeset/*.md`, the configured packages, and the latest matching git tag per package. Proposed versions clamp to each package's module major (derived from its `go.mod`), so a package whose import path is `/v3` never plans below `v3.0.0` even when its tag history sits at an earlier major.
 
 ```sh
 monorel plan

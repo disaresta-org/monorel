@@ -305,7 +305,7 @@ p, err := plan.Plan(cfg, changesets, tags, pre)
 ver, ok := plan.LatestStableTagVersion(tags, pkg)  // helper: highest semver-stable tag for pkg
 ```
 
-`plan.Plan` is the heart of monorel. Pure function; no side effects. Determinism: sorted output, repeated calls with same inputs produce identical output.
+`plan.Plan` is the heart of monorel. Pure function; no side effects. Determinism: sorted output, repeated calls with same inputs produce identical output. Each planned version is clamped to the package's module major (from its `go.mod` module directive via `config.Load`), so a package on a `/vX` import path never plans a release below that major, even when its tag history sits at an earlier major.
 
 ### `monorel.disaresta.com/semver`
 

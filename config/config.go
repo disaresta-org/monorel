@@ -11,7 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -71,6 +74,15 @@ type PackageConfig struct {
 	// Changelog is the path (relative to the repo root) of the
 	// per-package CHANGELOG.md monorel writes new entries to.
 	Changelog string `toml:"changelog"`
+
+	// ModuleMajor is the major implied by the package's Go module
+	// directive ("go.loglayer.dev/transports/foo/v3" -> 3, 0 when
+	// unversioned). Populated by config.Load from the package's
+	// go.mod; the path itself is repo-relative and not reliable for
+	// this (a directory name can end in /vN without the module being
+	// versioned there, and vice versa). Plan uses it to align planned
+	// releases with the major Go requires for the module path.
+	ModuleMajor uint64 `toml:"-"`
 }
 
 // FullTagPrefix returns the prefix used to match tags for this
@@ -101,9 +113,13 @@ func (c *Config) PackageNames() []string {
 	return names
 }
 
-// Load reads the file at path, parses it as TOML, and validates the
-// result. Returns the parsed config or a wrapped error explaining what
-// went wrong.
+// Load reads the file at path, parses it as TOML, validates the
+// result, then walks each package's go.mod to populate ModuleMajor
+// (the major its module path demands, per Go module convention).
+// Returns the parsed config or a wrapped error explaining what went
+// wrong. A package whose go.mod is missing or unreadable keeps
+// ModuleMajor 0 (unversioned), so a stale or partial checkout never
+// blocks a release.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -127,7 +143,43 @@ func Load(path string) (*Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validate %s: %w", path, err)
 	}
+	cfg.populateModuleMajors(filepath.Dir(path))
 	return &cfg, nil
+}
+
+// populateModuleMajors fills pkg.ModuleMajor for each package by
+// reading the package's go.mod module directive. repoDir is the
+// directory containing monorel.toml.
+func (c *Config) populateModuleMajors(repoDir string) {
+	for name, pkg := range c.Packages {
+		modDir := filepath.Join(repoDir, pkg.Path, "go.mod")
+		data, err := os.ReadFile(modDir)
+		if err != nil {
+			continue // no go.mod (e.g. pure-changelog package): unversioned
+		}
+		mod := moduleMajorFromGoMod(data)
+		pkg.ModuleMajor = mod
+		c.Packages[name] = pkg
+	}
+}
+
+// moduleMajorFromGoMod parses data as a go.mod file and returns the
+// major implied by its module directive's version suffix, or 0 when
+// the directive is missing or unversioned. A malformed suffix (a
+// non-numeric "/vX") is treated as unversioned.
+func moduleMajorFromGoMod(data []byte) uint64 {
+	line := strings.TrimPrefix(strings.SplitN(string(data), "\n", 2)[0], "module ")
+	line = strings.TrimLeft(line, " \t")
+	modPath := strings.Fields(line)[0]
+	if idx := strings.LastIndex(modPath, "/"); idx >= 0 {
+		suffix := modPath[idx+1:]
+		if strings.HasPrefix(suffix, "v") && len(suffix) > 1 {
+			if n, err := strconv.ParseUint(suffix[1:], 10, 64); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
 }
 
 // ErrNoPackages is returned when monorel.toml declares no packages.

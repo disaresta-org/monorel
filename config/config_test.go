@@ -59,6 +59,85 @@ changelog = "transports/foo/CHANGELOG.md"
 	}
 }
 
+// TestLoad_PopulatesModuleMajorFromGoMod: ModuleMajor comes from each
+// package's go.mod module directive, not from the configured path
+// (the path is repo-relative and can lack the /vN suffix even when
+// the module is versioned, e.g. "transports/foo" hosting
+// "go.loglayer.dev/transports/foo/v3").
+func TestLoad_PopulatesModuleMajorFromGoMod(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "transports/foo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "root"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "transports/foo", "go.mod"),
+		[]byte("module go.loglayer.dev/transports/foo/v3\n\ngo 1.25.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "root", "go.mod"),
+		[]byte("module example.com/root\n\ngo 1.25.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "monorel.toml")
+	if err := os.WriteFile(path, []byte(`
+[provider]
+owner = "acme"
+repo = "widget"
+
+[packages."root"]
+tag_prefix = "root"
+path = "root"
+changelog = "root/CHANGELOG.md"
+
+[packages."transports/foo"]
+tag_prefix = "transports/foo"
+path = "transports/foo"
+changelog = "transports/foo/CHANGELOG.md"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Packages["transports/foo"].ModuleMajor; got != 3 {
+		t.Errorf("transports/foo ModuleMajor = %d, want 3 (from go.mod)", got)
+	}
+	if got := cfg.Packages["root"].ModuleMajor; got != 0 {
+		t.Errorf("root ModuleMajor = %d, want 0 (unversioned)", got)
+	}
+}
+
+// TestLoad_MissingGoModKeepsUnversioned: a package whose go.mod is
+// absent (e.g. a pure-changelog package) stays at ModuleMajor 0
+// rather than failing the load.
+func TestLoad_MissingGoModKeepsUnversioned(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "monorel.toml")
+	if err := os.WriteFile(path, []byte(`
+[provider]
+owner = "acme"
+repo = "widget"
+
+[packages."meta"]
+tag_prefix = "meta"
+path = "docs/meta"
+changelog = "meta/CHANGELOG.md"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Packages["meta"].ModuleMajor; got != 0 {
+		t.Errorf("meta ModuleMajor = %d, want 0 (no go.mod)", got)
+	}
+}
+
 func TestLoad_DefaultProviderEmpty(t *testing.T) {
 	// Provider field omitted: validation accepts it, factory will
 	// default to github at construction time.

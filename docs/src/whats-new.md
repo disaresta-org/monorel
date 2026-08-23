@@ -9,6 +9,10 @@ description: Latest changes in monorel.
 
 ## Aug 24, 2026
 
+`v1.0.2`:
+
+Each package's planned release version now aligns with the major its Go module path requires. A sub-module whose module directive is `go.loglayer.dev/transports/foo/v3` releases at `v3.x.y`, even when its prior tags sat at `v1.x.y` and the changeset bump would otherwise produce `v2.0.0`. `config.Load` reads the module major from each package's `go.mod`; the planner clamps both existing-tag and first-release bumps to it.
+
 `v1.0.1`:
 
 Fix the tidy pre-flight to detect a released sub-module requiring a monorel-managed sibling that is not in the release plan and has no existing tag, failing with a precise error ("include it in this release plan, or release it first") instead of a generic offline-tidy failure.

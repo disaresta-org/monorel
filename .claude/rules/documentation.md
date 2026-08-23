@@ -292,6 +292,7 @@ Rules:
 
 - **Top of page**: a one-bullet intro pointing at the root `CHANGELOG.md`. Nothing else.
 - **`## MMM DD, YYYY`** date sections (e.g. `## May 04, 2026`), reverse chronological. The date is when the entries landed on `main`. If the date already exists, add to the existing section.
+- **Inside a date, order scope entries newest first**: the latest `vX.Y.Z` (or scope) goes at the top of the section, older ones below it. A new release's entry joins the top of its date section, never below an older release's entry.
 - Inside a date, group bullets by **scope** as a backticked plain paragraph followed by a colon (not a heading). For monorel:
   - Cross-cutting work tied to a release: `` `vX.Y.Z`: `` (e.g. `` `v1.0.0`: ``, `` `v1.1.0`: ``).
   - Provider-scoped work: the provider name in backticks: `` `gitlab`: ``, `` `bitbucket`: ``.

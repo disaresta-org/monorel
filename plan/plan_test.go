@@ -75,6 +75,74 @@ func TestPlan_SinglePackage_BumpLevels(t *testing.T) {
 	}
 }
 
+// TestPlan_ModulePathMajorClamp: a package whose path carries a
+// major suffix ("transports/foo/v3" -> module .../v3) must release
+// at that major even when its tag history sits at an earlier major.
+// The path major is authoritative (Go module convention); the tag
+// history (v1.6.1) plus a `:major` bump would otherwise plan a v2.0.0
+// tag that Go rejects for a /v3 module.
+func TestPlan_ModulePathMajorClamp(t *testing.T) {
+	tests := []struct {
+		name  string
+		level semver.BumpLevel
+		want  string
+	}{
+		{"major-clamps-to-v3", semver.Major, "v3.0.0"},
+		// A minor/patch bump of a /v3 module clamps up to the path
+		// major too: a sub-v3 tag is never legal for a /v3 module.
+		{"minor-clamps-to-v3", semver.Minor, "v3.7.0"},
+		{"patch-clamps-to-v3", semver.Patch, "v3.6.2"},
+		// No bump: existing paths keep their behavior (no plan entry).
+		{"none-yields-no-clamp", semver.None, "v1.6.1"},
+	}
+	c := cfg(map[string]string{"foo": "transports/foo"})
+	c.Packages["foo"] = config.PackageConfig{
+		TagPrefix:   "transports/foo",
+		Path:        "transports/foo",
+		Changelog:   "transports/foo/CHANGELOG.md",
+		ModuleMajor: 3,
+	}
+	tags := []string{"transports/foo/v1.6.1"}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := plan.Plan(c, []*changeset.Changeset{
+				cs("a", map[string]semver.BumpLevel{"foo": tt.level}),
+			}, tags, nil)
+			if err != nil {
+				t.Fatalf("Plan: %v", err)
+			}
+			if len(p.Releases) != 1 {
+				t.Fatalf("Releases len = %d, want 1", len(p.Releases))
+			}
+			r := p.Releases[0]
+			if r.To != tt.want {
+				t.Errorf("To = %q, want %q", r.To, tt.want)
+			}
+			if r.Tag != "transports/foo/"+tt.want {
+				t.Errorf("Tag = %q, want transports/foo/%s", r.Tag, tt.want)
+			}
+		})
+	}
+}
+
+// TestPlan_ModulePathNoClampOnUnversioned covers the unversioned
+// paths: a path without a /vN suffix (e.g. "transports/foo" for the
+// root or a v1 module) plans from the tag history unchanged.
+func TestPlan_ModulePathNoClampOnUnversioned(t *testing.T) {
+	c := cfg(map[string]string{"foo": "transports/foo"})
+	tags := []string{"transports/foo/v1.6.1"}
+	p, err := plan.Plan(c, []*changeset.Changeset{
+		cs("a", map[string]semver.BumpLevel{"foo": semver.Major}),
+	}, tags, nil)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if r := p.Releases[0]; r.To != "v2.0.0" {
+		t.Errorf("To = %q, want v2.0.0 (unversioned path unchanged)", r.To)
+	}
+}
+
 func TestPlan_MultiChangeset_MaxBump(t *testing.T) {
 	c := cfg(map[string]string{"foo": "transports/foo"})
 	tags := []string{"transports/foo/v1.0.0"}

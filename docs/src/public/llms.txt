@@ -144,7 +144,7 @@ These are pure-function packages (no I/O); the CLI / orchestrator wires them int
 
 - `monorel.disaresta.com/config`: TOML parser + `Config.PackageNames()` etc.
 - `monorel.disaresta.com/changeset`: parse / write `.changeset/<name>.md`. Two-word random name generator.
-- `monorel.disaresta.com/plan`: `plan.Plan(cfg, changesets, tags, pre) (*ReleasePlan, error)`. Pure function; the load-bearing logic. `plan.LatestStableTagVersion(tags, pkg)` is a helper.
+- `monorel.disaresta.com/plan`: `plan.Plan(cfg, changesets, tags, pre) (*ReleasePlan, error)`. Pure function; the load-bearing logic. Planned versions clamp to each package's module major (from its `go.mod`), so a `/vX` module never plans below that major. `plan.LatestStableTagVersion(tags, pkg)` is a helper.
 - `monorel.disaresta.com/semver`: bump levels (`Major` / `Minor` / `Patch`), `semver.Apply`, `semver.ApplyPrerelease`, `semver.InitialFromBump`.
 - `monorel.disaresta.com/changelog`: write Keep-a-Changelog entries, preserving existing content.
 - `monorel.disaresta.com/validate`: lint `monorel.toml` + `.changeset/*.md`. Returns structured `Finding`s.

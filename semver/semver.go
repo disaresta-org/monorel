@@ -126,6 +126,26 @@ func Apply(current string, level BumpLevel) (string, error) {
 	}
 }
 
+// WithMajor returns v with its major component set to major, keeping
+// the minor and patch components (e.g. "v2.3.4" with major 3 becomes
+// "v3.3.4"). Used to align a planned version with the major required
+// by a Go module's path suffix ("/v3" demands a v3.x.y tag).
+//
+// Returns ErrInvalidVersion if v does not parse, and an error if
+// major is lower than v's current major (lowering a version never has
+// a legitimate caller; the path major is a floor, not a rewrite).
+func WithMajor(v string, major uint64) (string, error) {
+	parsed, err := parseStrict(v)
+	if err != nil {
+		return "", err
+	}
+	if major < parsed.Major() {
+		return "", fmt.Errorf("would drop version %s below major %d", v, major)
+	}
+	out := mm.New(major, parsed.Minor(), parsed.Patch(), parsed.Prerelease(), parsed.Metadata())
+	return "v" + out.String(), nil
+}
+
 // InitialFromBump returns the version a never-released package gets on
 // its first release with the given bump level. Major maps to v1.0.0
 // (the natural "first stable release" version), minor maps to v0.1.0,

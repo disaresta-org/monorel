@@ -9,10 +9,10 @@ monorel ships a Go library API alongside the CLI. The following pure-function pa
 
 | Package | Purpose | Entry points |
 |---------|---------|--------------|
-| [`config`](https://pkg.go.dev/monorel.disaresta.com/config) | Parse and validate `monorel.toml`. | `Load`, `Config.Validate`, `IsKnownProvider` |
+| [`config`](https://pkg.go.dev/monorel.disaresta.com/config) | Parse and validate `monorel.toml`; derive each package's module major from its `go.mod`. | `Load`, `Config.Validate`, `IsKnownProvider` |
 | [`changeset`](https://pkg.go.dev/monorel.disaresta.com/changeset) | Read and write `.changeset/*.md` files. | `LoadAll`, `Parse`, `Changeset.WriteFile`, `RandomName` |
-| [`plan`](https://pkg.go.dev/monorel.disaresta.com/plan) | Pure-function planner: config + changesets + tags + pre-state → release plan. | `Plan` |
-| [`semver`](https://pkg.go.dev/monorel.disaresta.com/semver) | Bump-level abstraction, version application, initial-release rules. | `Apply`, `InitialFromBump`, `Max`, `ParseBumpLevel`, `IsValid`, `Compare` |
+| [`plan`](https://pkg.go.dev/monorel.disaresta.com/plan) | Pure-function planner: config + changesets + tags + pre-state → release plan (clamped to each package's module major). | `Plan` |
+| [`semver`](https://pkg.go.dev/monorel.disaresta.com/semver) | Bump-level abstraction, version application, initial-release rules. | `Apply`, `WithMajor`, `InitialFromBump`, `Max`, `ParseBumpLevel`, `IsValid`, `Compare` |
 | [`validate`](https://pkg.go.dev/monorel.disaresta.com/validate) | Fault-tolerant static checks against a config + changeset directory. | `Run`, `HasErrors`, `HasWarnings` |
 | [`changelog`](https://pkg.go.dev/monorel.disaresta.com/changelog) | Keep-a-Changelog renderer with non-destructive insertion. | `Insert`, `WriteFile`, `Today` |
 | [`doctor`](https://pkg.go.dev/monorel.disaresta.com/doctor) | Repository state diagnostics the planner can't catch (e.g. revived changesets). | `Run`, `Finding`, `Severity`, `GitLog` |
