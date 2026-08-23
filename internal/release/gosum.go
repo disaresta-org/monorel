@@ -256,7 +256,7 @@ func preflightOutOfPlanCache(opts Options, affected []string, inPlan map[string]
 					"The release would resolve %s (a monorel-managed sibling not in the "+
 					"current release plan), but that sibling has no existing tag, so its "+
 					"require cannot be pinned to a real version. Include %s in this "+
-					"release plan, or release it first in a separate cut.",
+					"release plan, or release it first in a separate cut",
 				sub, req.Mod.Path, req.Mod.Path)
 		}
 	}
