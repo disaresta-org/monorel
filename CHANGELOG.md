@@ -9,6 +9,12 @@ From `v0.1.1` onward, this file is maintained automatically by monorel itself
 via changesets in `.changeset/*.md`. The `v0.1.0` entry below is hand-written
 as the one-time bootstrap.
 
+## [1.0.2] - 2026-08-23
+
+### Patch Changes
+
+- Align each package's planned release version with the major its Go module path requires (e.g. a /v3 module releases at v3.x.y, not v2.0.0). config.Load derives the module major from each package's go.mod directive; the planner clamps :major/:minor/:patch bumps (and first releases) to it. Fixes releases failing at cache-seed with 'invalid version: should be v3, not v2' for sub-modules whose module path major changed without a matching tag history.
+
 ## [1.0.1] - 2026-08-23
 
 ### Patch Changes
